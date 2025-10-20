@@ -1,0 +1,19 @@
+{
+  "name": "root",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test:e2e": "./infrastructure/run-e2e-tests.sh",
+    "test:e2e:watch": "cd packages/adapter-api && npm run test:watch",
+    "infra:up": "./infrastructure/up.sh",
+    "infra:down": "./infrastructure/down.sh",
+    "infra:logs": "./infrastructure/logs.sh"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "lerna": "^9.0.0"
+  },
+  "packageManager": "pnpm@10.18.3+sha512.bbd16e6d7286fd7e01f6b3c0b3c932cda2965c06a908328f74663f10a9aea51f1129eea615134bf992831b009eabe167ecb7008b597f40ff9bc75946aadfb08d"
+}

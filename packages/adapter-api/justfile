@@ -1,0 +1,15 @@
+default:
+    @just --list
+
+install:
+    npm ci
+
+build:
+    npm run build
+
+dev:
+    PORT=3000 NODE_ENV=development npm run start:dev
+
+start:
+    PORT=3000 NODE_ENV=production npm run start:prod
+

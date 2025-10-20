@@ -1,0 +1,82 @@
+{
+  "name": "abako-adapter",
+  "version": "1.0.0",
+  "description": "NestJS API for Abako services",
+  "bin": "dist/main.js",
+  "main": "dist/main.js",
+  "pkg": {
+    "targets": [
+      "node22-macos-arm64"
+    ],
+    "outputPath": ".",
+    "assets": [
+      "dist/**/*.html",
+      "dist/static/**/*.js"
+    ]
+  },
+  "scripts": {
+    "postinstall": "node fix-webauthn.js",
+    "release": "npx @yao-pkg/pkg . --output abako-adapter",
+    "build": "tsc",
+    "bundle": "npx @vercel/ncc build src/main.ts --asset-builds -m -o bundle --target es5",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "start": "nest start",
+    "clean:src": "find ./src -name '*.map' -type f -exec rm -rf {} \\; && find ./src -name '*.js' -type f -exec rm -rf {} \\;",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
+    "test": "jest",
+    "test:e2e": "jest --config ./jest.config.js --runInBand --bail test/projects.e2e-spec.ts",
+    "test:e2e:all": "jest --config ./jest.config.js --runInBand --bail",
+    "test:e2e:auth": "jest --config ./jest.config.js --runInBand test/auth-registration.e2e-spec.ts",
+    "test:e2e:calendar": "jest --config ./jest.config.js --runInBand test/calendar.e2e-spec.ts",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.16",
+    "@nestjs/core": "^11.0.16",
+    "@nestjs/platform-express": "^11.0.16",
+    "@nestjs/serve-static": "^5.0.3",
+    "@nestjs/swagger": "^11.1.4",
+    "@virtonetwork/sdk": "^0.0.4-alpha.33",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "es-arraybuffer-base64": "^1.1.2",
+    "express": "^5.0.0",
+    "morgan": "^1.10.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.6",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.16",
+    "@simplewebauthn/server": "^13.2.2",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/morgan": "^1.9.9",
+    "@types/node": "^22.14.1",
+    "@types/supertest": "^6.0.3",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.24.1",
+    "@typescript-eslint/parser": "^8.24.1",
+    "eslint": "^9.20.1",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.3",
+    "jest": "^30.2.0",
+    "nid-webauthn-emulator": "^0.2.7",
+    "patch-package": "^8.0.1",
+    "prettier": "^3.5.1",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.4",
+    "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.8.3",
+    "ws": "^8.18.3"
+  }
+}

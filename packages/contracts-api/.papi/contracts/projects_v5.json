@@ -1,0 +1,2794 @@
+{
+  "source": {
+    "hash": "0xb1e35aa9e966c669f8d947548df0ff7e9e3a09feb949fd9cb01d5659f21b084d",
+    "language": "ink! 5.1.1",
+    "compiler": "rustc 1.89.0",
+    "build_info": {
+      "build_mode": "Release",
+      "cargo_contract_version": "5.0.3",
+      "rust_toolchain": "stable-x86_64-unknown-linux-gnu",
+      "wasm_opt_settings": {
+        "keep_debug_symbols": false,
+        "optimization_passes": "Z"
+      }
+    }
+  },
+  "contract": {
+    "name": "projects",
+    "version": "0.1.0",
+    "authors": [
+      "[your_name] <[your_email]>"
+    ]
+  },
+  "image": null,
+  "spec": {
+    "constructors": [
+      {
+        "args": [
+          {
+            "label": "name",
+            "type": {
+              "displayName": [
+                "String"
+              ],
+              "type": 0
+            }
+          },
+          {
+            "label": "dao_address",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "label": "calendar_contract",
+            "type": {
+              "displayName": [
+                "Option"
+              ],
+              "type": 21
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          "Creates a new project instance",
+          "",
+          "# Parameters",
+          "- `name`: Human-readable project name (max 50 characters)",
+          "- `dao_address`: Address of the DAO that will assign coordinators",
+          "- `calendar_contract`: Optional address of calendar contract for worker availability",
+          "",
+          "# Panics",
+          "Panics if the project name exceeds 50 characters",
+          "",
+          "# Initial State",
+          "- Client is set to the contract deployer",
+          "- Status is set to Created",
+          "- All other fields are initialized to default/empty values"
+        ],
+        "label": "new",
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink_primitives",
+            "ConstructorResult"
+          ],
+          "type": 25
+        },
+        "selector": "0x9bae9d5e"
+      }
+    ],
+    "docs": [
+      " # Project Management Smart Contract",
+      "",
+      " This ink! smart contract manages software development projects with a structured workflow",
+      " involving clients, coordinators, and development teams. Each contract instance represents",
+      " a single project with the following key features:",
+      "",
+      " ## Project Lifecycle",
+      " 1. **Created** - Initial state when project is instantiated by the client",
+      " 2. **CoordinatorAssigned** - DAO assigns a coordinator to manage the project",
+      " 3. **TeamAssigned** - Coordinator selects and assigns team members",
+      " 4. **ScopeDefinedPendingApproval** - Coordinator defines project scope with tasks",
+      " 5. **ScopeAccepted** - Client approves scope and makes advance payment",
+      " 6. **Completed** - All tasks finished, team rated, final payment processed",
+      "",
+      " ## Key Components",
+      " - **Client**: Project owner who initiates and funds the project",
+      " - **Coordinator**: Project manager assigned by DAO to oversee execution",
+      " - **Team Members**: Developers, designers, testers assigned by coordinator",
+      " - **Tasks**: Individual work items with dependencies and complexity estimates",
+      " - **Milestones**: Groups of tasks that form project deliverables",
+      "",
+      " ## Integration",
+      " The contract integrates with a Calendar contract for worker availability management."
+    ],
+    "environment": {
+      "accountId": {
+        "displayName": [
+          "AccountId"
+        ],
+        "type": 1
+      },
+      "balance": {
+        "displayName": [
+          "Balance"
+        ],
+        "type": 10
+      },
+      "blockNumber": {
+        "displayName": [
+          "BlockNumber"
+        ],
+        "type": 14
+      },
+      "chainExtension": {
+        "displayName": [
+          "ChainExtension"
+        ],
+        "type": 53
+      },
+      "hash": {
+        "displayName": [
+          "Hash"
+        ],
+        "type": 19
+      },
+      "maxEventTopics": 4,
+      "staticBufferSize": 16384,
+      "timestamp": {
+        "displayName": [
+          "Timestamp"
+        ],
+        "type": 52
+      }
+    },
+    "events": [
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "project",
+            "type": {
+              "displayName": [
+                "String"
+              ],
+              "type": 0
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "coordinator",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          }
+        ],
+        "docs": [
+          "Event emitted when a coordinator is assigned to the project"
+        ],
+        "label": "CoordinatorAssigned",
+        "module_path": "projects::projects",
+        "signature_topic": "0xa8a1fe98cf9cd95e0d6b182e5fd756cb4e3a51cd5a81609cb5e219524057715b"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "project",
+            "type": {
+              "displayName": [
+                "String"
+              ],
+              "type": 0
+            }
+          },
+          {
+            "docs": [
+              "Number of team members assigned"
+            ],
+            "indexed": false,
+            "label": "team_size",
+            "type": {
+              "displayName": [
+                "u32"
+              ],
+              "type": 14
+            }
+          }
+        ],
+        "docs": [
+          "Event emitted when team members are assigned to the project"
+        ],
+        "label": "TeamAssigned",
+        "module_path": "projects::projects",
+        "signature_topic": "0x32d3a8adf18342b52a8ab55708f41e5397c58838e4592406b5f18b6e3314cb7f"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "project",
+            "type": {
+              "displayName": [
+                "String"
+              ],
+              "type": 0
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "client",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [
+              "Amount of final payment released to team"
+            ],
+            "indexed": false,
+            "label": "final_payment",
+            "type": {
+              "displayName": [
+                "Balance"
+              ],
+              "type": 10
+            }
+          }
+        ],
+        "docs": [
+          "Event emitted when the project is marked as completed"
+        ],
+        "label": "ProjectCompleted",
+        "module_path": "projects::projects",
+        "signature_topic": "0x0dc663a73f53459995f15d71b5514cd566cc9bac77d1c01587e97669d0bd2b3a"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "project",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "client",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [
+              "ID of the completed task"
+            ],
+            "indexed": false,
+            "label": "task_id",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "docs": [
+          "Event emitted when a task is marked as completed"
+        ],
+        "label": "TaskCompleted",
+        "module_path": "projects::projects",
+        "signature_topic": "0xe705487445190f4ddeb22d5d5f8fa05214b0a04704144b1f7cc6d3c8a8ce404a"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "project",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "coordinator",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [
+              "Version/revision number of this proposal"
+            ],
+            "indexed": false,
+            "label": "revision",
+            "type": {
+              "displayName": [
+                "u32"
+              ],
+              "type": 14
+            }
+          },
+          {
+            "docs": [
+              "Number of tasks proposed in this revision"
+            ],
+            "indexed": false,
+            "label": "task_count",
+            "type": {
+              "displayName": [
+                "u32"
+              ],
+              "type": 14
+            }
+          },
+          {
+            "docs": [
+              "Total cost of proposed tasks"
+            ],
+            "indexed": false,
+            "label": "total_cost",
+            "type": {
+              "displayName": [
+                "Balance"
+              ],
+              "type": 10
+            }
+          }
+        ],
+        "docs": [
+          "Event emitted when coordinator proposes new tasks"
+        ],
+        "label": "ScopeProposed",
+        "module_path": "projects::projects",
+        "signature_topic": "0x988995d469004cb6c3f347985ca7a26ec4de51ff451041bd08a7743ec98cfc62"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "project",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "client",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [
+              "Revision number that was responded to"
+            ],
+            "indexed": false,
+            "label": "revision",
+            "type": {
+              "displayName": [
+                "u32"
+              ],
+              "type": 14
+            }
+          },
+          {
+            "docs": [
+              "Number of tasks approved"
+            ],
+            "indexed": false,
+            "label": "approved_count",
+            "type": {
+              "displayName": [
+                "u32"
+              ],
+              "type": 14
+            }
+          },
+          {
+            "docs": [
+              "Number of tasks rejected"
+            ],
+            "indexed": false,
+            "label": "rejected_count",
+            "type": {
+              "displayName": [
+                "u32"
+              ],
+              "type": 14
+            }
+          }
+        ],
+        "docs": [
+          "Event emitted when client responds to scope proposal"
+        ],
+        "label": "ScopeResponseReceived",
+        "module_path": "projects::projects",
+        "signature_topic": "0xfb9143d083dd427f05a5ff28cd16bcdb3c50dd7403873f813aa55332b43e7157"
+      }
+    ],
+    "lang_error": {
+      "displayName": [
+        "ink",
+        "LangError"
+      ],
+      "type": 27
+    },
+    "messages": [
+      {
+        "args": [],
+        "default": false,
+        "docs": [
+          " Assigns a coordinator to manage the project",
+          "",
+          " Only the DAO can call this function. The coordinator is selected",
+          " automatically based on availability from the calendar contract.",
+          "",
+          " # Returns",
+          " The AccountId of the assigned coordinator",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the DAO",
+          " - `CalendarContractNotSet`: No calendar contract configured",
+          " - `NoAvailableCoordinators`: No coordinators available",
+          "",
+          " # State Changes",
+          " - Sets the coordinator field",
+          " - Updates status to CoordinatorAssigned",
+          " - Emits CoordinatorAssigned event"
+        ],
+        "label": "assign_coordinator",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 28
+        },
+        "selector": "0xa4f1d0ea"
+      },
+      {
+        "args": [
+          {
+            "label": "ideal_team_size",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Assigns team members to work on the project",
+          "",
+          " Only the assigned coordinator can call this function. Team members",
+          " are selected automatically from available workers in the calendar contract.",
+          "",
+          " # Parameters",
+          " - `_team_size`: Requested team size (currently unused, auto-determined)",
+          "",
+          " # Returns",
+          " Vector of assigned TeamMember structs",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the assigned coordinator",
+          " - `CoordinatorNotAssigned`: No coordinator assigned to project",
+          " - `CalendarContractNotSet`: No calendar contract configured",
+          " - `NoAvailableTeamMembers`: No team members available",
+          "",
+          " # State Changes",
+          " - Populates the team_members field",
+          " - Updates status to TeamAssigned",
+          " - Emits TeamAssigned event"
+        ],
+        "label": "assign_team",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 31
+        },
+        "selector": "0x762a2897"
+      },
+      {
+        "args": [
+          {
+            "label": "ratings",
+            "type": {
+              "displayName": [
+                "Vec"
+              ],
+              "type": 33
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Marks the project as completed with team member ratings",
+          "",
+          " Only the client can call this function once all tasks are completed.",
+          " The client must provide ratings for all team members.",
+          "",
+          " # Parameters",
+          " - `ratings`: Vector of (AccountId, rating) pairs for each team member",
+          "   where rating is 0-10",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the client",
+          " - `ProjectAlreadyCompleted`: Project already completed",
+          " - `InvalidProjectState`: Project not in ScopeAccepted state",
+          " - `TasksNotCompleted`: Not all tasks are completed",
+          " - `RatingsCountMismatch`: Number of ratings doesn't match team size",
+          " - `InvalidRatingValue`: Rating value not between 0-10",
+          " - `TeamMemberNotFound`: Rating provided for non-existent team member",
+          "",
+          " # State Changes",
+          " - Updates team member ratings",
+          " - Sets status to Completed",
+          " - Updates paid_amount to total_cost",
+          " - Emits ProjectCompleted event"
+        ],
+        "label": "mark_completed",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 35
+        },
+        "selector": "0x62d9ce6f"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [
+          " Retrieves basic project information",
+          "",
+          " # Returns",
+          " Tuple containing:",
+          " - Project name",
+          " - Client account ID",
+          " - DAO address",
+          " - Optional coordinator account ID",
+          " - Current project status",
+          " - Total project cost",
+          " - Amount already paid"
+        ],
+        "label": "get_project_info",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 37
+        },
+        "selector": "0x9439195c"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [
+          " Returns the list of team members assigned to the project",
+          "",
+          " # Returns",
+          " Vector of TeamMember structs with roles and ratings (if completed)"
+        ],
+        "label": "get_team",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 39
+        },
+        "selector": "0x97fc4d12"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [
+          " Returns project scope information if defined",
+          "",
+          " # Returns",
+          " Optional tuple containing:",
+          " - Vector of task IDs",
+          " - Advance payment percentage",
+          " - Document hash",
+          " - Total project cost",
+          " - Amount already paid"
+        ],
+        "label": "get_scope_info",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 40
+        },
+        "selector": "0x719a7d16"
+      },
+      {
+        "args": [
+          {
+            "label": "task_id",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Retrieves a specific task by its ID",
+          "",
+          " # Parameters",
+          " - `task_id`: The ID of the task to retrieve",
+          "",
+          " # Returns",
+          " Optional Task struct if found"
+        ],
+        "label": "get_task",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 43
+        },
+        "selector": "0x99491634"
+      },
+      {
+        "args": [
+          {
+            "label": "task_id",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Checks if a specific task is completed",
+          "",
+          " # Parameters",
+          " - `task_id`: The ID of the task to check",
+          "",
+          " # Returns",
+          " Boolean indicating if the task is completed",
+          "",
+          " # Errors",
+          " - `ScopeNotDefined`: Project scope not defined yet",
+          " - `TaskNotFound`: Task with specified ID not found"
+        ],
+        "label": "get_task_completion_status",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 45
+        },
+        "selector": "0x0070568a"
+      },
+      {
+        "args": [
+          {
+            "label": "calendar_contract",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Sets the calendar contract address for worker availability",
+          "",
+          " Only the client can call this function.",
+          "",
+          " # Parameters",
+          " - `calendar_contract`: Address of the calendar contract",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the client"
+        ],
+        "label": "set_calendar_contract",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 35
+        },
+        "selector": "0x6eb65288"
+      },
+      {
+        "args": [
+          {
+            "label": "tasks",
+            "type": {
+              "displayName": [
+                "Vec"
+              ],
+              "type": 47
+            }
+          },
+          {
+            "label": "advance_payment_percentage",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          },
+          {
+            "label": "document_hash",
+            "type": {
+              "displayName": [
+                "Hash"
+              ],
+              "type": 19
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Defines the project scope with tasks, payment terms, and documentation",
+          "",
+          " Only the assigned coordinator can call this function. This creates",
+          " the complete work breakdown structure for the project.",
+          "",
+          " # Parameters",
+          " - `tasks`: Vector of (id, complexity, cost, dependencies) tuples",
+          " - `advance_payment_percentage`: Percentage (0-100) to be paid upfront",
+          " - `document_hash`: Hash of the project specification document",
+          "",
+          " # Validation",
+          " - Task IDs must be unique",
+          " - Dependencies must reference valid task IDs",
+          " - No circular dependencies allowed",
+          " - Tasks should only depend on lower-numbered tasks",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the assigned coordinator",
+          " - `CoordinatorNotAssigned`: No coordinator assigned",
+          " - `InvalidProjectState`: Project not in valid state for scope definition",
+          " - `ScopeAlreadyDefined`: Scope already exists",
+          " - `InvalidAdvancePaymentPercentage`: Percentage not 0-100",
+          " - `DuplicateTaskId`: Duplicate task IDs found",
+          " - `InvalidTaskId`: Invalid dependency reference",
+          " - `CircularDependency`: Circular dependency detected",
+          "",
+          " # State Changes",
+          " - Sets the project scope",
+          " - Calculates and sets total_cost",
+          " - Updates status to ScopeDefinedPendingApproval",
+          " - Emits ScopeDefined event",
+          "",
+          " Coordinator proposes tasks for the project scope",
+          "",
+          " This method allows coordinators to propose tasks iteratively, with the client",
+          " approving/rejecting specific tasks in subsequent calls to approve_scope.",
+          "",
+          " # Arguments",
+          " * `tasks` - Vector of (task_id, complexity, cost, dependencies) tuples",
+          " * `document_hash` - Optional hash of specification document",
+          "",
+          " # Returns",
+          " * `Ok(())` - Tasks successfully proposed",
+          " * `Err(Error)` - Various validation errors",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the coordinator",
+          " - `CoordinatorNotAssigned`: No coordinator assigned",
+          " - `TaskIdAlreadyExists`: Task ID conflicts with approved task",
+          " - `DependenciesNotApproved`: Dependencies reference non-approved tasks",
+          " - `TooManyTasks`: Exceeds maximum task limit",
+          "",
+          " # State Changes",
+          " - Adds new tasks with Pending status",
+          " - Creates new scope revision",
+          " - Updates status to ScopePendingClientApproval",
+          " - Emits ScopeProposed event"
+        ],
+        "label": "propose_scope",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 35
+        },
+        "selector": "0x5ac9d664"
+      },
+      {
+        "args": [
+          {
+            "label": "approved_task_ids",
+            "type": {
+              "displayName": [
+                "Vec"
+              ],
+              "type": 11
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Client approves specific tasks from the latest scope proposal",
+          "",
+          " This method allows clients to selectively approve tasks from the coordinator's",
+          " latest proposal. Tasks not in the approved list are automatically rejected.",
+          "",
+          " # Arguments",
+          " * `approved_task_ids` - Vector of task IDs that the client approves",
+          "",
+          " # Returns",
+          " * `Ok(())` - Tasks successfully approved/rejected",
+          " * `Err(Error)` - Various validation errors",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the client",
+          " - `ScopeNotDefined`: No scope defined yet",
+          " - `InvalidRevisionState`: No pending tasks to approve",
+          " - `TaskNotFound`: Approved task ID doesn't exist in latest proposal",
+          "",
+          " # State Changes",
+          " - Updates task statuses to Approved or Rejected with block numbers",
+          " - Records approved tasks in latest revision",
+          " - Updates status to ScopeAccepted if any tasks approved",
+          " - Recalculates total_cost based on approved tasks",
+          " - Emits ScopeResponseReceived event"
+        ],
+        "label": "approve_scope",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 35
+        },
+        "selector": "0x2aff0473"
+      },
+      {
+        "args": [],
+        "default": false,
+        "docs": [
+          " Returns all tasks defined in the project scope",
+          "",
+          " # Returns",
+          " Vector of all Task structs",
+          "",
+          " # Errors",
+          " - `ScopeNotDefined`: Project scope not defined yet"
+        ],
+        "label": "get_all_tasks",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 49
+        },
+        "selector": "0x712ce251"
+      },
+      {
+        "args": [
+          {
+            "label": "task_id",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Marks a specific task as completed",
+          "",
+          " Only the client can call this function. All task dependencies",
+          " must be completed before the task can be marked as completed.",
+          "",
+          " # Parameters",
+          " - `task_id`: ID of the task to mark as completed",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the client",
+          " - `InvalidProjectState`: Project not in ScopeAccepted state",
+          " - `ScopeNotDefined`: Project scope not defined",
+          " - `TaskNotFound`: Task with specified ID not found",
+          " - `TaskAlreadyCompleted`: Task already marked as completed",
+          " - `DependenciesNotCompleted`: Task dependencies not completed yet",
+          "",
+          " # State Changes",
+          " - Marks the specified task as completed",
+          " - Emits TaskCompleted event"
+        ],
+        "label": "complete_task",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 35
+        },
+        "selector": "0x040f07ba"
+      }
+    ]
+  },
+  "storage": {
+    "root": {
+      "layout": {
+        "struct": {
+          "fields": [
+            {
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 0
+                }
+              },
+              "name": "name"
+            },
+            {
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 1
+                }
+              },
+              "name": "client"
+            },
+            {
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 1
+                }
+              },
+              "name": "dao_address"
+            },
+            {
+              "layout": {
+                "enum": {
+                  "dispatchKey": "0x00000000",
+                  "name": "Option",
+                  "variants": {
+                    "0": {
+                      "fields": [],
+                      "name": "None"
+                    },
+                    "1": {
+                      "fields": [
+                        {
+                          "layout": {
+                            "leaf": {
+                              "key": "0x00000000",
+                              "ty": 1
+                            }
+                          },
+                          "name": "0"
+                        }
+                      ],
+                      "name": "Some"
+                    }
+                  }
+                }
+              },
+              "name": "coordinator"
+            },
+            {
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 4
+                }
+              },
+              "name": "team_members"
+            },
+            {
+              "layout": {
+                "enum": {
+                  "dispatchKey": "0x00000000",
+                  "name": "ProjectStatus",
+                  "variants": {
+                    "0": {
+                      "fields": [],
+                      "name": "Created"
+                    },
+                    "1": {
+                      "fields": [],
+                      "name": "CoordinatorAssigned"
+                    },
+                    "2": {
+                      "fields": [],
+                      "name": "TeamAssigned"
+                    },
+                    "3": {
+                      "fields": [],
+                      "name": "ScopeProposalInProgress"
+                    },
+                    "4": {
+                      "fields": [],
+                      "name": "ScopePendingClientApproval"
+                    },
+                    "5": {
+                      "fields": [],
+                      "name": "ScopeAccepted"
+                    },
+                    "6": {
+                      "fields": [],
+                      "name": "Completed"
+                    }
+                  }
+                }
+              },
+              "name": "status"
+            },
+            {
+              "layout": {
+                "enum": {
+                  "dispatchKey": "0x00000000",
+                  "name": "Option",
+                  "variants": {
+                    "0": {
+                      "fields": [],
+                      "name": "None"
+                    },
+                    "1": {
+                      "fields": [
+                        {
+                          "layout": {
+                            "leaf": {
+                              "key": "0x00000000",
+                              "ty": 1
+                            }
+                          },
+                          "name": "0"
+                        }
+                      ],
+                      "name": "Some"
+                    }
+                  }
+                }
+              },
+              "name": "calendar_contract"
+            },
+            {
+              "layout": {
+                "enum": {
+                  "dispatchKey": "0x00000000",
+                  "name": "Option",
+                  "variants": {
+                    "0": {
+                      "fields": [],
+                      "name": "None"
+                    },
+                    "1": {
+                      "fields": [
+                        {
+                          "layout": {
+                            "struct": {
+                              "fields": [
+                                {
+                                  "layout": {
+                                    "leaf": {
+                                      "key": "0x00000000",
+                                      "ty": 7
+                                    }
+                                  },
+                                  "name": "tasks"
+                                },
+                                {
+                                  "layout": {
+                                    "leaf": {
+                                      "key": "0x00000000",
+                                      "ty": 3
+                                    }
+                                  },
+                                  "name": "advance_payment_percentage"
+                                },
+                                {
+                                  "layout": {
+                                    "leaf": {
+                                      "key": "0x00000000",
+                                      "ty": 17
+                                    }
+                                  },
+                                  "name": "revisions"
+                                }
+                              ],
+                              "name": "ProjectScope"
+                            }
+                          },
+                          "name": "0"
+                        }
+                      ],
+                      "name": "Some"
+                    }
+                  }
+                }
+              },
+              "name": "scope"
+            },
+            {
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 10
+                }
+              },
+              "name": "total_cost"
+            },
+            {
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 10
+                }
+              },
+              "name": "paid_amount"
+            }
+          ],
+          "name": "Project"
+        }
+      },
+      "root_key": "0x00000000",
+      "ty": 20
+    }
+  },
+  "types": [
+    {
+      "id": 0,
+      "type": {
+        "def": {
+          "primitive": "str"
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 2,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        },
+        "path": [
+          "ink_primitives",
+          "types",
+          "AccountId"
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": {
+        "def": {
+          "array": {
+            "len": 32,
+            "type": 3
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": {
+        "def": {
+          "primitive": "u8"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 5
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "account_id",
+                "type": 1,
+                "typeName": "AccountId"
+              },
+              {
+                "name": "role",
+                "type": 0,
+                "typeName": "String"
+              },
+              {
+                "name": "rating",
+                "type": 6,
+                "typeName": "Option<u8>"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "TeamMember"
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 3
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 3
+          }
+        ],
+        "path": [
+          "Option"
+        ]
+      }
+    },
+    {
+      "id": 7,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 15
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "K",
+            "type": 3
+          },
+          {
+            "name": "V",
+            "type": 8
+          }
+        ],
+        "path": [
+          "BTreeMap"
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "id",
+                "type": 3,
+                "typeName": "u8"
+              },
+              {
+                "name": "complexity",
+                "type": 9,
+                "typeName": "TaskComplexity"
+              },
+              {
+                "name": "cost",
+                "type": 10,
+                "typeName": "Balance"
+              },
+              {
+                "name": "dependencies",
+                "type": 11,
+                "typeName": "Vec<u8>"
+              },
+              {
+                "name": "completed",
+                "type": 12,
+                "typeName": "bool"
+              },
+              {
+                "name": "status",
+                "type": 13,
+                "typeName": "TaskStatus"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "Task"
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 3,
+                    "typeName": "u8"
+                  }
+                ],
+                "index": 0,
+                "name": "Abstract"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 3,
+                    "typeName": "u8"
+                  }
+                ],
+                "index": 1,
+                "name": "Days"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 3,
+                    "typeName": "u8"
+                  }
+                ],
+                "index": 2,
+                "name": "Weeks"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "TaskComplexity"
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "type": {
+        "def": {
+          "primitive": "u128"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 3
+          }
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": {
+        "def": {
+          "primitive": "bool"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "Pending"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 14,
+                    "typeName": "u32"
+                  }
+                ],
+                "index": 1,
+                "name": "Approved"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 14,
+                    "typeName": "u32"
+                  }
+                ],
+                "index": 2,
+                "name": "Rejected"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "TaskStatus"
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "type": {
+        "def": {
+          "primitive": "u32"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 16
+          }
+        }
+      }
+    },
+    {
+      "id": 16,
+      "type": {
+        "def": {
+          "tuple": [
+            3,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 18
+          }
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "version",
+                "type": 14,
+                "typeName": "u32"
+              },
+              {
+                "name": "proposed_at",
+                "type": 14,
+                "typeName": "u32"
+              },
+              {
+                "name": "proposed_task_ids",
+                "type": 11,
+                "typeName": "Vec<u8>"
+              },
+              {
+                "name": "approved_task_ids",
+                "type": 11,
+                "typeName": "Vec<u8>"
+              },
+              {
+                "name": "document_hash",
+                "type": 19,
+                "typeName": "Hash"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "ScopeRevision"
+        ]
+      }
+    },
+    {
+      "id": 19,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 2,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        },
+        "path": [
+          "ink_primitives",
+          "types",
+          "Hash"
+        ]
+      }
+    },
+    {
+      "id": 20,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "name",
+                "type": 0,
+                "typeName": "<String as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<3360027120u32, ()>,>>::Type"
+              },
+              {
+                "name": "client",
+                "type": 1,
+                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<902317776u32, ()>,>>::Type"
+              },
+              {
+                "name": "dao_address",
+                "type": 1,
+                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1637603441u32, ()>,>>::Type"
+              },
+              {
+                "name": "coordinator",
+                "type": 21,
+                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<2857809233u32, ()>,>>::Type"
+              },
+              {
+                "name": "team_members",
+                "type": 4,
+                "typeName": "<Vec<TeamMember> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<483837118u32, ()>,>>::Type"
+              },
+              {
+                "name": "status",
+                "type": 22,
+                "typeName": "<ProjectStatus as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1168527133u32, ()>,>>::Type"
+              },
+              {
+                "name": "calendar_contract",
+                "type": 21,
+                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<1903087310u32, ()>,>>::Type"
+              },
+              {
+                "name": "scope",
+                "type": 23,
+                "typeName": "<Option<ProjectScope> as::ink::storage::traits::AutoStorableHint<\n::ink::storage::traits::ManualKey<2521983880u32, ()>,>>::Type"
+              },
+              {
+                "name": "total_cost",
+                "type": 10,
+                "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<2710418601u32, ()>,>>::Type"
+              },
+              {
+                "name": "paid_amount",
+                "type": 10,
+                "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<972696643u32, ()>,>>::Type"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "Project"
+        ]
+      }
+    },
+    {
+      "id": 21,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 1
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 1
+          }
+        ],
+        "path": [
+          "Option"
+        ]
+      }
+    },
+    {
+      "id": 22,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "Created"
+              },
+              {
+                "index": 1,
+                "name": "CoordinatorAssigned"
+              },
+              {
+                "index": 2,
+                "name": "TeamAssigned"
+              },
+              {
+                "index": 3,
+                "name": "ScopeProposalInProgress"
+              },
+              {
+                "index": 4,
+                "name": "ScopePendingClientApproval"
+              },
+              {
+                "index": 5,
+                "name": "ScopeAccepted"
+              },
+              {
+                "index": 6,
+                "name": "Completed"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "ProjectStatus"
+        ]
+      }
+    },
+    {
+      "id": 23,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 24
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 24
+          }
+        ],
+        "path": [
+          "Option"
+        ]
+      }
+    },
+    {
+      "id": 24,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "tasks",
+                "type": 7,
+                "typeName": "BTreeMap<u8, Task>"
+              },
+              {
+                "name": "advance_payment_percentage",
+                "type": 3,
+                "typeName": "u8"
+              },
+              {
+                "name": "revisions",
+                "type": 17,
+                "typeName": "Vec<ScopeRevision>"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "ProjectScope"
+        ]
+      }
+    },
+    {
+      "id": 25,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 26
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 26
+          },
+          {
+            "name": "E",
+            "type": 27
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 26,
+      "type": {
+        "def": {
+          "tuple": []
+        }
+      }
+    },
+    {
+      "id": 27,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 1,
+                "name": "CouldNotReadInput"
+              }
+            ]
+          }
+        },
+        "path": [
+          "ink_primitives",
+          "LangError"
+        ]
+      }
+    },
+    {
+      "id": 28,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 29
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 29
+          },
+          {
+            "name": "E",
+            "type": 27
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 29,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 1
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 30
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 1
+          },
+          {
+            "name": "E",
+            "type": 30
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 30,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "NameTooLong"
+              },
+              {
+                "index": 1,
+                "name": "NotAuthorized"
+              },
+              {
+                "index": 2,
+                "name": "CoordinatorNotAssigned"
+              },
+              {
+                "index": 3,
+                "name": "TeamMemberNotFound"
+              },
+              {
+                "index": 4,
+                "name": "InvalidRatingValue"
+              },
+              {
+                "index": 5,
+                "name": "RatingsCountMismatch"
+              },
+              {
+                "index": 6,
+                "name": "ProjectAlreadyCompleted"
+              },
+              {
+                "index": 7,
+                "name": "CalendarContractNotSet"
+              },
+              {
+                "index": 8,
+                "name": "NoAvailableCoordinators"
+              },
+              {
+                "index": 9,
+                "name": "NoAvailableTeamMembers"
+              },
+              {
+                "index": 10,
+                "name": "ScopeNotDefined"
+              },
+              {
+                "index": 11,
+                "name": "ScopeAlreadyDefined"
+              },
+              {
+                "index": 12,
+                "name": "InvalidAdvancePaymentPercentage"
+              },
+              {
+                "index": 13,
+                "name": "TaskNotFound"
+              },
+              {
+                "index": 14,
+                "name": "DependenciesNotCompleted"
+              },
+              {
+                "index": 15,
+                "name": "InvalidTaskId"
+              },
+              {
+                "index": 16,
+                "name": "DuplicateTaskId"
+              },
+              {
+                "index": 17,
+                "name": "TaskAlreadyCompleted"
+              },
+              {
+                "index": 18,
+                "name": "CircularDependency"
+              },
+              {
+                "index": 19,
+                "name": "TasksNotCompleted"
+              },
+              {
+                "index": 20,
+                "name": "InvalidProjectState"
+              },
+              {
+                "index": 21,
+                "name": "ConversionType"
+              },
+              {
+                "index": 22,
+                "name": "ArithmeticFailure"
+              },
+              {
+                "index": 23,
+                "name": "TooManyTasks"
+              },
+              {
+                "index": 24,
+                "name": "NoTasksPending"
+              },
+              {
+                "index": 25,
+                "name": "DependenciesNotApproved"
+              },
+              {
+                "index": 26,
+                "name": "TaskAlreadyDecided"
+              },
+              {
+                "index": 27,
+                "name": "InvalidRevisionState"
+              },
+              {
+                "index": 28,
+                "name": "TaskIdAlreadyExists"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "Error"
+        ]
+      }
+    },
+    {
+      "id": 31,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 32
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 32
+          },
+          {
+            "name": "E",
+            "type": 27
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 32,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 4
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 30
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 4
+          },
+          {
+            "name": "E",
+            "type": 30
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 33,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 34
+          }
+        }
+      }
+    },
+    {
+      "id": 34,
+      "type": {
+        "def": {
+          "tuple": [
+            1,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "id": 35,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 36
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 36
+          },
+          {
+            "name": "E",
+            "type": 27
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 36,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 26
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 30
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 26
+          },
+          {
+            "name": "E",
+            "type": 30
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 37,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 38
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 38
+          },
+          {
+            "name": "E",
+            "type": 27
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 38,
+      "type": {
+        "def": {
+          "tuple": [
+            0,
+            1,
+            1,
+            21,
+            22,
+            10,
+            10
+          ]
+        }
+      }
+    },
+    {
+      "id": 39,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 4
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 4
+          },
+          {
+            "name": "E",
+            "type": 27
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 40,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 41
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 41
+          },
+          {
+            "name": "E",
+            "type": 27
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 41,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 42
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 42
+          }
+        ],
+        "path": [
+          "Option"
+        ]
+      }
+    },
+    {
+      "id": 42,
+      "type": {
+        "def": {
+          "tuple": [
+            11,
+            3,
+            10,
+            10
+          ]
+        }
+      }
+    },
+    {
+      "id": 43,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 44
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 44
+          },
+          {
+            "name": "E",
+            "type": 27
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 44,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 8
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 8
+          }
+        ],
+        "path": [
+          "Option"
+        ]
+      }
+    },
+    {
+      "id": 45,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 46
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 46
+          },
+          {
+            "name": "E",
+            "type": 27
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 46,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 12
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 30
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 12
+          },
+          {
+            "name": "E",
+            "type": 30
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 47,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 48
+          }
+        }
+      }
+    },
+    {
+      "id": 48,
+      "type": {
+        "def": {
+          "tuple": [
+            3,
+            9,
+            10,
+            11
+          ]
+        }
+      }
+    },
+    {
+      "id": 49,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 50
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 27
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 50
+          },
+          {
+            "name": "E",
+            "type": 27
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 50,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 51
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 30
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 51
+          },
+          {
+            "name": "E",
+            "type": 30
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 51,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 8
+          }
+        }
+      }
+    },
+    {
+      "id": 52,
+      "type": {
+        "def": {
+          "primitive": "u64"
+        }
+      }
+    },
+    {
+      "id": 53,
+      "type": {
+        "def": {
+          "variant": {}
+        },
+        "path": [
+          "ink_env",
+          "types",
+          "NoChainExtension"
+        ]
+      }
+    }
+  ],
+  "version": 5
+}

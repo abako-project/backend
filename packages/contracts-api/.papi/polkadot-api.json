@@ -1,0 +1,24 @@
+{
+  "version": 0,
+  "descriptorPath": ".papi/descriptors",
+  "entries": {
+    "pop": {
+      "wsUrl": "wss://rpc1.paseo.popnetwork.xyz",
+      "metadata": ".papi/metadata/pop.scale",
+      "genesis": "0xe8b2d197b82a0da1fffca832c050894ebe343b289c61ef439aa694bdcef78aa1",
+      "codeHash": "0x7fb1a967a98f40aa39622e3e3fa39f9325c10940cd6767ef3f1250463cb76264"
+    },
+    "kreivo": {
+      "wsUrl": "ws://testnet.kreivo.kippu.rocks",
+      "metadata": ".papi/metadata/kreivo.scale",
+      "genesis": "0xe33bccc461942d5a21d568ff0499215b6292afddf2c89b185b3f7b3b363d063c",
+      "codeHash": "0xc7b9b8918d8aa4a5a827b609c6352b49541d908f688f845f46d6698b1cff43b1"
+    }
+  },
+  "ink": {
+    "calendar": ".papi/contracts/calendar.json",
+    "calendar_v5": ".papi/contracts/calendar_v5.json",
+    "projects_v5": ".papi/contracts/projects_v5.json",
+    "projects_v6": ".papi/contracts/projects_v6.json"
+  }
+}

@@ -1,0 +1,68 @@
+[settings]
+timeout = 1000
+
+[relaychain]
+chain = "rococo-local"
+default_args = ["-lparachain=debug", "-lxcm=trace"]
+default_command = "polkadot"
+
+[[relaychain.nodes]]
+extra_args = [
+  "--force-authoring -lparachain=debug --unsafe-rpc-external --rpc-cors=all",
+]
+name = "alice"
+validator = true
+rpc_port = 10000
+
+[[relaychain.nodes]]
+extra_args = [
+  "--force-authoring -lparachain=debug --unsafe-rpc-external --rpc-cors=all",
+]
+name = "bob"
+validator = true
+
+[[relaychain.nodes]]
+extra_args = [
+  "--force-authoring -lparachain=debug --unsafe-rpc-external --rpc-cors=all",
+]
+name = "charlie"
+validator = true
+
+[[relaychain.nodes]]
+extra_args = [
+  "--force-authoring -lparachain=debug --unsafe-rpc-external --rpc-cors=all",
+]
+name = "dave"
+validator = true
+
+[[parachains]]
+id = 2281
+relay_chain = "rococo-local"
+chain = "local"
+chain_spec_path = "chain_spec.json"
+cumulus_based = true
+add_to_genesis = true
+onboard_as_parachain = true
+
+[[parachains.collators]]
+command = "./bin/polkadot-parachain"
+args = ["--force-authoring", "--log=xcm=trace,parachain=trace,pass::webauthn=trace,authn=trace"]
+name = "kreivo1"
+rpc_port = 20000
+
+[[parachains.collators]]
+command = "./bin/polkadot-parachain"
+args = [
+  "--force-authoring",
+  "--rpc-external",
+  "--unsafe-rpc-external",
+  "--log=xcm=trace,parachain=trace,pass::webauthn=trace,authn=trace"
+]
+name = "kreivo2"
+rpc_port = 21000
+
+[[parachains.collators]]
+command = "./bin/polkadot-parachain"
+args = ["--force-authoring", "--log=xcm=trace,parachain=trace,pass::webauthn=trace,authn=trace"]
+name = "kreivo3"
+rpc_port = 22000
