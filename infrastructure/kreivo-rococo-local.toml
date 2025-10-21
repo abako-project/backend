@@ -46,7 +46,7 @@ onboard_as_parachain = true
 
 [[parachains.collators]]
 command = "./bin/polkadot-parachain"
-args = ["--force-authoring", "--log=xcm=trace,parachain=trace,pass::webauthn=trace,authn=trace"]
+args = ["--force-authoring --log=xcm=trace,parachain=trace,pass::webauthn=trace,authn=trace --authoring slot-based"]
 name = "kreivo1"
 rpc_port = 20000
 
@@ -56,13 +56,14 @@ args = [
   "--force-authoring",
   "--rpc-external",
   "--unsafe-rpc-external",
-  "--log=xcm=trace,parachain=trace,pass::webauthn=trace,authn=trace"
+  "--log=xcm=trace,parachain=trace,pass::webauthn=trace,authn=trace",
+  "--authoring slot-based"
 ]
 name = "kreivo2"
 rpc_port = 21000
 
 [[parachains.collators]]
 command = "./bin/polkadot-parachain"
-args = ["--force-authoring", "--log=xcm=trace,parachain=trace,pass::webauthn=trace,authn=trace"]
+args = ["--force-authoring --log=xcm=trace,parachain=trace,pass::webauthn=trace,authn=trace --authoring slot-based"]
 name = "kreivo3"
 rpc_port = 22000
