@@ -9,30 +9,37 @@ import {
 import { getPolkadotSigner } from "polkadot-api/signer";
 import { sr25519CreateDerive } from "@polkadot-labs/hdkd";
 
-const PHRASE= process.env.PHRASE || ""
-const DERIVE_PATH = process.env.DERIVE_PATH || "//Alice";
+const PHRASE = process.env.PHRASE || ""
 
 const entropy = mnemonicToEntropy(PHRASE || DEV_PHRASE);
 const seed = entropyToMiniSecret(entropy);
 const derive = sr25519CreateDerive(seed);
 
-
-let publicKey: Uint8Array;
-let keyPair: KeyPair;
-
-if (DERIVE_PATH) {
-    keyPair = derive(DERIVE_PATH);
-    publicKey = keyPair.publicKey;
-} else {
-    keyPair = derive("");
-    publicKey = keyPair.publicKey;
-}
-
-// Example usage for generating a sr25519 keypair with hard derivation
-
-export const polkadotSigner = getPolkadotSigner(
-    publicKey,
+const aliceKeyPair = derive("//Alice");
+export const alicePolkadotSigner = getPolkadotSigner(
+    aliceKeyPair.publicKey,
     "Sr25519",
-    keyPair.sign
+    aliceKeyPair.sign
 );
-export const publicAddress = ss58Encode(polkadotSigner.publicKey);
+export const alicePublicAddress = ss58Encode(alicePolkadotSigner.publicKey);
+
+const bobKeyPair = derive("//Bob");
+export const bobPolkadotSigner = getPolkadotSigner(
+    bobKeyPair.publicKey,
+    "Sr25519",
+    bobKeyPair.sign
+);
+export const bobPublicAddress = ss58Encode(bobPolkadotSigner.publicKey);
+
+const charlieKeyPair = derive("//Charlie");
+export const charliePolkadotSigner = getPolkadotSigner(
+    charlieKeyPair.publicKey,
+    "Sr25519",
+    charlieKeyPair.sign
+);
+export const charliePublicAddress = ss58Encode(charliePolkadotSigner.publicKey);
+
+console.log('Alice public address:', alicePublicAddress);
+console.log('Bob public address:', bobPublicAddress);
+console.log('Charlie public address:', charliePublicAddress);
+

@@ -6,7 +6,7 @@ import { withPolkadotSdkCompat } from 'polkadot-api/polkadot-sdk-compat'
 import { getWsProvider } from 'polkadot-api/ws-provider/node'
 import { createInkV5Sdk, createReviveSdk } from '@polkadot-api/sdk-ink'
 import { contracts, kreivo } from '@polkadot-api/descriptors'
-import { polkadotSigner, publicAddress } from './util/signer'
+import { alicePolkadotSigner, alicePublicAddress } from './util/signer'
 
 export interface DeployConfig {
   inkVersion: '5' | '6'
@@ -116,7 +116,7 @@ export class DeployService {
 
       const tx = deployer.deploy("new", {
         data: constructorData,
-        origin: publicAddress,
+        origin: alicePublicAddress,
         options: { salt }
       })
       
@@ -130,13 +130,24 @@ export class DeployService {
         app_id: appId,
       })
 
-      const licenseResponse = await license.signAndSubmit(polkadotSigner)
-      console.log("License Response", licenseResponse)
+      const licenseResult = await new Promise((resolve, reject) => {
+        license.signSubmitAndWatch(alicePolkadotSigner)
+          .subscribe({
+            next: (event: any) => {
+              console.info('License transaction event:', event);
+              if (event.type === 'txBestBlocksState') {
+                resolve({ ok: true, txHash: event.txHash, blockHash: event.found, events: event.events });
+              }
+            },
+            error: (error: any) => {
+              console.error('License transaction error:', error);
+              reject(error);
+            }
+          });
+      });
 
+      const licenseResponse = licenseResult as { ok: boolean; txHash: string; blockHash: string; events: any[] };
       const contractsStoreEvent = licenseResponse.events.find((event: any) => event.type === 'ContractsStore')
-      
-      console.log("ContractsStore Event value:", contractsStoreEvent?.value)
-
       let licenseId = contractsStoreEvent?.value?.value?.license_id
       
       if (licenseId === undefined || licenseId === null) {
@@ -165,7 +176,7 @@ export class DeployService {
       const encoded = await instantiate.getEncodedData()
       console.log("Encoded instantiate", encoded.asHex())
 
-      const encodedBatch = await instantiate.signAndSubmit(polkadotSigner)
+      const encodedBatch = await instantiate.signAndSubmit(alicePolkadotSigner)
 
       console.log(encodedBatch)
       
