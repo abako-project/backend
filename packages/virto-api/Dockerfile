@@ -26,12 +26,14 @@ WORKDIR /app
 RUN apk add --no-cache sqlite
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src ./src
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/.papi ./.papi
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+COPY --from=builder /app/nest-cli.json ./nest-cli.json
 
-RUN npm install --production --legacy-peer-deps --ignore-scripts && \
-    npm rebuild sqlite3 && \
-    npm install pm2 -g
+RUN npm install --legacy-peer-deps --ignore-scripts && \
+    npm rebuild sqlite3
 
 # Create data directory for SQLite database
 RUN mkdir -p /app/data
@@ -44,4 +46,4 @@ EXPOSE 3000
 # Define volume for persistent data
 VOLUME ["/app/data"]
 
-CMD ["pm2-runtime", "dist/main.js"] 
+CMD ["npm", "run", "start:dev"] 

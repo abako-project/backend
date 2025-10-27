@@ -19,7 +19,7 @@ export class ProjectsService {
   }
 
   async markCompleted(contractAddress: string, body: { ratings: Array<[string, number]> }, authToken: string): Promise<any> {
-    return this.callWriteMethod(contractAddress, 'mark_completed', { ratings: body.ratings }, authToken);
+    return this.callPreSignedWriteMethod(contractAddress, 'mark_completed', { ratings: body.ratings });
   }
 
   async setCalendarContract(contractAddress: string, body: { calendar_contract: string }, authToken: string): Promise<any> {
@@ -35,11 +35,11 @@ export class ProjectsService {
   }
 
   async approveScope(contractAddress: string, body: { approved_task_ids: number[] }, authToken: string): Promise<any> {
-    return this.callWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids }, authToken);
+    return this.callPreSignedWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids });
   }
 
   async completeTask(contractAddress: string, body: { task_id: number }, authToken: string): Promise<any> {
-    return this.callWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id }, authToken);
+    return this.callPreSignedWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id });
   }
 
   async getProjectInfo(contractAddress: string): Promise<ExtrinsicResponse> {
@@ -167,7 +167,7 @@ export class ProjectsService {
   ): Promise<any> {
     try {
       const signingServiceUrl = this.configService.getSigningServiceUrl();
-      const craftUrl = `${signingServiceUrl}/calendar/call/${contractAddress}/${method}`;
+      const craftUrl = `${signingServiceUrl}/projects/call/${contractAddress}/${method}`;
       const requestBody = { data };
 
       const craftResponse = await fetch(craftUrl, {

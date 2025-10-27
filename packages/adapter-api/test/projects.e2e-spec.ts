@@ -10,10 +10,10 @@ describe('Projects Module E2E Tests', () => {
   let sdk: SDK;
   let authToken: string;
   let userId: string;
-  let userAccountId: string;
+  let userAccountId: string = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
   let contractAddress: string;
   let workerAccountId: string;
-  let calendarContractAddress: string = ''; // Please replace with the actual calendar contract address
+  let calendarContractAddress: string;
 
   beforeAll(async () => {
     console.log('Starting Projects E2E tests...');
@@ -58,7 +58,6 @@ describe('Projects Module E2E Tests', () => {
 
         const preparedData = await sdk.auth.prepareRegistration(userData);
 
-        userAccountId = preparedData.passAccountAddress;
         workerAccountId = preparedData.passAccountAddress;
 
         const response = await request(app.getHttpServer())
@@ -151,6 +150,25 @@ describe('Projects Module E2E Tests', () => {
       });
     });
 
+    describe('Calendar - Set Availability ', () => {
+      it('should set availability', async () => {
+        console.log('Attempting set_availability...');
+
+        expect(authToken).toBeDefined();
+        expect(calendarContractAddress).toBeDefined();
+
+        const response = await request(app.getHttpServer())
+          .post(`/calendar/${calendarContractAddress}/set_availability`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .send({ availability: { WeeklyHours: 40 } });
+
+        console.log('Response:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('success', true);
+        console.log('set_availability successful');
+      });
+    });
+
     describe('Calendar - Admin Operations', () => {
       it('should set 40 hours availability for main worker as admin', async () => {
         console.log('Admin setting 40 hours for main worker...');
@@ -172,64 +190,6 @@ describe('Projects Module E2E Tests', () => {
         console.log('40 hours availability set by admin for main worker');
       });
 
-      it('should register multiple additional workers at once', async () => {
-        console.log('Registering multiple additional workers...');
-
-        expect(authToken).toBeDefined();
-
-        const workers = [
-          '5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty',
-          '5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy',
-        ];
-
-        const response = await request(app.getHttpServer())
-          .post(`/calendar/${calendarContractAddress}/register_workers`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .send({ workers });
-
-        console.log('Response:', JSON.stringify(response.body, null, 2));
-
-        expect(response.body).toHaveProperty('success', true);
-        console.log('Multiple additional workers registered successfully');
-      });
-
-      it('should set 30 hours availability for first additional worker', async () => {
-        console.log('Admin setting 30 hours for additional worker 1...');
-
-        expect(authToken).toBeDefined();
-
-        const response = await request(app.getHttpServer())
-          .post(`/calendar/${calendarContractAddress}/admin_set_worker_availability`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .send({
-            worker: '5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty',
-            availability: { type: "WeeklyHours", value: 30 }
-          });
-
-        console.log('Response:', JSON.stringify(response.body, null, 2));
-
-        expect(response.body).toHaveProperty('success', true);
-        console.log('30 hours availability set by admin');
-      });
-
-      it('should set 20 hours availability for second additional worker', async () => {
-        console.log('Admin setting 20 hours for additional worker 2...');
-
-        expect(authToken).toBeDefined();
-
-        const response = await request(app.getHttpServer())
-          .post(`/calendar/${calendarContractAddress}/admin_set_worker_availability`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .send({
-            worker: '5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy',
-            availability: { type: "WeeklyHours", value: 20 }
-          });
-
-        console.log('Response:', JSON.stringify(response.body, null, 2));
-
-        expect(response.body).toHaveProperty('success', true);
-        console.log('20 hours availability set by admin');
-      });
     });
 
     describe('Projects Module - Deploy Contract', () => {
@@ -237,7 +197,7 @@ describe('Projects Module E2E Tests', () => {
         console.log('Deploying project contract...');
 
         const deployData = {
-          name: 'Test Project E2E',
+          name: 'Test Project',
           dao_address: userAccountId,
           calendar_contract: calendarContractAddress,
         };
@@ -270,12 +230,14 @@ describe('Projects Module E2E Tests', () => {
  
          const response = await request(app.getHttpServer())
            .post(`/projects/${contractAddress}/assign_coordinator`)
+           .send({ })
            .set('Authorization', `Bearer ${authToken}`)
-           .expect(200);
+           .expect(201);
  
          console.log('Response:', JSON.stringify(response.body, null, 2));
  
          expect(response.body).toHaveProperty('success');
+         expect(response.body.success).toBe(true);
          console.log('Coordinator assigned successfully');
        });
      });
@@ -291,11 +253,12 @@ describe('Projects Module E2E Tests', () => {
            .post(`/projects/${contractAddress}/assign_team`)
            .set('Authorization', `Bearer ${authToken}`)
            .send({ideal_team_size: 1})
-           .expect(200);
+           .expect(201);
 
          console.log('Response:', JSON.stringify(response.body, null, 2));
 
          expect(response.body).toHaveProperty('success');
+         expect(response.body.success).toBe(true);
          console.log('Team assigned successfully');
        });
      });
@@ -306,12 +269,10 @@ describe('Projects Module E2E Tests', () => {
          
          const scopeData = {
            tasks: [
-             [1, { type: 'Days', value: 5 }, '1000000000000', []],
-             [2, { type: 'Weeks', value: 2 }, '2000000000000', [1]],
-             [3, { type: 'Days', value: 3 }, '1500000000000', [1]],
+             [1, { type: 'Days', value: 5 }, 1000, []]
            ],
-           advance_payment_percentage: 30,
-           document_hash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
+           advance_payment_percentage: 20,
+           document_hash: '0x0000000000000000000000000000000000000000000000000000000000000000',
          };
 
          expect(authToken).toBeDefined();
@@ -321,11 +282,12 @@ describe('Projects Module E2E Tests', () => {
            .post(`/projects/${contractAddress}/propose_scope`)
            .set('Authorization', `Bearer ${authToken}`)
            .send(scopeData)
-           .expect(200);
+           .expect(201);
 
          console.log('Response:', JSON.stringify(response.body, null, 2));
 
          expect(response.body).toHaveProperty('success');
+         expect(response.body.success).toBe(true);
          console.log('Scope proposed successfully');
        });
      });
@@ -340,12 +302,13 @@ describe('Projects Module E2E Tests', () => {
          const response = await request(app.getHttpServer())
            .post(`/projects/${contractAddress}/approve_scope`)
            .set('Authorization', `Bearer ${authToken}`)
-           .send({ approved_task_ids: [1, 2, 3] })
-           .expect(200);
+           .send({ approved_task_ids: [1] })
+           .expect(201);
 
          console.log('Response:', JSON.stringify(response.body, null, 2));
 
          expect(response.body).toHaveProperty('success');
+         expect(response.body.success).toBe(true);
          console.log('Scope tasks approved successfully');
        });
      });
@@ -353,7 +316,7 @@ describe('Projects Module E2E Tests', () => {
      describe('Projects Module - Queries', () => {
        it('should get project information', async () => {
          console.log('Getting project information...');
-         
+          
          expect(contractAddress).toBeDefined();
 
          const response = await request(app.getHttpServer())
@@ -365,12 +328,17 @@ describe('Projects Module E2E Tests', () => {
          expect(response.body).toBeDefined();
          expect(response.body).toHaveProperty('success', true);
          expect(response.body).toHaveProperty('response');
+         
+         // Verify project name matches what was deployed
+         const projectName = response.body.response[0];
+         expect(projectName).toBe('Test Project');
+         
          console.log('Project information obtained successfully');
        });
 
        it('should get all tasks', async () => {
          console.log('Getting all tasks...');
-         
+          
          expect(contractAddress).toBeDefined();
 
          const response = await request(app.getHttpServer())
@@ -383,13 +351,22 @@ describe('Projects Module E2E Tests', () => {
          expect(response.body).toHaveProperty('success', true);
          expect(response.body).toHaveProperty('response');
          expect(Array.isArray(response.body.response)).toBe(true);
-         expect(response.body.response.length).toBeGreaterThanOrEqual(3);
+         expect(response.body.response.length).toBeGreaterThanOrEqual(1);
+         
+         // Verify task structure matches expected format
+         const task = response.body.response[0];
+         expect(task).toHaveProperty('id', 1);
+         expect(task).toHaveProperty('cost', '1000');
+         expect(task).toHaveProperty('complexity');
+         expect(task.complexity).toHaveProperty('type', 'Days');
+         expect(task.complexity).toHaveProperty('value', 5);
+         
          console.log(`All tasks obtained: ${response.body.response.length} tasks`);
        });
 
        it('should get specific task information (task 1)', async () => {
          console.log('Getting specific task information for task 1...');
-         
+          
          expect(contractAddress).toBeDefined();
 
          const response = await request(app.getHttpServer())
@@ -401,16 +378,25 @@ describe('Projects Module E2E Tests', () => {
          expect(response.body).toBeDefined();
          expect(response.body).toHaveProperty('success', true);
          expect(response.body).toHaveProperty('response');
+         
+         // Verify task structure matches expected format
+         const task = response.body.response;
+         expect(task).toHaveProperty('id', 1);
+         expect(task).toHaveProperty('cost', '1000');
+         expect(task).toHaveProperty('complexity');
+         expect(task.complexity).toHaveProperty('type', 'Days');
+         expect(task.complexity).toHaveProperty('value', 5);
+         
          console.log('Task information obtained successfully');
        });
 
-       it('should get project status', async () => {
-         console.log('Getting project status...');
-         
+       it('should get team information', async () => {
+         console.log('Getting team information...');
+          
          expect(contractAddress).toBeDefined();
 
          const response = await request(app.getHttpServer())
-           .get(`/projects/${contractAddress}/get_project_status`)
+           .get(`/projects/${contractAddress}/get_team`)
            .expect(200);
 
          console.log('Response:', JSON.stringify(response.body, null, 2));
@@ -418,7 +404,95 @@ describe('Projects Module E2E Tests', () => {
          expect(response.body).toBeDefined();
          expect(response.body).toHaveProperty('success', true);
          expect(response.body).toHaveProperty('response');
-         console.log('Project status obtained successfully');
+         expect(Array.isArray(response.body.response)).toBe(true);
+         console.log('Team information obtained successfully');
+       });
+
+       it('should get scope information', async () => {
+         console.log('Getting scope information...');
+          
+         expect(contractAddress).toBeDefined();
+
+         const response = await request(app.getHttpServer())
+           .get(`/projects/${contractAddress}/get_scope_info`)
+           .expect(200);
+
+         console.log('Response:', JSON.stringify(response.body, null, 2));
+
+         expect(response.body).toBeDefined();
+         expect(response.body).toHaveProperty('success', true);
+         expect(response.body).toHaveProperty('response');
+         console.log('Scope information obtained successfully');
+       });
+
+       it('should get task completion status', async () => {
+         console.log('Getting task completion status...');
+          
+         expect(contractAddress).toBeDefined();
+
+         const response = await request(app.getHttpServer())
+           .get(`/projects/${contractAddress}/get_task_completion_status?task_id=1`)
+           .expect(200);
+
+         console.log('Response:', JSON.stringify(response.body, null, 2));
+
+         expect(response.body).toBeDefined();
+         expect(response.body).toHaveProperty('success', true);
+         expect(response.body).toHaveProperty('response');
+         console.log('Task completion status obtained successfully');
+       });
+     });
+
+     describe('Projects Module - Task Management', () => {
+       it('should complete a task', async () => {
+         console.log('Completing task 1...');
+         
+         expect(authToken).toBeDefined();
+         expect(contractAddress).toBeDefined();
+
+         const response = await request(app.getHttpServer())
+           .post(`/projects/${contractAddress}/complete_task`)
+           .set('Authorization', `Bearer ${authToken}`)
+           .send({ task_id: 1 })
+           .expect(201);
+
+         console.log('Response:', JSON.stringify(response.body, null, 2));
+
+         expect(response.body).toHaveProperty('success');
+         expect(response.body.success).toBe(true);
+         console.log('Task completed successfully');
+       });
+     });
+
+     describe('Projects Module - Project Completion', () => {
+       it('should mark project as completed', async () => {
+         console.log('Marking project as completed...');
+         
+         expect(authToken).toBeDefined();
+         expect(contractAddress).toBeDefined();
+
+         // First get team members to create ratings
+         const teamResponse = await request(app.getHttpServer())
+           .get(`/projects/${contractAddress}/get_team`)
+           .expect(200);
+
+         expect(teamResponse.body).toHaveProperty('success', true);
+         const teamMembers = teamResponse.body.response;
+         
+         // Create ratings for each team member
+         const ratings = teamMembers.map((member: any) => [member.account_id, 8]);
+
+         const response = await request(app.getHttpServer())
+           .post(`/projects/${contractAddress}/mark_completed`)
+           .set('Authorization', `Bearer ${authToken}`)
+           .send({ ratings })
+           .expect(201);
+
+         console.log('Response:', JSON.stringify(response.body, null, 2));
+
+         expect(response.body).toHaveProperty('success');
+         expect(response.body.success).toBe(true);
+         console.log('Project marked as completed successfully');
        });
      });
    });

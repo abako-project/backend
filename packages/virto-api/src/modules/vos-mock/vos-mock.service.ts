@@ -177,7 +177,7 @@ export class VosMockService {
 
     const transfer = kreivoApi.tx.Balances.transfer_keep_alive({
       dest: MultiAddress.Id(address),
-      value: BigInt("100000000000"),
+      value: BigInt("10000000000000"),
     }).decodedCall;
 
     const transferUSD = kreivoApi.tx.Assets.transfer_keep_alive({
@@ -245,4 +245,59 @@ export class VosMockService {
       ok: true,
     };
   }
+
+  /**
+   * Transfer funds to a given address
+   */
+  async fund(address: string) {
+    const client = createClient(
+      getWsProvider(this.configService.getKreivoProvider())
+    );
+
+    const kreivoApi = client.getTypedApi(kreivo);
+
+    // Transfer native tokens
+    const transfer = kreivoApi.tx.Balances.transfer_keep_alive({
+      dest: MultiAddress.Id(address),
+      value: BigInt("10000000000000"), // 100 units with 9 decimals
+    });
+
+    try {
+      const transferRes = await new Promise((resolve, reject) => {
+        transfer.signSubmitAndWatch(polkadotSigner)
+          .subscribe({
+            next: (event) => {
+              console.info('Fund transfer transaction event:', event.type);
+              if (event.type === 'txBestBlocksState') {
+                resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+              }
+            },
+            error: (error) => {
+              console.error('Fund transfer transaction error:', error);
+              reject(error);
+            }
+          });
+      });
+
+      console.log('Fund transfer result:', transferRes);
+
+      const result = transferRes as { ok: boolean; txHash: string; blockHash: string };
+      if (!result.ok) {
+        throw new Error('Failed to transfer funds');
+      }
+
+      return {
+        ok: true,
+        txHash: result.txHash,
+        blockHash: result.blockHash,
+        address,
+        amount: '100000000000',
+      };
+    } catch (error) {
+      console.error('Error transferring funds:', error);
+      throw new Error('Failed to transfer funds to address');
+    }
+  }
+
+  
 } 
