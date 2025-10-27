@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   zombienet:
     build:
@@ -44,6 +42,13 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    develop:
+      watch:
+        - action: sync
+          path: ../packages/contracts-api/src
+          target: /app/src
+        - action: rebuild
+          path: ../packages/contracts-api/package.json
 
   adapter-api:
     build:
@@ -78,6 +83,13 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    develop:
+      watch:
+        - action: sync
+          path: ../packages/adapter-api/src
+          target: /app/src
+        - action: rebuild
+          path: ../packages/adapter-api/package.json
 
   virto-api:
     build:
@@ -108,6 +120,13 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    develop:
+      watch:
+        - action: sync
+          path: ../packages/virto-api/src
+          target: /app/src
+        - action: rebuild
+          path: ../packages/virto-api/package.json
 
 volumes:
   virto-api-data:

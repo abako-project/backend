@@ -386,4 +386,54 @@ export class VosMockController {
       );
     }
   }
+
+  @ApiOperation({ summary: 'Transfer funds to a given address' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        address: { 
+          type: 'string', 
+          description: 'Address to transfer funds to', 
+          example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY' 
+        }
+      },
+      required: ['address']
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Funds transferred successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        ok: { type: 'boolean', example: true },
+        txHash: { type: 'string', example: '0x1234567890abcdef...' },
+        blockHash: { type: 'string', example: '0xabcdef1234567890...' },
+        address: { type: 'string', example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY' },
+        amount: { type: 'string', example: '100000000000' }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Bad request - Address is required' })
+  @ApiResponse({ status: 500, description: 'Internal server error - Failed to transfer funds' })
+  @Post('fund')
+  async fund(@Body() body: { address: string }) {
+    const { address } = body;
+
+    if (!address) {
+      throw new HttpException('Address is required', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      const result = await this.vosMockService.fund(address);
+      return result;
+    } catch (error) {
+      console.error('Fund transfer error:', error);
+      throw new HttpException(
+        error instanceof Error ? error.message : 'Failed to transfer funds',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
 }

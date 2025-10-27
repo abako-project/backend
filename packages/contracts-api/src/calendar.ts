@@ -3,9 +3,8 @@ import { createInkV5Sdk } from "@polkadot-api/sdk-ink"
 import { createClient, Binary } from "polkadot-api"
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat"
 import { getWsProvider } from "polkadot-api/ws-provider/node"
-import { ADDRESS } from "./util/address"
 import contractMetadata from '../.papi/contracts/calendar_v5.json'
-import { publicAddress, polkadotSigner } from "./util/signer"
+import { alicePublicAddress, alicePolkadotSigner } from "./util/signer"
 
 export class CalendarService {
   private client: any
@@ -90,7 +89,7 @@ export class CalendarService {
     try {
       const contract = this.getContract(contractAddress)
       const response = await contract.query(methodName as any, {
-        origin: publicAddress,
+        origin: alicePublicAddress,
         data: data,
       })
 
@@ -127,7 +126,9 @@ export class CalendarService {
       console.log("Caller:", caller)
       console.log("Rest:", rest)
 
-      const tx = methodName === 'set_availability' ?
+      console.log("Method name:", methodName === "set_availability")
+
+      const tx = methodName == 'set_availability' ?
         await contract.send("set_availability", {
           origin: caller,
           data: { 
@@ -140,23 +141,38 @@ export class CalendarService {
           storage_deposit_limit: 100000000000n,
         })
         : await contract.send(methodName as any, { 
-          origin: publicAddress, 
+          origin: alicePublicAddress, 
           data: rest.data 
         });
-
-      if (methodName === 'set_availability') {
-        const encodedData = await tx.getEncodedData()
-        return {
-          method: methodName,
-          encodedData: encodedData.asHex(),
-        }
-      }
 
       const callData = await tx.decodedCall
       const callDataHex = callData.value.value.data.asHex()
 
       console.log("Data to send:", callDataHex)
       console.log("Gas limit:", callData.value.value.gas_limit)
+
+      if (methodName === 'set_availability') {
+        console.log("Setting availability with custom tx")
+        const setAvailabilityTx = this.typedApi.tx.Contracts.call({
+          dest: {
+            type: "Id",
+            value: contractAddress
+          },
+          value: 0n,
+          gas_limit: {
+            ref_time: 10000000000n,
+            proof_size: 1000000n
+          },
+          storage_deposit_limit: 100000000000n,
+          data: Binary.fromHex(callDataHex)
+        })
+        const encodedData = await setAvailabilityTx.getEncodedData()
+        console.log("Encoded data:", encodedData.asHex())
+        return {
+          method: methodName,
+          encodedData: encodedData.asHex(),
+        }
+      }
 
       const dispatchTx = this.typedApi.tx.Communities.dispatch_as_account({
         call: {
@@ -181,14 +197,13 @@ export class CalendarService {
       })
 
       console.log(`Signing and submitting method: ${methodName}`)
-      const result = await dispatchTx.signAndSubmit(polkadotSigner)
-
+      const result = await dispatchTx.signAndSubmit(alicePolkadotSigner);
       return {
         method: methodName,
-        success: result.ok,
+        success: result.ok,  
         transactionHash: result.txHash,
-        blockHash: result.block?.hash,
-        blockNumber: result.block?.number,
+        blockHash: result.blockHash,
+        blockNumber: result.blockNumber,
       }
     } catch (error) {
       console.error(`Error calling method ${methodName} on contract ${contractAddress}:`, error)
