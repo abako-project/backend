@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { ProjectsService } from '../projects';
 import { CalendarService } from '../calendar';
+import { RatingsService } from '../ratings';
 import { DeployService } from '../deployService';
 import { alicePolkadotSigner, alicePublicAddress, charliePolkadotSigner, charliePublicAddress } from '../util/signer';
 import { sr25519CreateDerive } from '@polkadot-labs/hdkd';
@@ -21,40 +22,58 @@ import { kreivo } from '@polkadot-api/descriptors';
  * 
  * Requirements:
  * - A running node (Kreivo) on ws://localhost:21000 or set KREIVO_PROVIDER env var
- * - PROJECTS_APP_ID environment variable set
+ * - PROJECTS_APP_ID, CALENDAR_APP_ID, RATINGS_APP_ID environment variables set
  * - The signer must have funds and permissions to deploy contracts
  */
 
 describe('ProjectsService Integration Tests', () => {
   let projectsService: ProjectsService;
   let calendarService: CalendarService;
+  let ratingsService: RatingsService;
   let deployService: DeployService;
   let contractAddress: string;
   let calendarContractAddress: string;
+  let ratingsContractAddress: string;
 
   beforeAll(async () => {
-      // Initialize deploy service
+    // Initialize deploy service
     deployService = new DeployService();
 
-    // Step 1: Deploy calendar contract first
-    console.log('Deploying calendar contract...');
+    // Step 1: Deploy ratings contract first
+    console.log('🚀 Deploying ratings contract...');
+    const ratingsConfig = deployService.getDeployConfigs().ratings_v5;
+    const ratingsResult = await deployService.deployContract(ratingsConfig, {});
+
+    if (!ratingsResult.success || !ratingsResult.address) {
+      throw new Error(`Failed to deploy ratings contract: ${ratingsResult.error || 'Unknown error'}`);
+    }
+
+    ratingsContractAddress = ratingsResult.address;
+    console.log(`✅ Ratings contract deployed at: ${ratingsContractAddress}`);
+
+    // Step 2: Deploy calendar contract with ratings address
+    console.log('🚀 Deploying calendar contract...');
     const calendarConfig = deployService.getDeployConfigs().calendar_v5;
-    const calendarResult = await deployService.deployContract(calendarConfig, {});
+    console.log('Calendar config:', calendarConfig);
+    const calendarResult = await deployService.deployContract(calendarConfig, {
+      ratings_contract: ratingsContractAddress
+    });
 
     if (!calendarResult.success || !calendarResult.address) {
       throw new Error(`Failed to deploy calendar contract: ${calendarResult.error || 'Unknown error'}`);
     }
 
     calendarContractAddress = calendarResult.address;
-    console.log(`Calendar contract deployed at: ${calendarContractAddress}`);
+    console.log(`✅ Calendar contract deployed at: ${calendarContractAddress}`);
 
-    // Step 2: Deploy projects contract with calendar address
+    // Step 3: Deploy projects contract with calendar and ratings addresses
     console.log('🚀 Deploying projects contract...');
     const deployConfig = deployService.getDeployConfigs().v5;
     const deployResult = await deployService.deployContract(deployConfig, {
       name: 'Test Project',
       dao_address: alicePublicAddress,
-      calendar_contract: calendarContractAddress
+      calendar_contract: calendarContractAddress,
+      ratings_contract: ratingsContractAddress
     });
 
     if (!deployResult.success || !deployResult.address) {
@@ -64,15 +83,17 @@ describe('ProjectsService Integration Tests', () => {
     contractAddress = deployResult.address;
     console.log(`✅ Projects contract deployed at: ${contractAddress}`);
 
-    // Initialize projects service
+    // Initialize services
     projectsService = new ProjectsService();
     await projectsService.initialize();
 
-    // Initialize calendar service
     calendarService = new CalendarService();
     await calendarService.initialize();
 
-    console.log('✅ ProjectsService and CalendarService initialized and ready for tests');
+    ratingsService = new RatingsService();
+    await ratingsService.initialize();
+
+    console.log('✅ All services initialized and ready for tests');
   }, 240000); 
 
   afterAll(async () => {
@@ -81,6 +102,9 @@ describe('ProjectsService Integration Tests', () => {
     }
     if (calendarService) {
       await calendarService.destroy();
+    }
+    if (ratingsService) {
+      await ratingsService.destroy();
     }
   });
 
@@ -372,10 +396,55 @@ describe('ProjectsService Integration Tests', () => {
     });
   });
 
-  describe('Contract Address', () => {
-    test('should log contract address', async () => {
-      console.log('Contract address:', contractAddress);
-      console.log('Calendar contract address:', calendarContractAddress);
+  describe('Ratings Integration Tests', () => {
+    test('should query registered workers in ratings contract', async () => {
+      const result = await ratingsService.queryMethod(
+        ratingsContractAddress,
+        'get_registered_workers',
+        {}
+      );
+
+      expect(result.success).toBe(true);
+      console.log('✓ Registered workers in ratings:', result.response);
+      
+      if (result.success && result.response) {
+        expect(Array.isArray(result.response)).toBe(true);
+      }
+    });
+
+    test('should query worker ratings', async () => {
+      const result = await ratingsService.queryMethod(
+        ratingsContractAddress,
+        'get_worker_ratings',
+        { worker: charliePublicAddress }
+      );
+
+      expect(result.success).toBe(true);
+      console.log('✓ Worker ratings:', result.response);
+    });
+
+    test('should query all ratings', async () => {
+      const result = await ratingsService.queryMethod(
+        ratingsContractAddress,
+        'get_all_ratings',
+        {}
+      );
+
+      expect(result.success).toBe(true);
+      console.log('✓ All ratings:', result.response);
+      
+      if (result.success && result.response) {
+        expect(Array.isArray(result.response)).toBe(true);
+      }
+    });
+  });
+
+  describe('Contract Addresses', () => {
+    test('should log all contract addresses', async () => {
+      console.log('📋 Contract Addresses:');
+      console.log('  - Projects contract:', contractAddress);
+      console.log('  - Calendar contract:', calendarContractAddress);
+      console.log('  - Ratings contract:', ratingsContractAddress);
     });
   });
 });

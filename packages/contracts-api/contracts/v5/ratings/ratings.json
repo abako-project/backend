@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0x69d4c283f1ebc65c1289b66dbcd7d6d998a5c6c306d3854a331370f1a6a483b1",
+    "hash": "0x8027649db8e9dd64b49862611987e9d92b2c547fe7a54a5f8e3d2b2a2d506f54",
     "language": "ink! 5.1.1",
     "compiler": "rustc 1.89.0",
     "build_info": {
@@ -14,29 +14,21 @@
     }
   },
   "contract": {
-    "name": "calendar",
+    "name": "ratings",
     "version": "0.1.0",
     "authors": [
-      "[your-name]"
+      "Virto Network"
     ]
   },
   "image": null,
   "spec": {
     "constructors": [
       {
-        "args": [
-          {
-            "label": "ratings_contract",
-            "type": {
-              "displayName": [
-                "Option"
-              ],
-              "type": 10
-            }
-          }
-        ],
+        "args": [],
         "default": false,
-        "docs": [],
+        "docs": [
+          "Creates a new ratings contract instance"
+        ],
         "label": "new",
         "payable": false,
         "returnType": {
@@ -55,31 +47,31 @@
         "displayName": [
           "AccountId"
         ],
-        "type": 2
+        "type": 3
       },
       "balance": {
         "displayName": [
           "Balance"
         ],
-        "type": 27
+        "type": 23
       },
       "blockNumber": {
         "displayName": [
           "BlockNumber"
         ],
-        "type": 26
+        "type": 18
       },
       "chainExtension": {
         "displayName": [
           "ChainExtension"
         ],
-        "type": 30
+        "type": 26
       },
       "hash": {
         "displayName": [
           "Hash"
         ],
-        "type": 28
+        "type": 24
       },
       "maxEventTopics": 4,
       "staticBufferSize": 16384,
@@ -87,7 +79,7 @@
         "displayName": [
           "Timestamp"
         ],
-        "type": 29
+        "type": 25
       }
     },
     "events": [
@@ -101,13 +93,13 @@
               "displayName": [
                 "AccountId"
               ],
-              "type": 2
+              "type": 3
             }
           }
         ],
         "docs": [],
         "label": "WorkerRegistered",
-        "module_path": "calendar::calendar",
+        "module_path": "ratings::ratings",
         "signature_topic": "0x86bdbee66f668505d259674698b6c9679556025cd581a93defae398307bde39e"
       },
       {
@@ -120,103 +112,25 @@
               "displayName": [
                 "AccountId"
               ],
-              "type": 2
+              "type": 3
             }
           },
           {
             "docs": [],
             "indexed": false,
-            "label": "hours",
+            "label": "rating",
             "type": {
               "displayName": [
                 "u8"
               ],
-              "type": 0
+              "type": 1
             }
           }
         ],
         "docs": [],
-        "label": "AvailabilityUpdated",
-        "module_path": "calendar::calendar",
-        "signature_topic": "0x0f43f11d0134a93bbd332b75a0e91a0d15033b10e505358cc8cfe15b70d0e062"
-      },
-      {
-        "args": [
-          {
-            "docs": [],
-            "indexed": false,
-            "label": "message",
-            "type": {
-              "displayName": [
-                "ink",
-                "prelude",
-                "string",
-                "String"
-              ],
-              "type": 25
-            }
-          },
-          {
-            "docs": [],
-            "indexed": true,
-            "label": "worker",
-            "type": {
-              "displayName": [
-                "AccountId"
-              ],
-              "type": 2
-            }
-          },
-          {
-            "docs": [],
-            "indexed": false,
-            "label": "availability",
-            "type": {
-              "displayName": [
-                "u8"
-              ],
-              "type": 0
-            }
-          }
-        ],
-        "docs": [
-          "Debug event for troubleshooting"
-        ],
-        "label": "DebugLog",
-        "module_path": "calendar::calendar",
-        "signature_topic": "0xc866a7e60e28e638cb051bb737f1ea167d8bf5d21eb90b38907fa90f40465176"
-      },
-      {
-        "args": [
-          {
-            "docs": [],
-            "indexed": true,
-            "label": "index",
-            "type": {
-              "displayName": [
-                "u32"
-              ],
-              "type": 26
-            }
-          },
-          {
-            "docs": [],
-            "indexed": false,
-            "label": "worker",
-            "type": {
-              "displayName": [
-                "AccountId"
-              ],
-              "type": 2
-            }
-          }
-        ],
-        "docs": [
-          "Debug event for listing registered workers"
-        ],
-        "label": "DebugRegisteredWorker",
-        "module_path": "calendar::calendar",
-        "signature_topic": "0x41e8a4196ccaefac42f74e0dfb038630c8c7cfe83f06b6a22a8e8608d2066c8a"
+        "label": "RatingAdded",
+        "module_path": "ratings::ratings",
+        "signature_topic": "0xc5ce3e9652612c1308aa8b5cd2533487facfe9a0b4013a7a35bb6e51c558ab7d"
       }
     ],
     "lang_error": {
@@ -235,13 +149,14 @@
               "displayName": [
                 "AccountId"
               ],
-              "type": 2
+              "type": 3
             }
           }
         ],
         "default": false,
         "docs": [
-          " Register a new worker"
+          " Register a new worker with empty ratings list",
+          " Called by calendar contract when registering workers"
         ],
         "label": "register_worker",
         "mutates": true,
@@ -258,20 +173,31 @@
       {
         "args": [
           {
-            "label": "availability",
+            "label": "worker",
             "type": {
               "displayName": [
-                "AvailabilityLevel"
+                "AccountId"
               ],
-              "type": 16
+              "type": 3
+            }
+          },
+          {
+            "label": "rating",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 1
             }
           }
         ],
         "default": false,
         "docs": [
-          " Worker sets their general availability"
+          " Add a new rating for a worker",
+          " Called by projects contract when marking project as completed",
+          " Rating should be 0-100"
         ],
-        "label": "set_availability",
+        "label": "add_rating",
         "mutates": true,
         "payable": false,
         "returnType": {
@@ -281,7 +207,7 @@
           ],
           "type": 13
         },
-        "selector": "0x0b395a0b"
+        "selector": "0x39b0e4f0"
       },
       {
         "args": [
@@ -291,15 +217,44 @@
               "displayName": [
                 "AccountId"
               ],
-              "type": 2
+              "type": 3
             }
           }
         ],
         "default": false,
         "docs": [
-          " Get worker's general availability in hours"
+          " Get worker ratings list"
         ],
-        "label": "get_availability_hours",
+        "label": "get_worker_ratings",
+        "mutates": false,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 16
+        },
+        "selector": "0xe9b0e445"
+      },
+      {
+        "args": [
+          {
+            "label": "worker",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Get average rating for a worker",
+          " Returns 0 if worker has no ratings"
+        ],
+        "label": "get_average_rating",
         "mutates": false,
         "payable": false,
         "returnType": {
@@ -309,100 +264,7 @@
           ],
           "type": 17
         },
-        "selector": "0xfac1f8b0"
-      },
-      {
-        "args": [
-          {
-            "label": "worker",
-            "type": {
-              "displayName": [
-                "AccountId"
-              ],
-              "type": 2
-            }
-          },
-          {
-            "label": "min_hours",
-            "type": {
-              "displayName": [
-                "Option"
-              ],
-              "type": 18
-            }
-          }
-        ],
-        "default": false,
-        "docs": [
-          " Check if a worker is available with optional minimum hours"
-        ],
-        "label": "is_available",
-        "mutates": false,
-        "payable": false,
-        "returnType": {
-          "displayName": [
-            "ink",
-            "MessageResult"
-          ],
-          "type": 19
-        },
-        "selector": "0xa5450156"
-      },
-      {
-        "args": [
-          {
-            "label": "min_hours",
-            "type": {
-              "displayName": [
-                "Option"
-              ],
-              "type": 18
-            }
-          }
-        ],
-        "default": false,
-        "docs": [
-          " Get all available workers with optional minimum hours filter"
-        ],
-        "label": "get_available_workers",
-        "mutates": false,
-        "payable": false,
-        "returnType": {
-          "displayName": [
-            "ink",
-            "MessageResult"
-          ],
-          "type": 21
-        },
-        "selector": "0x1bf3b50b"
-      },
-      {
-        "args": [
-          {
-            "label": "workers",
-            "type": {
-              "displayName": [
-                "Vec"
-              ],
-              "type": 8
-            }
-          }
-        ],
-        "default": false,
-        "docs": [
-          " Admin can register multiple workers at once"
-        ],
-        "label": "register_workers",
-        "mutates": true,
-        "payable": false,
-        "returnType": {
-          "displayName": [
-            "ink",
-            "MessageResult"
-          ],
-          "type": 13
-        },
-        "selector": "0x9414304e"
+        "selector": "0x6ae2220d"
       },
       {
         "args": [],
@@ -418,7 +280,7 @@
             "ink",
             "MessageResult"
           ],
-          "type": 24
+          "type": 19
         },
         "selector": "0x37f1c989"
       },
@@ -426,9 +288,9 @@
         "args": [],
         "default": false,
         "docs": [
-          " Get all registered workers with their availability"
+          " Get all workers with their ratings"
         ],
-        "label": "get_all_workers_availability",
+        "label": "get_all_ratings",
         "mutates": false,
         "payable": false,
         "returnType": {
@@ -436,82 +298,9 @@
             "ink",
             "MessageResult"
           ],
-          "type": 21
+          "type": 20
         },
-        "selector": "0xf02bda6f"
-      },
-      {
-        "args": [
-          {
-            "label": "worker",
-            "type": {
-              "displayName": [
-                "AccountId"
-              ],
-              "type": 2
-            }
-          },
-          {
-            "label": "availability",
-            "type": {
-              "displayName": [
-                "AvailabilityLevel"
-              ],
-              "type": 16
-            }
-          }
-        ],
-        "default": false,
-        "docs": [
-          " Admin can set availability for a worker (useful for bulk operations)"
-        ],
-        "label": "admin_set_worker_availability",
-        "mutates": true,
-        "payable": false,
-        "returnType": {
-          "displayName": [
-            "ink",
-            "MessageResult"
-          ],
-          "type": 13
-        },
-        "selector": "0xfed4bebe"
-      },
-      {
-        "args": [
-          {
-            "label": "ratings_contract",
-            "type": {
-              "displayName": [
-                "AccountId"
-              ],
-              "type": 2
-            }
-          }
-        ],
-        "default": false,
-        "docs": [
-          " Sets the ratings contract address",
-          "",
-          " Only the owner can call this function.",
-          "",
-          " # Parameters",
-          " - `ratings_contract`: Address of the ratings contract",
-          "",
-          " # Errors",
-          " - `NotAuthorized`: Caller is not the owner"
-        ],
-        "label": "set_ratings_contract",
-        "mutates": true,
-        "payable": false,
-        "returnType": {
-          "displayName": [
-            "ink",
-            "MessageResult"
-          ],
-          "type": 13
-        },
-        "selector": "0x2922a4d6"
+        "selector": "0x777327dd"
       }
     ]
   },
@@ -525,69 +314,31 @@
                 "root": {
                   "layout": {
                     "leaf": {
-                      "key": "0xe69da3d2",
+                      "key": "0x26cd53f4",
                       "ty": 0
                     }
                   },
-                  "root_key": "0xe69da3d2",
-                  "ty": 1
-                }
-              },
-              "name": "worker_availability"
-            },
-            {
-              "layout": {
-                "leaf": {
-                  "key": "0x00000000",
-                  "ty": 8
-                }
-              },
-              "name": "registered_workers"
-            },
-            {
-              "layout": {
-                "leaf": {
-                  "key": "0x00000000",
+                  "root_key": "0x26cd53f4",
                   "ty": 2
                 }
               },
-              "name": "owner"
+              "name": "worker_ratings"
             },
             {
               "layout": {
-                "enum": {
-                  "dispatchKey": "0x00000000",
-                  "name": "Option",
-                  "variants": {
-                    "0": {
-                      "fields": [],
-                      "name": "None"
-                    },
-                    "1": {
-                      "fields": [
-                        {
-                          "layout": {
-                            "leaf": {
-                              "key": "0x00000000",
-                              "ty": 2
-                            }
-                          },
-                          "name": "0"
-                        }
-                      ],
-                      "name": "Some"
-                    }
-                  }
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 9
                 }
               },
-              "name": "ratings_contract"
+              "name": "registered_workers"
             }
           ],
-          "name": "Calendar"
+          "name": "Ratings"
         }
       },
       "root_key": "0x00000000",
-      "ty": 9
+      "ty": 10
     }
   },
   "types": [
@@ -595,7 +346,9 @@
       "id": 0,
       "type": {
         "def": {
-          "primitive": "u8"
+          "sequence": {
+            "type": 1
+          }
         }
       }
     },
@@ -603,12 +356,20 @@
       "id": 1,
       "type": {
         "def": {
+          "primitive": "u8"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": {
+        "def": {
           "composite": {}
         },
         "params": [
           {
             "name": "K",
-            "type": 2
+            "type": 3
           },
           {
             "name": "V",
@@ -616,7 +377,7 @@
           },
           {
             "name": "KeyType",
-            "type": 4
+            "type": 5
           }
         ],
         "path": [
@@ -628,13 +389,13 @@
       }
     },
     {
-      "id": 2,
+      "id": 3,
       "type": {
         "def": {
           "composite": {
             "fields": [
               {
-                "type": 3,
+                "type": 4,
                 "typeName": "[u8; 32]"
               }
             ]
@@ -648,18 +409,18 @@
       }
     },
     {
-      "id": 3,
+      "id": 4,
       "type": {
         "def": {
           "array": {
             "len": 32,
-            "type": 0
+            "type": 1
           }
         }
       }
     },
     {
-      "id": 4,
+      "id": 5,
       "type": {
         "def": {
           "composite": {}
@@ -667,11 +428,11 @@
         "params": [
           {
             "name": "L",
-            "type": 5
+            "type": 6
           },
           {
             "name": "R",
-            "type": 6
+            "type": 7
           }
         ],
         "path": [
@@ -682,7 +443,7 @@
       }
     },
     {
-      "id": 5,
+      "id": 6,
       "type": {
         "def": {
           "composite": {}
@@ -695,7 +456,7 @@
       }
     },
     {
-      "id": 6,
+      "id": 7,
       "type": {
         "def": {
           "composite": {}
@@ -703,7 +464,7 @@
         "params": [
           {
             "name": "ParentKey",
-            "type": 7
+            "type": 8
           }
         ],
         "path": [
@@ -714,7 +475,7 @@
       }
     },
     {
-      "id": 7,
+      "id": 8,
       "type": {
         "def": {
           "tuple": []
@@ -722,81 +483,38 @@
       }
     },
     {
-      "id": 8,
-      "type": {
-        "def": {
-          "sequence": {
-            "type": 2
-          }
-        }
-      }
-    },
-    {
       "id": 9,
       "type": {
         "def": {
-          "composite": {
-            "fields": [
-              {
-                "name": "worker_availability",
-                "type": 1,
-                "typeName": "<Mapping<AccountId, u8> as::ink::storage::traits::AutoStorableHint\n<::ink::storage::traits::ManualKey<3533938150u32, ()>,>>::Type"
-              },
-              {
-                "name": "registered_workers",
-                "type": 8,
-                "typeName": "<Vec<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<1748487444u32, ()>,>>::Type"
-              },
-              {
-                "name": "owner",
-                "type": 2,
-                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<3205882428u32, ()>,>>::Type"
-              },
-              {
-                "name": "ratings_contract",
-                "type": 10,
-                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<860441392u32, ()>,>>::Type"
-              }
-            ]
+          "sequence": {
+            "type": 3
           }
-        },
-        "path": [
-          "calendar",
-          "calendar",
-          "Calendar"
-        ]
+        }
       }
     },
     {
       "id": 10,
       "type": {
         "def": {
-          "variant": {
-            "variants": [
+          "composite": {
+            "fields": [
               {
-                "index": 0,
-                "name": "None"
+                "name": "worker_ratings",
+                "type": 2,
+                "typeName": "<Mapping<AccountId, Vec<u8>> as::ink::storage::traits::\nAutoStorableHint<::ink::storage::traits::ManualKey<4099132710u32,\n()>,>>::Type"
               },
               {
-                "fields": [
-                  {
-                    "type": 2
-                  }
-                ],
-                "index": 1,
-                "name": "Some"
+                "name": "registered_workers",
+                "type": 9,
+                "typeName": "<Vec<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<1785593966u32, ()>,>>::Type"
               }
             ]
           }
         },
-        "params": [
-          {
-            "name": "T",
-            "type": 2
-          }
-        ],
         "path": [
-          "Option"
+          "ratings",
+          "ratings",
+          "Ratings"
         ]
       }
     },
@@ -809,7 +527,7 @@
               {
                 "fields": [
                   {
-                    "type": 7
+                    "type": 8
                   }
                 ],
                 "index": 0,
@@ -830,7 +548,7 @@
         "params": [
           {
             "name": "T",
-            "type": 7
+            "type": 8
           },
           {
             "name": "E",
@@ -912,7 +630,7 @@
               {
                 "fields": [
                   {
-                    "type": 7
+                    "type": 8
                   }
                 ],
                 "index": 0,
@@ -933,7 +651,7 @@
         "params": [
           {
             "name": "T",
-            "type": 7
+            "type": 8
           },
           {
             "name": "E",
@@ -957,58 +675,24 @@
               },
               {
                 "index": 1,
-                "name": "NotAuthorized"
+                "name": "WorkerAlreadyRegistered"
+              },
+              {
+                "index": 2,
+                "name": "InvalidRating"
               }
             ]
           }
         },
         "path": [
-          "calendar",
-          "calendar",
+          "ratings",
+          "ratings",
           "Error"
         ]
       }
     },
     {
       "id": 16,
-      "type": {
-        "def": {
-          "variant": {
-            "variants": [
-              {
-                "index": 0,
-                "name": "NotAvailable"
-              },
-              {
-                "index": 1,
-                "name": "PartTime"
-              },
-              {
-                "index": 2,
-                "name": "FullTime"
-              },
-              {
-                "fields": [
-                  {
-                    "type": 0,
-                    "typeName": "u8"
-                  }
-                ],
-                "index": 3,
-                "name": "WeeklyHours"
-              }
-            ]
-          }
-        },
-        "path": [
-          "calendar",
-          "calendar",
-          "AvailabilityLevel"
-        ]
-      }
-    },
-    {
-      "id": 17,
       "type": {
         "def": {
           "variant": {
@@ -1038,6 +722,48 @@
           {
             "name": "T",
             "type": 0
+          },
+          {
+            "name": "E",
+            "type": 12
+          }
+        ],
+        "path": [
+          "Result"
+        ]
+      }
+    },
+    {
+      "id": 17,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "fields": [
+                  {
+                    "type": 18
+                  }
+                ],
+                "index": 0,
+                "name": "Ok"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 12
+                  }
+                ],
+                "index": 1,
+                "name": "Err"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 18
           },
           {
             "name": "E",
@@ -1053,33 +779,8 @@
       "id": 18,
       "type": {
         "def": {
-          "variant": {
-            "variants": [
-              {
-                "index": 0,
-                "name": "None"
-              },
-              {
-                "fields": [
-                  {
-                    "type": 0
-                  }
-                ],
-                "index": 1,
-                "name": "Some"
-              }
-            ]
-          }
-        },
-        "params": [
-          {
-            "name": "T",
-            "type": 0
-          }
-        ],
-        "path": [
-          "Option"
-        ]
+          "primitive": "u32"
+        }
       }
     },
     {
@@ -1091,7 +792,7 @@
               {
                 "fields": [
                   {
-                    "type": 20
+                    "type": 9
                   }
                 ],
                 "index": 0,
@@ -1112,7 +813,7 @@
         "params": [
           {
             "name": "T",
-            "type": 20
+            "type": 9
           },
           {
             "name": "E",
@@ -1128,20 +829,12 @@
       "id": 20,
       "type": {
         "def": {
-          "primitive": "bool"
-        }
-      }
-    },
-    {
-      "id": 21,
-      "type": {
-        "def": {
           "variant": {
             "variants": [
               {
                 "fields": [
                   {
-                    "type": 22
+                    "type": 21
                   }
                 ],
                 "index": 0,
@@ -1162,7 +855,7 @@
         "params": [
           {
             "name": "T",
-            "type": 22
+            "type": 21
           },
           {
             "name": "E",
@@ -1175,12 +868,23 @@
       }
     },
     {
-      "id": 22,
+      "id": 21,
       "type": {
         "def": {
           "sequence": {
-            "type": 23
+            "type": 22
           }
+        }
+      }
+    },
+    {
+      "id": 22,
+      "type": {
+        "def": {
+          "tuple": [
+            3,
+            0
+          ]
         }
       }
     },
@@ -1188,102 +892,18 @@
       "id": 23,
       "type": {
         "def": {
-          "composite": {
-            "fields": [
-              {
-                "name": "worker",
-                "type": 2,
-                "typeName": "AccountId"
-              },
-              {
-                "name": "hours",
-                "type": 0,
-                "typeName": "u8"
-              }
-            ]
-          }
-        },
-        "path": [
-          "calendar",
-          "calendar",
-          "WorkerAvailability"
-        ]
+          "primitive": "u128"
+        }
       }
     },
     {
       "id": 24,
       "type": {
         "def": {
-          "variant": {
-            "variants": [
-              {
-                "fields": [
-                  {
-                    "type": 8
-                  }
-                ],
-                "index": 0,
-                "name": "Ok"
-              },
-              {
-                "fields": [
-                  {
-                    "type": 12
-                  }
-                ],
-                "index": 1,
-                "name": "Err"
-              }
-            ]
-          }
-        },
-        "params": [
-          {
-            "name": "T",
-            "type": 8
-          },
-          {
-            "name": "E",
-            "type": 12
-          }
-        ],
-        "path": [
-          "Result"
-        ]
-      }
-    },
-    {
-      "id": 25,
-      "type": {
-        "def": {
-          "primitive": "str"
-        }
-      }
-    },
-    {
-      "id": 26,
-      "type": {
-        "def": {
-          "primitive": "u32"
-        }
-      }
-    },
-    {
-      "id": 27,
-      "type": {
-        "def": {
-          "primitive": "u128"
-        }
-      }
-    },
-    {
-      "id": 28,
-      "type": {
-        "def": {
           "composite": {
             "fields": [
               {
-                "type": 3,
+                "type": 4,
                 "typeName": "[u8; 32]"
               }
             ]
@@ -1297,7 +917,7 @@
       }
     },
     {
-      "id": 29,
+      "id": 25,
       "type": {
         "def": {
           "primitive": "u64"
@@ -1305,7 +925,7 @@
       }
     },
     {
-      "id": 30,
+      "id": 26,
       "type": {
         "def": {
           "variant": {}

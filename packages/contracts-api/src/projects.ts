@@ -1,4 +1,4 @@
-import { contracts, kreivo, pop } from "@polkadot-api/descriptors"
+import { contracts, kreivo } from "@polkadot-api/descriptors"
 import { createInkV5Sdk } from "@polkadot-api/sdk-ink"
 import { createClient, Binary } from "polkadot-api"
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat"

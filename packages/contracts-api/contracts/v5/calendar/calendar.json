@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0xe9899033076f75b48676c70c3c4f057b43d71e1aaea043b48ec06c50c076e259",
+    "hash": "0x69d4c283f1ebc65c1289b66dbcd7d6d998a5c6c306d3854a331370f1a6a483b1",
     "language": "ink! 5.1.1",
     "compiler": "rustc 1.89.0",
     "build_info": {
@@ -24,7 +24,17 @@
   "spec": {
     "constructors": [
       {
-        "args": [],
+        "args": [
+          {
+            "label": "ratings_contract",
+            "type": {
+              "displayName": [
+                "Option"
+              ],
+              "type": 10
+            }
+          }
+        ],
         "default": false,
         "docs": [],
         "label": "new",
@@ -34,7 +44,7 @@
             "ink_primitives",
             "ConstructorResult"
           ],
-          "type": 10
+          "type": 11
         },
         "selector": "0x9bae9d5e"
       }
@@ -51,25 +61,25 @@
         "displayName": [
           "Balance"
         ],
-        "type": 24
+        "type": 27
       },
       "blockNumber": {
         "displayName": [
           "BlockNumber"
         ],
-        "type": 27
+        "type": 26
       },
       "chainExtension": {
         "displayName": [
           "ChainExtension"
         ],
-        "type": 28
+        "type": 30
       },
       "hash": {
         "displayName": [
           "Hash"
         ],
-        "type": 25
+        "type": 28
       },
       "maxEventTopics": 4,
       "staticBufferSize": 16384,
@@ -77,7 +87,7 @@
         "displayName": [
           "Timestamp"
         ],
-        "type": 26
+        "type": 29
       }
     },
     "events": [
@@ -129,6 +139,84 @@
         "label": "AvailabilityUpdated",
         "module_path": "calendar::calendar",
         "signature_topic": "0x0f43f11d0134a93bbd332b75a0e91a0d15033b10e505358cc8cfe15b70d0e062"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "message",
+            "type": {
+              "displayName": [
+                "ink",
+                "prelude",
+                "string",
+                "String"
+              ],
+              "type": 25
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "worker",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 2
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "availability",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 0
+            }
+          }
+        ],
+        "docs": [
+          "Debug event for troubleshooting"
+        ],
+        "label": "DebugLog",
+        "module_path": "calendar::calendar",
+        "signature_topic": "0xc866a7e60e28e638cb051bb737f1ea167d8bf5d21eb90b38907fa90f40465176"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "index",
+            "type": {
+              "displayName": [
+                "u32"
+              ],
+              "type": 26
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "worker",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 2
+            }
+          }
+        ],
+        "docs": [
+          "Debug event for listing registered workers"
+        ],
+        "label": "DebugRegisteredWorker",
+        "module_path": "calendar::calendar",
+        "signature_topic": "0x41e8a4196ccaefac42f74e0dfb038630c8c7cfe83f06b6a22a8e8608d2066c8a"
       }
     ],
     "lang_error": {
@@ -136,7 +224,7 @@
         "ink",
         "LangError"
       ],
-      "type": 11
+      "type": 12
     },
     "messages": [
       {
@@ -163,7 +251,7 @@
             "ink",
             "MessageResult"
           ],
-          "type": 12
+          "type": 13
         },
         "selector": "0xe69e4dac"
       },
@@ -175,7 +263,7 @@
               "displayName": [
                 "AvailabilityLevel"
               ],
-              "type": 15
+              "type": 16
             }
           }
         ],
@@ -191,7 +279,7 @@
             "ink",
             "MessageResult"
           ],
-          "type": 12
+          "type": 13
         },
         "selector": "0x0b395a0b"
       },
@@ -219,7 +307,7 @@
             "ink",
             "MessageResult"
           ],
-          "type": 16
+          "type": 17
         },
         "selector": "0xfac1f8b0"
       },
@@ -240,7 +328,7 @@
               "displayName": [
                 "Option"
               ],
-              "type": 17
+              "type": 18
             }
           }
         ],
@@ -256,7 +344,7 @@
             "ink",
             "MessageResult"
           ],
-          "type": 18
+          "type": 19
         },
         "selector": "0xa5450156"
       },
@@ -268,7 +356,7 @@
               "displayName": [
                 "Option"
               ],
-              "type": 17
+              "type": 18
             }
           }
         ],
@@ -284,7 +372,7 @@
             "ink",
             "MessageResult"
           ],
-          "type": 20
+          "type": 21
         },
         "selector": "0x1bf3b50b"
       },
@@ -312,7 +400,7 @@
             "ink",
             "MessageResult"
           ],
-          "type": 12
+          "type": 13
         },
         "selector": "0x9414304e"
       },
@@ -330,7 +418,7 @@
             "ink",
             "MessageResult"
           ],
-          "type": 23
+          "type": 24
         },
         "selector": "0x37f1c989"
       },
@@ -348,7 +436,7 @@
             "ink",
             "MessageResult"
           ],
-          "type": 20
+          "type": 21
         },
         "selector": "0xf02bda6f"
       },
@@ -369,7 +457,7 @@
               "displayName": [
                 "AvailabilityLevel"
               ],
-              "type": 15
+              "type": 16
             }
           }
         ],
@@ -385,9 +473,45 @@
             "ink",
             "MessageResult"
           ],
-          "type": 12
+          "type": 13
         },
         "selector": "0xfed4bebe"
+      },
+      {
+        "args": [
+          {
+            "label": "ratings_contract",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 2
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Sets the ratings contract address",
+          "",
+          " Only the owner can call this function.",
+          "",
+          " # Parameters",
+          " - `ratings_contract`: Address of the ratings contract",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the owner"
+        ],
+        "label": "set_ratings_contract",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 13
+        },
+        "selector": "0x2922a4d6"
       }
     ]
   },
@@ -428,6 +552,35 @@
                 }
               },
               "name": "owner"
+            },
+            {
+              "layout": {
+                "enum": {
+                  "dispatchKey": "0x00000000",
+                  "name": "Option",
+                  "variants": {
+                    "0": {
+                      "fields": [],
+                      "name": "None"
+                    },
+                    "1": {
+                      "fields": [
+                        {
+                          "layout": {
+                            "leaf": {
+                              "key": "0x00000000",
+                              "ty": 2
+                            }
+                          },
+                          "name": "0"
+                        }
+                      ],
+                      "name": "Some"
+                    }
+                  }
+                }
+              },
+              "name": "ratings_contract"
             }
           ],
           "name": "Calendar"
@@ -598,6 +751,11 @@
                 "name": "owner",
                 "type": 2,
                 "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<3205882428u32, ()>,>>::Type"
+              },
+              {
+                "name": "ratings_contract",
+                "type": 10,
+                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<860441392u32, ()>,>>::Type"
               }
             ]
           }
@@ -616,6 +774,39 @@
           "variant": {
             "variants": [
               {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 2
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 2
+          }
+        ],
+        "path": [
+          "Option"
+        ]
+      }
+    },
+    {
+      "id": 11,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
                 "fields": [
                   {
                     "type": 7
@@ -627,7 +818,7 @@
               {
                 "fields": [
                   {
-                    "type": 11
+                    "type": 12
                   }
                 ],
                 "index": 1,
@@ -643,7 +834,7 @@
           },
           {
             "name": "E",
-            "type": 11
+            "type": 12
           }
         ],
         "path": [
@@ -652,7 +843,7 @@
       }
     },
     {
-      "id": 11,
+      "id": 12,
       "type": {
         "def": {
           "variant": {
@@ -671,7 +862,7 @@
       }
     },
     {
-      "id": 12,
+      "id": 13,
       "type": {
         "def": {
           "variant": {
@@ -679,7 +870,7 @@
               {
                 "fields": [
                   {
-                    "type": 13
+                    "type": 14
                   }
                 ],
                 "index": 0,
@@ -688,7 +879,7 @@
               {
                 "fields": [
                   {
-                    "type": 11
+                    "type": 12
                   }
                 ],
                 "index": 1,
@@ -700,11 +891,11 @@
         "params": [
           {
             "name": "T",
-            "type": 13
+            "type": 14
           },
           {
             "name": "E",
-            "type": 11
+            "type": 12
           }
         ],
         "path": [
@@ -713,7 +904,7 @@
       }
     },
     {
-      "id": 13,
+      "id": 14,
       "type": {
         "def": {
           "variant": {
@@ -730,7 +921,7 @@
               {
                 "fields": [
                   {
-                    "type": 14
+                    "type": 15
                   }
                 ],
                 "index": 1,
@@ -746,7 +937,7 @@
           },
           {
             "name": "E",
-            "type": 14
+            "type": 15
           }
         ],
         "path": [
@@ -755,7 +946,7 @@
       }
     },
     {
-      "id": 14,
+      "id": 15,
       "type": {
         "def": {
           "variant": {
@@ -779,7 +970,7 @@
       }
     },
     {
-      "id": 15,
+      "id": 16,
       "type": {
         "def": {
           "variant": {
@@ -817,7 +1008,7 @@
       }
     },
     {
-      "id": 16,
+      "id": 17,
       "type": {
         "def": {
           "variant": {
@@ -834,7 +1025,7 @@
               {
                 "fields": [
                   {
-                    "type": 11
+                    "type": 12
                   }
                 ],
                 "index": 1,
@@ -850,7 +1041,7 @@
           },
           {
             "name": "E",
-            "type": 11
+            "type": 12
           }
         ],
         "path": [
@@ -859,7 +1050,7 @@
       }
     },
     {
-      "id": 17,
+      "id": 18,
       "type": {
         "def": {
           "variant": {
@@ -892,7 +1083,7 @@
       }
     },
     {
-      "id": 18,
+      "id": 19,
       "type": {
         "def": {
           "variant": {
@@ -900,7 +1091,7 @@
               {
                 "fields": [
                   {
-                    "type": 19
+                    "type": 20
                   }
                 ],
                 "index": 0,
@@ -909,7 +1100,7 @@
               {
                 "fields": [
                   {
-                    "type": 11
+                    "type": 12
                   }
                 ],
                 "index": 1,
@@ -921,11 +1112,11 @@
         "params": [
           {
             "name": "T",
-            "type": 19
+            "type": 20
           },
           {
             "name": "E",
-            "type": 11
+            "type": 12
           }
         ],
         "path": [
@@ -934,7 +1125,7 @@
       }
     },
     {
-      "id": 19,
+      "id": 20,
       "type": {
         "def": {
           "primitive": "bool"
@@ -942,7 +1133,7 @@
       }
     },
     {
-      "id": 20,
+      "id": 21,
       "type": {
         "def": {
           "variant": {
@@ -950,7 +1141,7 @@
               {
                 "fields": [
                   {
-                    "type": 21
+                    "type": 22
                   }
                 ],
                 "index": 0,
@@ -959,7 +1150,7 @@
               {
                 "fields": [
                   {
-                    "type": 11
+                    "type": 12
                   }
                 ],
                 "index": 1,
@@ -971,11 +1162,11 @@
         "params": [
           {
             "name": "T",
-            "type": 21
+            "type": 22
           },
           {
             "name": "E",
-            "type": 11
+            "type": 12
           }
         ],
         "path": [
@@ -984,17 +1175,17 @@
       }
     },
     {
-      "id": 21,
+      "id": 22,
       "type": {
         "def": {
           "sequence": {
-            "type": 22
+            "type": 23
           }
         }
       }
     },
     {
-      "id": 22,
+      "id": 23,
       "type": {
         "def": {
           "composite": {
@@ -1020,7 +1211,7 @@
       }
     },
     {
-      "id": 23,
+      "id": 24,
       "type": {
         "def": {
           "variant": {
@@ -1037,7 +1228,7 @@
               {
                 "fields": [
                   {
-                    "type": 11
+                    "type": 12
                   }
                 ],
                 "index": 1,
@@ -1053,7 +1244,7 @@
           },
           {
             "name": "E",
-            "type": 11
+            "type": 12
           }
         ],
         "path": [
@@ -1062,7 +1253,23 @@
       }
     },
     {
-      "id": 24,
+      "id": 25,
+      "type": {
+        "def": {
+          "primitive": "str"
+        }
+      }
+    },
+    {
+      "id": 26,
+      "type": {
+        "def": {
+          "primitive": "u32"
+        }
+      }
+    },
+    {
+      "id": 27,
       "type": {
         "def": {
           "primitive": "u128"
@@ -1070,7 +1277,7 @@
       }
     },
     {
-      "id": 25,
+      "id": 28,
       "type": {
         "def": {
           "composite": {
@@ -1090,7 +1297,7 @@
       }
     },
     {
-      "id": 26,
+      "id": 29,
       "type": {
         "def": {
           "primitive": "u64"
@@ -1098,15 +1305,7 @@
       }
     },
     {
-      "id": 27,
-      "type": {
-        "def": {
-          "primitive": "u32"
-        }
-      }
-    },
-    {
-      "id": 28,
+      "id": 30,
       "type": {
         "def": {
           "variant": {}
