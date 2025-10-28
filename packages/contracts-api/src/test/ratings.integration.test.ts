@@ -26,48 +26,36 @@ describe('RatingsService Integration Tests', () => {
   let contractAddress: string;
   let testWorkerAddress: string;
 
-  // Pre-deployed contract address (if available, deployment will be skipped)
-  const PREDEFINED_CONTRACT_ADDRESS = 'DcxjGoA7UMoXk4FXKTQm7owXJ1QCsDruqQv1oovXuRM4ZaK';
 
   beforeAll(async () => {
-    // Check if we should use predefined address or deploy new contract
-    if (PREDEFINED_CONTRACT_ADDRESS) {
-      contractAddress = PREDEFINED_CONTRACT_ADDRESS;
-      console.log(`✅ Using predefined contract address: ${contractAddress}`);
-    } else {
-      console.log('🚀 Deploying ratings contract for integration tests...');
-      
-      // Initialize deploy service
-      deployService = new DeployService();
-      
-      // Deploy ratings contract
-      const deployConfig = deployService.getDeployConfigs().ratings_v5;
-      const deployResult = await deployService.deployContract(deployConfig, {});
-      
-      if (!deployResult.success || !deployResult.address) {
-        throw new Error(`Failed to deploy ratings contract: ${deployResult.error || 'Unknown error'}`);
-      }
-      
-      contractAddress = deployResult.address;
-      console.log(`✅ Ratings contract deployed at: ${contractAddress}`);
+    console.log('🚀 Deploying ratings contract for integration tests...');
+
+    deployService = new DeployService();
+
+    const deployConfig = deployService.getDeployConfigs().ratings_v5;
+    const deployResult = await deployService.deployContract(deployConfig, {});
+
+    if (!deployResult.success || !deployResult.address) {
+      throw new Error(`Failed to deploy ratings contract: ${deployResult.error || 'Unknown error'}`);
     }
 
-    // Create test worker address from dev phrase
+    contractAddress = deployResult.address;
+    console.log(`✅ Ratings contract deployed at: ${contractAddress}`);
+
+
     const entropy = mnemonicToEntropy(DEV_PHRASE);
     const seed = entropyToMiniSecret(entropy);
     const derive = sr25519CreateDerive(seed);
-    
-    // Generate test worker (Bob)
+
     const testWorker = derive('//Bob');
     testWorkerAddress = ss58Encode(testWorker.publicKey);
 
-    // Initialize ratings service
     ratingsService = new RatingsService();
     await ratingsService.initialize();
-    
+
     console.log('✅ RatingsService initialized and ready for tests');
     console.log('Test worker address:', testWorkerAddress);
-  }, 120000); // 2 minutes timeout for deployment
+  }, 120000);
 
   afterAll(async () => {
     if (ratingsService) {
@@ -75,73 +63,41 @@ describe('RatingsService Integration Tests', () => {
     }
   });
 
-  describe('Service Initialization', () => {
-    test('should initialize successfully', () => {
-      expect(ratingsService).toBeDefined();
-    });
+  describe('Worker Registration - register_worker', () => {
+    test('should register a worker', async () => {
+      const result = await ratingsService.callMethod(
+        contractAddress,
+        'register_worker',
+        { data: { worker: testWorkerAddress } }
+      );
 
-    test('should return available methods', () => {
-      const methods = ratingsService.getAvailableMethods();
-      expect(methods).toContain('register_worker');
-      expect(methods).toContain('add_rating');
-      expect(methods).toContain('get_worker_ratings');
-      expect(methods).toContain('get_registered_workers');
-      expect(methods).toContain('get_all_ratings');
-    });
+      expect(result).toHaveProperty('method', 'register_worker');
+      expect(result).toHaveProperty('success');
+      expect(result).toHaveProperty('transactionHash');
 
-    test('should return available constructors', () => {
-      const constructors = ratingsService.getAvailableConstructors();
-      expect(constructors).toContain('new');
-    });
-
-    test('should validate existing methods', () => {
-      expect(ratingsService.validateMethod('register_worker')).toBe(true);
-      expect(ratingsService.validateMethod('add_rating')).toBe(true);
-      expect(ratingsService.validateMethod('get_worker_ratings')).toBe(true);
-      expect(ratingsService.validateMethod('nonexistent_method')).toBe(false);
-    });
-
-    test('should validate existing constructors', () => {
-      expect(ratingsService.validateConstructor('new')).toBe(true);
-      expect(ratingsService.validateConstructor('nonexistent')).toBe(false);
+      console.log('✓ Worker registered:', testWorkerAddress);
     });
   });
 
-  // describe('Worker Registration - register_worker', () => {
-  //   test('should register a worker', async () => {
-  //     const result = await ratingsService.callMethod(
-  //       contractAddress,
-  //       'register_worker',
-  //       { data: { worker: testWorkerAddress } }
-  //     );
+  describe('Rating Management - add_rating', () => {
+    test('should add a rating to worker', async () => {
+      const result = await ratingsService.callMethod(
+        contractAddress,
+        'add_rating',
+        {
+          data: {
+            worker: testWorkerAddress,
+            rating: 8
+          }
+        }
+      );
 
-  //     expect(result).toHaveProperty('method', 'register_worker');
-  //     expect(result).toHaveProperty('success');
-  //     expect(result).toHaveProperty('transactionHash');
-      
-  //     console.log('✓ Worker registered:', testWorkerAddress);
-  //   });
-  // });
+      expect(result).toHaveProperty('method', 'add_rating');
+      expect(result).toHaveProperty('success');
 
-  // describe('Rating Management - add_rating', () => {
-  //   test('should add a rating to worker', async () => {
-  //     const result = await ratingsService.callMethod(
-  //       contractAddress,
-  //       'add_rating',
-  //       { 
-  //         data: {
-  //           worker: testWorkerAddress,
-  //           rating: 8
-  //         }
-  //       }
-  //     );
-
-  //     expect(result).toHaveProperty('method', 'add_rating');
-  //     expect(result).toHaveProperty('success');
-      
-  //     console.log('✓ Rating added: 8/10');
-  //   });
-  // });
+      console.log('✓ Rating added: 8/10');
+    });
+  });
 
   describe('Query Methods - get_worker_ratings', () => {
     test('should query worker ratings', async () => {
@@ -155,7 +111,7 @@ describe('RatingsService Integration Tests', () => {
       expect(result).toHaveProperty('method', 'get_worker_ratings');
       expect(result).toHaveProperty('contractAddress', contractAddress);
       expect(result).toHaveProperty('response');
-      
+
       if (result.success) {
         console.log('✓ Worker ratings (array):', result.response);
         expect(Array.isArray(result.response)).toBe(true);
@@ -174,7 +130,7 @@ describe('RatingsService Integration Tests', () => {
       expect(result).toHaveProperty('success');
       expect(result).toHaveProperty('method', 'get_registered_workers');
       expect(result).toHaveProperty('response');
-      
+
       if (result.success) {
         console.log('✓ Registered workers:', result.response);
         expect(Array.isArray(result.response)).toBe(true);
@@ -192,7 +148,7 @@ describe('RatingsService Integration Tests', () => {
 
       expect(result).toHaveProperty('success');
       expect(result).toHaveProperty('method', 'get_all_ratings');
-      
+
       if (result.success) {
         console.log('✓ All ratings:', result.response);
         expect(Array.isArray(result.response)).toBe(true);

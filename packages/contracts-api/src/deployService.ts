@@ -108,7 +108,6 @@ export class DeployService {
       }
     }
     
-    // ratings contract has no constructor params
     if (config.contractType === 'ratings') {
       return {}
     }
