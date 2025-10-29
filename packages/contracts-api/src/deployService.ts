@@ -40,7 +40,13 @@ export class DeployService {
   }
 
   private getAppId(contractType: string): number {
-    const envVarName = contractType === 'calendar' ? 'CALENDAR_APP_ID' : 'PROJECTS_APP_ID'
+    const envVarMap: Record<string, string> = {
+      'calendar': 'CALENDAR_APP_ID',
+      'ratings': 'RATINGS_APP_ID',
+      'projects': 'PROJECTS_APP_ID'
+    }
+    
+    const envVarName = envVarMap[contractType] || 'PROJECTS_APP_ID'
     const appId = process.env[envVarName]
     
     if (!appId) {
@@ -61,6 +67,8 @@ export class DeployService {
     } else {
       if (contractType === 'calendar') {
         return createInkV5Sdk(this.typedApi, contracts.calendar_v5)
+      } else if (contractType === 'ratings') {
+        return createInkV5Sdk(this.typedApi, contracts.ratings_v5)
       }
       return createInkV5Sdk(this.typedApi, contracts.projects_v5)
     }
@@ -81,15 +89,27 @@ export class DeployService {
         return {
           name: params.name,
           dao_address: Binary.fromHex(params.dao_address),
-          calendar_contract: params.calendar_contract ? Binary.fromHex(params.calendar_contract) : undefined
+          calendar_contract: params.calendar_contract ? Binary.fromHex(params.calendar_contract) : undefined,
+          ratings_contract: params.ratings_contract ? Binary.fromHex(params.ratings_contract) : undefined
         }
       } else {
         return {
           name: params.name,
           dao_address: params.dao_address,
-          calendar_contract: params.calendar_contract
+          calendar_contract: params.calendar_contract || undefined,
+          ratings_contract: params.ratings_contract || undefined
         }
       }
+    }
+    
+    if (config.contractType === 'calendar') {
+      return {
+        ratings_contract: params.ratings_contract || undefined
+      }
+    }
+    
+    if (config.contractType === 'ratings') {
+      return {}
     }
     
     return params
@@ -224,6 +244,11 @@ export class DeployService {
         inkVersion: '5' as const,
         contractType: 'calendar',
         wasmPath: path.resolve(process.cwd(), 'contracts/v5/calendar/calendar.wasm'),
+      },
+      ratings_v5: {
+        inkVersion: '5' as const,
+        contractType: 'ratings',
+        wasmPath: path.resolve(process.cwd(), 'contracts/v5/ratings/ratings.wasm'),
       }
     }
   }

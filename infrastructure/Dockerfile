@@ -55,6 +55,7 @@ COPY infrastructure/kreivo-rococo-local.toml .
 COPY infrastructure/chain_spec.json .
 COPY infrastructure/contracts/projects_kreivo_local.dat ./contracts/projects_kreivo_local.dat
 COPY infrastructure/contracts/calendar_kreivo_local.dat ./contracts/calendar_kreivo_local.dat
+COPY infrastructure/contracts/ratings_kreivo_local.dat ./contracts/ratings_kreivo_local.dat
 COPY infrastructure/start.sh .
 RUN chmod +x start.sh
 

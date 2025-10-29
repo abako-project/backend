@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0xb1e35aa9e966c669f8d947548df0ff7e9e3a09feb949fd9cb01d5659f21b084d",
+    "hash": "0x1f3a4a86ba64ca26bdf5ccab9ca703e47844386a3bf44930183fa397e2c43140",
     "language": "ink! 5.1.1",
     "compiler": "rustc 1.89.0",
     "build_info": {
@@ -45,6 +45,15 @@
           },
           {
             "label": "calendar_contract",
+            "type": {
+              "displayName": [
+                "Option"
+              ],
+              "type": 21
+            }
+          },
+          {
+            "label": "ratings_contract",
             "type": {
               "displayName": [
                 "Option"
@@ -773,6 +782,42 @@
       {
         "args": [
           {
+            "label": "ratings_contract",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Sets the ratings contract address for worker ratings",
+          "",
+          " Only the client can call this function.",
+          "",
+          " # Parameters",
+          " - `ratings_contract`: Address of the ratings contract",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the client"
+        ],
+        "label": "set_ratings_contract",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 35
+        },
+        "selector": "0x2922a4d6"
+      },
+      {
+        "args": [
+          {
             "label": "tasks",
             "type": {
               "displayName": [
@@ -1132,6 +1177,35 @@
                 }
               },
               "name": "calendar_contract"
+            },
+            {
+              "layout": {
+                "enum": {
+                  "dispatchKey": "0x00000000",
+                  "name": "Option",
+                  "variants": {
+                    "0": {
+                      "fields": [],
+                      "name": "None"
+                    },
+                    "1": {
+                      "fields": [
+                        {
+                          "layout": {
+                            "leaf": {
+                              "key": "0x00000000",
+                              "ty": 1
+                            }
+                          },
+                          "name": "0"
+                        }
+                      ],
+                      "name": "Some"
+                    }
+                  }
+                }
+              },
+              "name": "ratings_contract"
             },
             {
               "layout": {
@@ -1663,6 +1737,11 @@
                 "name": "calendar_contract",
                 "type": 21,
                 "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<1903087310u32, ()>,>>::Type"
+              },
+              {
+                "name": "ratings_contract",
+                "type": 21,
+                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<3648927803u32, ()>,>>::Type"
               },
               {
                 "name": "scope",
