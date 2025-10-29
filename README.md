@@ -1,41 +1,10 @@
 # Kunveno Backend - Monorepo
 
-This is the backend monorepo for the Kunveno project (PolkaTalent), which includes all the APIs and services necessary for the system's operation.
+This is the backend monorepo for the Kunveno project (Abako), which includes all the APIs and services necessary for the system's operation.
 
-## Milestone 1 - Deliverables Compliance
 
-This project implements the PoC for **Milestone 1** of the Web3 Foundation grant. Below is the current compliance status:
 
-| Deliverable | Compliance | Comments |
-|------------|-----------|----------|
-| **1. License: MIT** | 100% | MIT License included |
-| **2. Documentation** | 100% | README.md + comprehensive [Testing Guide](./TESTING_GUIDE.md) |
-| **3. Backend Code** | | |
-| - Communities (DAO) | 100% | Implemented via `Communities.add_member` pallet. Note: virto-membership refers to the Communities pallet itself |
-| - Governance | 100% | `approve_scope` for client/DAO governance, voting implicit in approval process |
-| - NFT Memberships | 100% | Memberships implemented on-chain via Communities pallet (not ERC-721 NFTs, but native Substrate memberships) |
-| - Reputation System | 85% | Ratings (0-10) implemented in `mark_completed`, stored per-project. Historical aggregation pending for Milestone 2 |
-| - Pass Pallet | 100% | WebAuthn registration, feeless authentication via `dispatch_as_account` |
-| - Listings | 100% | Project proposals with `deploy`, `name`, `dao_address` |
-| - Matching Algorithm | 80% | Automatic coordinator/team assignment based on availability. Simple algorithm for PoC; multi-criteria (expertise, reputation) deferred to later milestones |
-| - Escrow Contracts | 100% | Milestone-based payouts: `advance_payment_percentage`, `complete_task` releases funds |
-| - Payments (virto-pay) | 60% | Basic on-chain transfers (`Balances`, `Assets`) implemented. Full virto-pay integration blocked by Bloque on/off-ramp service (not yet released). Workaround/mock planned for Milestone 2 |
-| - On/Off-ramps | 30% | Not implemented. Blocked by external Bloque service dependency. Integration planned for Milestone 2 |
-| **4. Tech Stack** | 95% | |
-| - Substrate (Kreivo) | 100% | Zombienet testnet functional |
-| - Ink! v5 contracts | 100% | projects_v5, calendar_v5 deployed |
-| - VirtoSDK components | 85% | @virtonetwork/sdk, polkadot-api, Pass, Communities implemented. virto-pay pending, Matrix integration out of scope for this PoC |
-| **Dispute Resolution** | 0% | Out of scope for PoC. Only existence possibility offered (task rejection in `approve_scope`) |
-| **Matrix Integration** | 0% | Out of scope for this PoC. To be addressed in future milestones |
-| **Overall Completion** | **88%** | Core DAO, Pass, Escrow, Matching functional. virto-pay and on/off-ramps pending external dependencies |
-
-**Key Notes:**
-- **virto-membership = Communities pallet**: The membership system uses Substrate's native Communities pallet, not separate NFT tokens
-- **virto-pay & on/off-ramps**: Blocked by Bloque service availability. Workaround in progress for Milestone 2
-- **Matrix**: Explicitly deferred to future development
-- **Disputes**: PoC scope limited to task approval/rejection mechanism
-
-For detailed testing instructions, see [TESTING_GUIDE.md](./TESTING_GUIDE.md).
+> For detailed testing instructions, see [TESTING_GUIDE.md](./TESTING_GUIDE.md).
 
 ## Project Structure
 

@@ -1,6 +1,6 @@
-# PolkaTalent Backend - Testing Guide
+# Abako Backend - Testing Guide
 
-This comprehensive testing guide covers the setup, execution, and verification of the PolkaTalent backend implementation for Milestone 1 of the Web3 Foundation grant.
+This comprehensive testing guide covers the setup, execution, and verification of the Abako backend implementation for Milestone 1 of the Web3 Foundation grant.
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@ This comprehensive testing guide covers the setup, execution, and verification o
 
 ## Overview
 
-The PolkaTalent backend implements key features for the Milestone 1 deliverables:
+The Abako backend implements key features for the Milestone 1 deliverables:
 
 - **DAO Creation & Governance**: via Communities pallet
 - **Pass Pallet**: WebAuthn-based feeless authentication
