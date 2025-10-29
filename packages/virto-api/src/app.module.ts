@@ -1,5 +1,6 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { VosMockModule } from './modules/vos-mock/vos-mock.module';
+import { ManagementModule } from './modules/management/management.module';
 import { ConfigModule } from './config/config.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import * as dotenv from 'dotenv';
@@ -16,6 +17,7 @@ dotenv.config();
       rootPath: join(process.cwd(), 'dist', 'static')
     }),
     VosMockModule,
+    ManagementModule,
     ConfigModule,
     ApiDocsModule,
   ],
