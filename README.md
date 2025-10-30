@@ -1,6 +1,6 @@
-# Kunveno Backend - Monorepo
+# Abako Backend - Monorepo
 
-This is the backend monorepo for the Kunveno project (Abako), which includes all the APIs and services necessary for the system's operation.
+This is the backend monorepo for the Abako project (Abako), which includes all the APIs and services necessary for the system's operation.
 
 
 
@@ -145,7 +145,7 @@ Packages can reference each other using:
 ```json
 {
   "dependencies": {
-    "@kunveno/adapter-api": "workspace:*"
+    "@abako-project/adapter-api": "workspace:*"
   }
 }
 ```
