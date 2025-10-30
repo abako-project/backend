@@ -1,6 +1,7 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { VosMockModule } from './modules/vos-mock/vos-mock.module';
 import { ManagementModule } from './modules/management/management.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { ConfigModule } from './config/config.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import * as dotenv from 'dotenv';
@@ -18,6 +19,7 @@ dotenv.config();
     }),
     VosMockModule,
     ManagementModule,
+    PaymentsModule,
     ConfigModule,
     ApiDocsModule,
   ],
