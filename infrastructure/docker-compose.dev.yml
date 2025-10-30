@@ -7,7 +7,7 @@ services:
     ports:
       - "21000:21000"
     networks:
-      - kunveno-network
+      - abako-network
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "Content-Type: application/json", "-d", '{"id":1, "jsonrpc":"2.0", "method": "system_health"}', "http://localhost:21000"]
       interval: 30s
@@ -32,7 +32,7 @@ services:
       - PROJECTS_APP_ID=0
       - CALENDAR_APP_ID=1
     networks:
-      - kunveno-network
+      - abako-network
     depends_on:
       zombienet:
         condition: service_healthy
@@ -69,7 +69,7 @@ services:
       - JWT_EXPIRES_IN=10m
       - NODE_NO_WARNINGS=1
     networks:
-      - kunveno-network
+      - abako-network
     depends_on:
       zombienet:
         condition: service_healthy
@@ -110,7 +110,7 @@ services:
     volumes:
       - virto-api-data:/app/data
     networks:
-      - kunveno-network
+      - abako-network
     depends_on:
       zombienet:
         condition: service_healthy
@@ -133,6 +133,6 @@ volumes:
     driver: local
 
 networks:
-  kunveno-network:
+  abako-network:
     driver: bridge
 

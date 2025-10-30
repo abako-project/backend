@@ -52,10 +52,7 @@ describe('Projects Module E2E Tests', () => {
   });
 
   afterAll(async () => {
-    console.log('\n='.repeat(80));
-    console.log('✅ All workflow tests completed successfully!');
     console.log('='.repeat(80) + '\n');
-    console.log('Closing application...');
     await app.close();
   });
 
