@@ -4,8 +4,6 @@ module.exports = {
   roots: ['<rootDir>/test'],
   testMatch: ['**/*.e2e-spec.ts'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-  silent: false,
-  verbose: true,
   collectCoverageFrom: [
     'src/**/*.{ts,js}',
     '!src/**/*.d.ts',

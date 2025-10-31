@@ -1,0 +1,109 @@
+services:
+  zombienet:
+    image: kreivo-zombienet:e2e
+    container_name: kreivo-zombienet
+    ports:
+      - "21000:21000"
+    networks:
+      - abako-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "Content-Type: application/json", "-d", '{"id":1, "jsonrpc":"2.0", "method": "system_health"}', "http://localhost:21000"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+    restart: unless-stopped
+
+  contracts-api:
+    image: contracts-api:e2e
+    container_name: contracts-api-service
+    ports:
+      - "3010:3010"
+    environment:
+      - PORT=3010
+      - NODE_ENV=development
+      - KREIVO_PROVIDER=ws://zombienet:21000
+      - PHRASE=
+      - DERIVE_PATH=//Alice
+      - PROJECTS_APP_ID=0
+      - CALENDAR_APP_ID=1
+    networks:
+      - abako-network
+    depends_on:
+      zombienet:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  adapter-api:
+    image: adapter-api:e2e
+    container_name: adapter-api-service
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - NODE_ENV=development
+      - SIGNING_SERVICE_URL=http://contracts-api:3010
+      - FEDERATE_SERVER=http://virto-api:3000/api
+      - PROVIDER_URL=ws://zombienet:21000
+      - PHRASE=
+      - DERIVE_PATH=//Alice
+      - JWT_SECRET=virto-server-example-secret-key-change-in-production
+      - JWT_EXPIRES_IN=10m
+      - NODE_NO_WARNINGS=1
+    networks:
+      - abako-network
+    depends_on:
+      zombienet:
+        condition: service_healthy
+      contracts-api:
+        condition: service_started
+      virto-api:
+        condition: service_started
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  virto-api:
+    image: virto-api:e2e
+    container_name: virto-api-service
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=development
+      - KREIVO_PROVIDER=ws://zombienet:21000
+      - PHRASE=
+      - DERIVE_PATH=//Alice
+      - COMMUNITY_ID=1
+      - VOS_DATA_PATH=/app/data
+      - NODE_NO_WARNINGS=1
+    volumes:
+      - virto-api-data:/app/data
+    networks:
+      - abako-network
+    depends_on:
+      zombienet:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  virto-api-data:
+    driver: local
+
+networks:
+  abako-network:
+    driver: bridge
+
