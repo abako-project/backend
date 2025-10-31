@@ -26,7 +26,7 @@ The Abako backend implements key features for the Milestone 1 deliverables:
 - **Developer Listings**: Project proposal and deployment
 - **Matching Algorithm**: Automatic coordinator and team assignment
 - **Escrow & Payments**: Milestone-based smart contract payouts
-- **Reputation System**: Rating-based feedback (0-10 scale)
+- **Reputation System**: Rating-based feedback (0-100 scale)
 
 ---
 
@@ -51,6 +51,31 @@ The testing environment uses Docker Compose to orchestrate:
 - **contracts-api**: Smart contract interaction service
 - **virto-api**: VOS mock server (federate_server)
 - **adapter-api**: Main API orchestrator
+
+**⚠️ Important:** E2E tests require pre-built Docker images. These images must be built on a specific machine to ensure zombienet works correctly. On other machines, you should pull the images from a registry first.
+
+#### Automated E2E Test Execution (Recommended)
+
+```bash
+cd backend
+
+REGISTRY=bavb ./infrastructure/pull-images.sh
+
+VERBOSE_LEVEL=info ./infrastructure/run-e2e-tests.sh
+
+VERBOSE_LEVEL=all ./infrastructure/run-e2e-tests.sh
+```
+
+The `run-e2e-tests.sh` script will automatically:
+- Verify that required images exist
+- Start infrastructure services using pre-built images
+- Wait for all services to be ready (including zombienet contracts deployment)
+- Run the E2E tests
+- Handle cleanup on exit
+
+#### Manual Infrastructure Startup
+
+If you prefer to start services manually:
 
 ```bash
 # From project root
@@ -785,11 +810,11 @@ curl -X POST http://localhost:4000/projects/5EYCAe5i.../mark_completed \
   }'
 ```
 
-**Rating scale:** 0-10
-- 0-3: Poor
-- 4-6: Average
-- 7-8: Good
-- 9-10: Excellent
+**Rating scale:** 0-100
+- 0-30: Poor
+- 40-60: Average
+- 70-80: Good
+- 90-100: Excellent
 
 **Response:**
 ```json
@@ -1038,9 +1063,9 @@ curl -X POST http://localhost:4000/projects/$project_address/mark_completed \
   -H "Content-Type: application/json" \
   -d "{
     \"ratings\": [
-      [\"$address_worker1\", 10],
-      [\"$address_worker2\", 9],
-      [\"$address_worker3\", 8]
+      [\"$address_worker1\", 100],
+      [\"$address_worker2\", 90],
+      [\"$address_worker3\", 80]
     ]
   }"
 
@@ -1175,13 +1200,39 @@ curl "http://localhost:21000" \
 | `NotAuthorized` | Wrong caller for method | Verify caller role (client/coordinator) |
 | `CoordinatorNotAssigned` | Coordinator not set | Call `assign_coordinator` first |
 | `TasksNotCompleted` | Trying to mark complete | Complete all tasks first |
-| `InvalidRatingValue` | Rating not 0-10 | Use valid rating range |
+| `InvalidRatingValue` | Rating not 0-100 | Use valid rating range |
 
 ---
 
 ## Running Automated Tests
 
 The project includes comprehensive E2E tests that cover the complete flow.
+
+### Recommended: Using the Automated Script
+
+The easiest way to run E2E tests is using the automated script:
+
+```bash
+# 1. Pull pre-built images from registry (required first step)
+REGISTRY=your-registry.com/namespace ./infrastructure/pull-images.sh
+
+# 2. Run E2E tests with the automated script
+VERBOSE_LEVEL=info ./infrastructure/run-e2e-tests.sh
+
+# For detailed debug output:
+VERBOSE_LEVEL=all ./infrastructure/run-e2e-tests.sh
+
+# Run specific test suites by passing arguments:
+VERBOSE_LEVEL=info ./infrastructure/run-e2e-tests.sh -- --testNamePattern="Authentication"
+```
+
+**Verbose Levels:**
+- `VERBOSE_LEVEL=info` (default): Shows progress and errors only
+- `VERBOSE_LEVEL=all`: Shows all debug logs including detailed service checks
+
+### Manual Test Execution
+
+If you prefer manual control:
 
 ```bash
 # Start infrastructure
