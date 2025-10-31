@@ -125,21 +125,21 @@ check_zombienet_ready() {
   done
   
   echo -e "\n${RED}Zombienet was not ready after ${max_attempts} attempts${NC}"
-  echo -e "${YELLOW}Check logs: docker compose -f infrastructure/docker-compose.e2e.yml logs zombienet${NC}"
+  echo -e "${YELLOW}Check logs: docker compose -f infrastructure/docker-compose.dev.yml logs zombienet${NC}"
   return 1
 }
 
 # Check if services are running
 echo -e "${BLUE}Checking services...${NC}"
 
-SERVICES_RUNNING=$(docker compose -f "$SCRIPT_DIR/docker-compose.e2e.yml" ps --services --filter "status=running" 2>/dev/null | wc -l)
+SERVICES_RUNNING=$(docker compose -f "$SCRIPT_DIR/docker-compose.dev.yml" ps --services --filter "status=running" 2>/dev/null | wc -l)
 
 if [ "$SERVICES_RUNNING" -lt 3 ]; then
   echo -e "${YELLOW}Services are not running. Starting infrastructure...${NC}"
   echo ""
   
   cd "$BACKEND_DIR"
-  docker compose -f infrastructure/docker-compose.e2e.yml up -d
+  docker compose -f infrastructure/docker-compose.dev.yml up -d
   
   echo ""
   echo -e "${YELLOW}Waiting for services to be ready...${NC}"

@@ -1,8 +1,6 @@
 services:
   zombienet:
-    build:
-      context: ..
-      dockerfile: infrastructure/Dockerfile
+    image: kreivo-zombienet:e2e
     container_name: kreivo-zombienet
     ports:
       - "21000:21000"
@@ -17,9 +15,7 @@ services:
     restart: unless-stopped
 
   contracts-api:
-    build:
-      context: ..
-      dockerfile: packages/contracts-api/Dockerfile
+    image: contracts-api:e2e
     container_name: contracts-api-service
     ports:
       - "3010:3010"
@@ -42,18 +38,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    develop:
-      watch:
-        - action: sync
-          path: ../packages/contracts-api/src
-          target: /app/src
-        - action: rebuild
-          path: ../packages/contracts-api/package.json
 
   adapter-api:
-    build:
-      context: ..
-      dockerfile: packages/adapter-api/Dockerfile
+    image: adapter-api:e2e
     container_name: adapter-api-service
     ports:
       - "4000:4000"
@@ -83,18 +70,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    develop:
-      watch:
-        - action: sync
-          path: ../packages/adapter-api/src
-          target: /app/src
-        - action: rebuild
-          path: ../packages/adapter-api/package.json
 
   virto-api:
-    build:
-      context: ..
-      dockerfile: packages/virto-api/Dockerfile
+    image: virto-api:e2e
     container_name: virto-api-service
     ports:
       - "3000:3000"
@@ -120,13 +98,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    develop:
-      watch:
-        - action: sync
-          path: ../packages/virto-api/src
-          target: /app/src
-        - action: rebuild
-          path: ../packages/virto-api/package.json
 
 volumes:
   virto-api-data:

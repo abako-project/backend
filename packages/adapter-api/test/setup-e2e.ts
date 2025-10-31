@@ -39,3 +39,34 @@ Object.defineProperty(global, 'navigator', {
 
 (global as any).webAuthnEmulator = emulator;
 
+
+const VERBOSE_LEVEL = process.env.VERBOSE_LEVEL || 'none';
+
+const originalLog = console.log;
+const originalInfo = console.info;
+const originalWarn = console.warn;
+const originalError = console.error;
+
+switch (VERBOSE_LEVEL) {
+  case 'all':
+    break; // keep all logs
+  case 'info':
+    console.log = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    break;
+  case 'errors':
+    console.log = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    break;
+  case 'none':
+  default:
+    console.log = () => {};
+    console.info = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    break;
+}
+
+originalInfo(`[jest] VERBOSE_LEVEL = ${VERBOSE_LEVEL}`);

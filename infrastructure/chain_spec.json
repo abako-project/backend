@@ -128,7 +128,52 @@
             ]
           ],
           "nonAuthorityKeys": []
-        }
+        },
+        "assets": {
+          "accounts": [
+            [
+              {
+                "Here": 1
+              },
+              "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+              100000000000
+            ]
+          ],
+          "assets": [
+            [
+              {
+                "Here": 1
+              },
+              "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+              true,
+              1
+            ]
+          ],
+          "metadata": [
+            [
+              {
+                "Here": 1
+              },
+              [
+                116,
+                101,
+                115,
+                116,
+                85,
+                83,
+                68
+              ],
+              [
+                116,
+                85,
+                83,
+                68
+              ],
+              3
+            ]
+          ],
+          "nextAssetId": null
+        }        
       }
     }
   }
