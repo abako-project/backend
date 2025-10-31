@@ -94,20 +94,48 @@ pnpm run build
 
 E2E tests run complete flows against real infrastructure (Zombienet, contracts, APIs).
 
+**Important:** E2E tests require pre-built Docker images. The images must be built on a specific machine to ensure zombienet works correctly.
+
+#### Running E2E Tests
+
+```bash
+REGISTRY=bavb ./infrastructure/pull-images.sh
+
+VERBOSE_LEVEL=info ./infrastructure/run-e2e-tests.sh
+
+VERBOSE_LEVEL=all ./infrastructure/run-e2e-tests.sh
+```
+
+The `run-e2e-tests.sh` script will:
+- Check for required Docker images
+- Start infrastructure services using pre-built images
+- Wait for all services to be ready
+- Run the E2E tests automatically
+
+#### Building Images (for maintainers)
+
+If you need to build the images locally (e.g., on the machine where zombienet works correctly):
+
+```bash
+./infrastructure/build-images.sh
+
+REGISTRY=your-registry.com/namespace ./infrastructure/build-images.sh
+```
+
+#### Manual Test Execution
+
+If you prefer to run tests manually:
+
 ```bash
 # Start infrastructure (if not running)
 npm run infra:up
 
-# Run complete e2e test (projects - complete flow)
-npm run test:e2e
-
-# Run ALL e2e tests
+# Run tests from adapter-api package
 cd packages/adapter-api
-npm run test:e2e:all
-
-# Run individual tests
-npm run test:e2e:auth      # Authentication only
-npm run test:e2e:calendar  # Calendar only
+npm run test:e2e:all      # Run all tests
+npm run test:e2e:auth     # Authentication only
+npm run test:e2e:calendar # Calendar only
+npm run test:e2e           # Projects (complete flow)
 
 # Stop infrastructure
 npm run infra:down
@@ -170,6 +198,16 @@ Packages can reference each other using:
 This project includes comprehensive testing documentation and end-to-end tests covering the complete project lifecycle.
 
 ### Quick Test Run
+
+```bash
+# 1. Pull pre-built images (required)
+REGISTRY=your-registry.com/namespace ./infrastructure/pull-images.sh
+
+# 2. Run E2E tests
+VERBOSE_LEVEL=info ./infrastructure/run-e2e-tests.sh
+```
+
+Or manually:
 
 ```bash
 # Start infrastructure
