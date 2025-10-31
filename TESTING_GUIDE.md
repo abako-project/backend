@@ -10,6 +10,8 @@ This comprehensive testing guide covers the setup, execution, and verification o
 - [Module Testing](#module-testing)
   - [Authentication Module](#authentication-module)
   - [Calendar Module](#calendar-module)
+  - [Ratings Module](#ratings-module)
+  - [Payments Module](#payments-module)
   - [Projects Module](#projects-module)
 - [Complete End-to-End Flow](#complete-end-to-end-flow)
 - [API Reference with Examples](#api-reference-with-examples)
@@ -23,10 +25,11 @@ The Abako backend implements key features for the Milestone 1 deliverables:
 
 - **DAO Creation & Governance**: via Communities pallet
 - **Pass Pallet**: WebAuthn-based feeless authentication
-- **Developer Listings**: Project proposal and deployment
+- **Developer Listings**: Project proposal and deployment via Calendar contract
 - **Matching Algorithm**: Automatic coordinator and team assignment
-- **Escrow & Payments**: Milestone-based smart contract payouts
-- **Reputation System**: Rating-based feedback (0-10 scale)
+- **Ratings System**: Worker reputation tracking via Ratings contract (0-100 scale)
+- **Payments Pallet**: Escrow-based payment flows via Kreivo Payments pallet
+- **Escrow & Milestones**: Milestone-based smart contract payouts in Projects contract
 
 ---
 
@@ -51,6 +54,31 @@ The testing environment uses Docker Compose to orchestrate:
 - **contracts-api**: Smart contract interaction service
 - **virto-api**: VOS mock server (federate_server)
 - **adapter-api**: Main API orchestrator
+
+**⚠️ Important:** E2E tests require pre-built Docker images. These images must be built on a specific machine to ensure zombienet works correctly. On other machines, you should pull the images from a registry first.
+
+#### Automated E2E Test Execution (Recommended)
+
+```bash
+cd backend
+
+REGISTRY=bavb ./infrastructure/pull-images.sh
+
+VERBOSE_LEVEL=info ./infrastructure/run-e2e-tests.sh
+
+VERBOSE_LEVEL=all ./infrastructure/run-e2e-tests.sh
+```
+
+The `run-e2e-tests.sh` script will automatically:
+- Verify that required images exist
+- Start infrastructure services using pre-built images
+- Wait for all services to be ready (including zombienet contracts deployment)
+- Run the E2E tests
+- Handle cleanup on exit
+
+#### Manual Infrastructure Startup
+
+If you prefer to start services manually:
 
 ```bash
 # From project root
@@ -103,30 +131,34 @@ curl http://localhost:3010/health
 └──────┬───────┘
        │
        ▼
-┌──────────────────────────────────────┐
-│       adapter-api (Port 4000)        │
-│  ┌────────────┬──────────┬─────────┐ │
-│  │   Auth     │ Calendar │Projects │ │
-│  └────────────┴──────────┴─────────┘ │
-└───────┬──────────────────┬───────────┘
-        │                  │
-        ▼                  ▼
-┌───────────────┐   ┌──────────────────┐
-│   virto-api   │   │  contracts-api   │
-│  (Port 3000)  │   │   (Port 3010)    │
-│               │   │                  │
-│ - Pass.register│   │ - Ink! v5 SDK   │
-│ - add_member  │   │ - Projects      │
-│ - Balances    │   │ - Calendar      │
-└───────┬───────┘   └────────┬─────────┘
-        │                    │
-        └────────┬───────────┘
+┌────────────────────────────────────────────────────┐
+│            adapter-api (Port 4000)                 │
+│  ┌────────────┬──────────┬─────────┬──────────┐   │
+│  │   Auth     │ Calendar │ Ratings │ Projects │   │
+│  └────────────┴──────────┴─────────┴──────────┘   │
+└───────┬──────────────────┬──────────────────┬──────┘
+        │                  │                  │
+        ▼                  ▼                  │
+┌───────────────┐   ┌──────────────────┐     │
+│   virto-api   │   │  contracts-api   │     │
+│  (Port 3000)  │   │   (Port 3010)    │     │
+│               │   │                  │     │
+│ - Pass        │   │ - Ink! v5 SDK    │     │
+│ - add_member  │   │ - Projects       │     │
+│ - Balances    │   │ - Calendar       │     │
+│ - Payments ◄──┼───┼─ Ratings         │     │
+└───────┬───────┘   └────────┬─────────┘     │
+        │                    │               │
+        └────────┬───────────┴───────────────┘
                  ▼
         ┌─────────────────┐
         │   Zombienet     │
         │  (Port 21000)   │
         │                 │
         │ Kreivo Testnet  │
+        │ - Communities   │
+        │ - Pass          │
+        │ - Payments      │
         └─────────────────┘
 ```
 
@@ -441,6 +473,319 @@ curl -X POST http://localhost:4000/calendar/5C4hrfjw.../admin_set_worker_availab
     "worker": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
     "availability": { "type": "WeeklyHours", "value": 20 }
   }'
+```
+
+---
+
+### Ratings Module
+
+The ratings module manages worker reputation and ratings, storing historical performance data for the matching algorithm and reputation tracking.
+
+#### Test: Deploy Ratings Contract
+
+**Endpoint:** `POST /ratings/deploy/v5`
+
+**Request:**
+```bash
+curl -X POST http://localhost:4000/ratings/deploy/v5 \
+  -H "Authorization: Bearer <token>"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "address": "5D5PhZQNJzcJXVBxwJxZcsutjKPqUPydrvpu6HeiBfMaeKQu",
+  "transactionHash": "0x...",
+  "blockHash": "0x...",
+  "blockNumber": "12345"
+}
+```
+
+#### Test: Register Worker
+
+**Endpoint:** `POST /ratings/:contractAddress/register_worker`
+
+Workers must be registered in the ratings contract before they can receive ratings.
+
+**Request:**
+```bash
+curl -X POST http://localhost:4000/ratings/5D5PhZQNJzcJXVBxwJxZcsutjKPqUPydrvpu6HeiBfMaeKQu/register_worker \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "worker": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "transactionHash": "0x...",
+  "blockHash": "0x...",
+  "blockNumber": "12346"
+}
+```
+
+#### Test: Add Rating
+
+**Endpoint:** `POST /ratings/:contractAddress/add_rating`
+
+Add a rating for a worker after project completion. Called by the projects contract.
+
+**Rating scale:** 0-100
+- 0-30: Poor
+- 40-60: Average
+- 70-80: Good
+- 90-100: Excellent
+
+**Request:**
+```bash
+curl -X POST http://localhost:4000/ratings/5D5PhZQNJzcJXVBxwJxZcsutjKPqUPydrvpu6HeiBfMaeKQu/add_rating \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "worker": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+    "rating": 8
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "transactionHash": "0x...",
+  "blockHash": "0x...",
+  "blockNumber": "12347"
+}
+```
+
+#### Test: Query Worker Ratings
+
+**Endpoint:** `GET /ratings/:contractAddress/get_worker_ratings?worker=<address>`
+
+Retrieve all ratings for a specific worker.
+
+**Request:**
+```bash
+curl "http://localhost:4000/ratings/5D5PhZQNJzcJXVBxwJxZcsutjKPqUPydrvpu6HeiBfMaeKQu/get_worker_ratings?worker=5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "response": [8, 9, 7, 10]
+}
+```
+
+**Average calculation:**
+```javascript
+const ratings = [8, 9, 7, 10];
+const average = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+// average = 8.5
+```
+
+#### Test: Get All Registered Workers
+
+**Endpoint:** `GET /ratings/:contractAddress/get_registered_workers`
+
+**Request:**
+```bash
+curl "http://localhost:4000/ratings/5D5PhZQNJzcJXVBxwJxZcsutjKPqUPydrvpu6HeiBfMaeKQu/get_registered_workers"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "response": [
+    "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+    "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+    "5DAAnrj7VVTh8LhYRfFY762LkhiZqnWqhY9dtcMCMxqXMQzj"
+  ]
+}
+```
+
+#### Test: Get All Ratings in System
+
+**Endpoint:** `GET /ratings/:contractAddress/get_all_ratings`
+
+Retrieve all ratings for all workers in the system.
+
+**Request:**
+```bash
+curl "http://localhost:4000/ratings/5D5PhZQNJzcJXVBxwJxZcsutjKPqUPydrvpu6HeiBfMaeKQu/get_all_ratings"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "response": [
+    {
+      "worker": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+      "ratings": [8, 9, 7, 10]
+    },
+    {
+      "worker": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+      "ratings": [9, 9, 10]
+    }
+  ]
+}
+```
+
+---
+
+### Payments Module
+
+The payments module manages escrow and payment flows using the Kreivo Payments pallet for secure, milestone-based transactions.
+
+#### Test: Create Payment (Escrow)
+
+**Endpoint:** `POST /api/payments/create`
+
+Create a payment in escrow state. The payment is held until released by the creator or accepted by the recipient.
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/api/payments/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipientAddress": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+    "amount": 5000000000000,
+    "assetId": 1,
+    "remark": "Milestone 1 payment"
+  }'
+```
+
+**Fields:**
+- `recipientAddress`: Worker/contractor address
+- `amount`: Amount in smallest unit (e.g., 5000000000000 = 5 KSM)
+- `assetId`: Asset ID (1 for KSM on Kreivo)
+- `remark`: Optional description/reference
+
+**Response:**
+```json
+{
+  "success": true,
+  "txHash": "0x...",
+  "paymentId": "42"
+}
+```
+
+**Payment States:**
+- `PaymentCreated`: Funds locked in escrow
+- `PaymentReleased`: Sender released funds
+- `PaymentCancelled`: Sender cancelled
+- `PaymentResolved`: Recipient accepted and received funds
+
+#### Test: Release Payment
+
+**Endpoint:** `POST /api/payments/release`
+
+Release escrowed funds to the recipient. Only the payment creator can call this.
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/api/payments/release \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paymentId": 42
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "txHash": "0x..."
+}
+```
+
+**What happens:**
+1. Payment state changes to `PaymentReleased`
+2. Funds remain in escrow
+3. Recipient can now accept and receive funds
+
+#### Test: Accept and Pay
+
+**Endpoint:** `POST /api/payments/accept-and-pay`
+
+Recipient accepts released payment and receives funds.
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/api/payments/accept-and-pay \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paymentId": 42
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "txHash": "0x..."
+}
+```
+
+**What happens:**
+1. Verifies payment is in `PaymentReleased` state
+2. Transfers funds from escrow to recipient
+3. Payment state changes to `PaymentResolved`
+
+#### Test: Query Payment Status
+
+**Endpoint:** `GET /api/payments/get?paymentId=<id>`
+
+**Request:**
+```bash
+curl "http://localhost:3000/api/payments/get?paymentId=42"
+```
+
+**Response:**
+```json
+{
+  "payment": {
+    "from": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+    "to": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+    "amount": "5000000000000",
+    "asset": {
+      "type": "Here",
+      "value": 1
+    },
+    "state": "PaymentResolved",
+    "paymentId": "42"
+  }
+}
+```
+
+**If payment doesn't exist:**
+```json
+{
+  "payment": null
+}
+```
+
+#### Test: Health Check
+
+**Endpoint:** `GET /api/payments/health`
+
+**Request:**
+```bash
+curl http://localhost:3000/api/payments/health
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-10-31T14:00:00.000Z",
+  "service": "payments"
+}
 ```
 
 ---
@@ -785,11 +1130,11 @@ curl -X POST http://localhost:4000/projects/5EYCAe5i.../mark_completed \
   }'
 ```
 
-**Rating scale:** 0-10
-- 0-3: Poor
-- 4-6: Average
-- 7-8: Good
-- 9-10: Excellent
+**Rating scale:** 0-100
+- 0-30: Poor
+- 40-60: Average
+- 70-80: Good
+- 90-100: Excellent
 
 **Response:**
 ```json
@@ -1038,9 +1383,9 @@ curl -X POST http://localhost:4000/projects/$project_address/mark_completed \
   -H "Content-Type: application/json" \
   -d "{
     \"ratings\": [
-      [\"$address_worker1\", 10],
-      [\"$address_worker2\", 9],
-      [\"$address_worker3\", 8]
+      [\"$address_worker1\", 100],
+      [\"$address_worker2\", 90],
+      [\"$address_worker3\", 80]
     ]
   }"
 
@@ -1082,6 +1427,29 @@ Base URL: `http://localhost:4000`
 | GET | `/calendar/:address/get_availability_hours` | Query worker hours | No |
 | GET | `/calendar/:address/get_available_workers` | Get all available workers | No |
 | POST | `/calendar/:address/admin_set_worker_availability` | Admin set availability | Yes |
+
+#### Ratings
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| POST | `/ratings/deploy/v5` | Deploy ratings contract | Yes |
+| POST | `/ratings/:address/register_worker` | Register worker | Yes |
+| POST | `/ratings/:address/add_rating` | Add rating for worker | Yes |
+| GET | `/ratings/:address/get_worker_ratings` | Query worker ratings | No |
+| GET | `/ratings/:address/get_registered_workers` | Get all registered workers | No |
+| GET | `/ratings/:address/get_all_ratings` | Get all ratings in system | No |
+
+#### Payments (virto-api)
+
+Base URL: `http://localhost:3000`
+
+| Method | Endpoint | Description | Auth Required |
+|--------|----------|-------------|---------------|
+| POST | `/api/payments/create` | Create payment (escrow) | No |
+| POST | `/api/payments/release` | Release payment to recipient | No |
+| POST | `/api/payments/accept-and-pay` | Accept and receive payment | No |
+| GET | `/api/payments/get?paymentId=<id>` | Query payment status | No |
+| GET | `/api/payments/health` | Health check | No |
 
 #### Projects
 
@@ -1175,13 +1543,39 @@ curl "http://localhost:21000" \
 | `NotAuthorized` | Wrong caller for method | Verify caller role (client/coordinator) |
 | `CoordinatorNotAssigned` | Coordinator not set | Call `assign_coordinator` first |
 | `TasksNotCompleted` | Trying to mark complete | Complete all tasks first |
-| `InvalidRatingValue` | Rating not 0-10 | Use valid rating range |
+| `InvalidRatingValue` | Rating not 0-100 | Use valid rating range |
 
 ---
 
 ## Running Automated Tests
 
 The project includes comprehensive E2E tests that cover the complete flow.
+
+### Recommended: Using the Automated Script
+
+The easiest way to run E2E tests is using the automated script:
+
+```bash
+# 1. Pull pre-built images from registry (required first step)
+REGISTRY=your-registry.com/namespace ./infrastructure/pull-images.sh
+
+# 2. Run E2E tests with the automated script
+VERBOSE_LEVEL=info ./infrastructure/run-e2e-tests.sh
+
+# For detailed debug output:
+VERBOSE_LEVEL=all ./infrastructure/run-e2e-tests.sh
+
+# Run specific test suites by passing arguments:
+VERBOSE_LEVEL=info ./infrastructure/run-e2e-tests.sh -- --testNamePattern="Authentication"
+```
+
+**Verbose Levels:**
+- `VERBOSE_LEVEL=info` (default): Shows progress and errors only
+- `VERBOSE_LEVEL=all`: Shows all debug logs including detailed service checks
+
+### Manual Test Execution
+
+If you prefer manual control:
 
 ```bash
 # Start infrastructure
@@ -1250,6 +1644,7 @@ For issues or questions:
 
 ---
 
-**Document Version:** 1.0.0  
-**Last Updated:** 2025-10-27  
-**Milestone:** 1 - PoC Development
+**Document Version:** 1.1.0  
+**Last Updated:** 2025-10-31  
+**Milestone:** 1 - PoC Development  
+**Latest Changes:** Added Ratings and Payments modules documentation
