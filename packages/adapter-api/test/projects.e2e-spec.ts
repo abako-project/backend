@@ -16,19 +16,10 @@ describe('Projects Module E2E Tests', () => {
   let calendarContractAddress: string;
 
   beforeAll(async () => {
-    console.log('\n='.repeat(80));
-    console.log('🚀 Starting PolkaTalent Workflow E2E Tests');
-    console.log('='.repeat(80));
+    console.info('🚀 Starting PolkaTalent Workflow E2E Tests');
+    console.info('='.repeat(80));
     
-    console.log('\n📋 Testing Workflow:');
-    console.log('  1. DAO & Governance');
-    console.log('  2. NFT Memberships');
-    console.log('  3. Pass Pallet Authentication');
-    console.log('  4. Listings & Developer Matching\n');
-
-    console.log('🏛️  DAO & Governance: PolkaTalent DAO');
-    console.log('   The PolkaTalent DAO with governance rules is already configured');
-    console.log('   in the genesis block of the test blockchain.\n');
+    console.info('   The PolkaTalent DAO with governance rules is already configured in the genesis block of the test blockchain.');
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -52,7 +43,7 @@ describe('Projects Module E2E Tests', () => {
   });
 
   afterAll(async () => {
-    console.log('='.repeat(80) + '\n');
+    console.info('='.repeat(80) + '\n');
     await app.close();
   });
 
@@ -80,6 +71,8 @@ describe('Projects Module E2E Tests', () => {
         expect(response.status).toBeGreaterThanOrEqual(200);
         expect(response.status).toBeLessThan(300);
         expect(response.body).toHaveProperty('success', true);
+        
+        console.info(`✅ Registered new user: ${userId.substring(0, 20)}...`);
       });
 
       it('should connect user and obtain token', async () => {
@@ -115,9 +108,7 @@ describe('Projects Module E2E Tests', () => {
 
         authToken = response.body.token;
 
-        console.log(`Token received: ${authToken.substring(0, 20)}...`);
-        console.log(`User Account ID: ${userAccountId}`);
-        console.log('\n✅ Pass Pallet: Authentication completed successfully!\n');
+        console.info(`✅ Connected user and obtained authentication token ${authToken.substring(0, 20)}...`);
       });
     });
 
@@ -140,7 +131,7 @@ describe('Projects Module E2E Tests', () => {
 
             calendarContractAddress = response.body.address;
 
-            console.log(`Contract deployed successfully at: ${calendarContractAddress}`);
+            console.info(`✅ Deployed calendar contract at: ${calendarContractAddress.substring(0, 20)}...`);
           });
         });
 
@@ -161,7 +152,7 @@ describe('Projects Module E2E Tests', () => {
             console.log('Response:', JSON.stringify(response.body, null, 2));
 
             expect(response.body).toHaveProperty('success', true);
-            console.log('Worker registered successfully');
+            console.info(`✅ Registered worker ${workerAccountId.substring(0, 20)}... in calendar`);
           });
         });
 
@@ -180,7 +171,7 @@ describe('Projects Module E2E Tests', () => {
             console.log('Response:', JSON.stringify(response.body, null, 2));
 
             expect(response.body).toHaveProperty('success', true);
-            console.log('set_availability successful');
+            console.info('✅ Set availability: 40 weekly hours');
           });
         });
 
@@ -203,6 +194,7 @@ describe('Projects Module E2E Tests', () => {
 
             expect(response.body).toHaveProperty('success', true);
             console.log('40 hours availability set by admin for main worker');
+            console.info('✅ Set availability: 40 weekly hours for worker: ${workerAccountId}');
           });
 
         });
@@ -232,8 +224,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('address');
 
             contractAddress = response.body.address;
-            console.log(`Contract deployed successfully at: ${contractAddress}`);
-            console.log('\n✅ Project proposal submission completed successfully!\n');
+            console.info(`✅ Deployed project contract "${deployData.name}" at: ${contractAddress.substring(0, 20)}...`);
           });
         });
       });
@@ -257,7 +248,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('success');
             expect(response.body.success).toBe(true);
             console.log('Coordinator assigned successfully');
-            console.log('\n✅ Coordinator assignment completed successfully!\n');
+            console.info(`✅ Assigned coordinator to project ${contractAddress.substring(0, 20)}...`);
           });
         });
       });
@@ -280,7 +271,7 @@ describe('Projects Module E2E Tests', () => {
 
             expect(response.body).toHaveProperty('success');
             expect(response.body.success).toBe(true);
-            console.log('Team assigned successfully');
+            console.info(`✅ Assigned team (ideal size: 1) to project ${contractAddress.substring(0, 20)}...`);
           });
         });
 
@@ -309,7 +300,7 @@ describe('Projects Module E2E Tests', () => {
 
             expect(response.body).toHaveProperty('success');
             expect(response.body.success).toBe(true);
-            console.log('Scope proposed successfully');
+            console.info(`✅ Proposed scope with ${scopeData.tasks.length} task(s) (advance: ${scopeData.advance_payment_percentage}%)`);
           });
         });
 
@@ -330,8 +321,8 @@ describe('Projects Module E2E Tests', () => {
 
             expect(response.body).toHaveProperty('success');
             expect(response.body.success).toBe(true);
-            console.log('Scope tasks approved successfully');
-            console.log('\n✅ Project proposal submission completed successfully!\n');
+            const approvedTasks = [1];
+            console.info(`✅ Approved scope with ${approvedTasks.length} task(s): [${approvedTasks.join(', ')}]`);
           });
         });
 
@@ -355,7 +346,7 @@ describe('Projects Module E2E Tests', () => {
             const projectName = response.body.response[0];
             expect(projectName).toBe('Test Project');
             
-            console.log('Project information obtained successfully');
+            console.info(`✅ Retrieved project information: "${projectName}"`);
           });
 
           it('should get all tasks', async () => {
@@ -383,7 +374,7 @@ describe('Projects Module E2E Tests', () => {
             expect(task.complexity).toHaveProperty('type', 'Days');
             expect(task.complexity).toHaveProperty('value', 5);
             
-            console.log(`All tasks obtained: ${response.body.response.length} tasks`);
+            console.info(`✅ Retrieved all tasks: ${response.body.response.length} task(s) found`);
           });
 
           it('should get specific task information (task 1)', async () => {
@@ -409,7 +400,7 @@ describe('Projects Module E2E Tests', () => {
             expect(task.complexity).toHaveProperty('type', 'Days');
             expect(task.complexity).toHaveProperty('value', 5);
             
-            console.log('Task information obtained successfully');
+            console.info(`✅ Retrieved task #${task.id} information: ${task.complexity.type} (${task.complexity.value}), cost: ${task.cost}`);
           });
 
           it('should get team information', async () => {
@@ -427,7 +418,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('response');
             expect(Array.isArray(response.body.response)).toBe(true);
-            console.log('Team information obtained successfully');
+            console.info(`✅ Retrieved team information: ${response.body.response.length} member(s)`);
           });
 
           it('should get scope information', async () => {
@@ -444,7 +435,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toBeDefined();
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('response');
-            console.log('Scope information obtained successfully');
+            console.info('✅ Retrieved scope information');
           });
 
           it('should get task completion status', async () => {
@@ -461,7 +452,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toBeDefined();
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('response');
-            console.log('Task completion status obtained successfully');
+            console.info('✅ Retrieved task #1 completion status');
           });
         });
 
@@ -482,7 +473,7 @@ describe('Projects Module E2E Tests', () => {
 
             expect(response.body).toHaveProperty('success');
             expect(response.body.success).toBe(true);
-            console.log('Task completed successfully');
+            console.info('✅ Completed task #1');
           });
         });
 
@@ -515,7 +506,8 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('success');
             expect(response.body.success).toBe(true);
             console.log('Project marked as completed successfully');
-            console.log('\n✅ Developer team assembly and project execution completed successfully!\n');
+            console.info(`✅ Marked project as completed with ${ratings.length} rating(s)`);
+            console.info('\n✅ Developer team assembly and project execution completed successfully!\n');
           });
         });
       });

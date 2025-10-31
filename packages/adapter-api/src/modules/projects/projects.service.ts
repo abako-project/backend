@@ -71,6 +71,7 @@ export class ProjectsService {
           recipientAddress: workerAccountId,
           amount: advanceAmount.toString(),
           assetId: 1,
+          remark: contractAddress,
         }),
       });
 
