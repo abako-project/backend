@@ -36,6 +36,7 @@
   "dependencies": {
     "@nestjs/common": "^11.0.16",
     "@nestjs/core": "^11.0.16",
+    "@nestjs/mongoose": "^11.0.3",
     "@nestjs/platform-express": "^11.0.16",
     "@nestjs/serve-static": "^5.0.3",
     "@nestjs/swagger": "^11.1.4",
@@ -45,6 +46,8 @@
     "dotenv": "^16.4.5",
     "es-arraybuffer-base64": "^1.1.2",
     "express": "^5.0.0",
+    "mongoose": "^8.9.3",
+    "mongoose-sequence": "^6.0.1",
     "morgan": "^1.10.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"

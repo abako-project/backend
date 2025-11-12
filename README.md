@@ -62,6 +62,7 @@ For more details, see [external/README.md](./external/README.md).
 - Node.js >= 22.x
 - pnpm >= 9.x
 - Docker and Docker Compose (for development/testing environments)
+- MongoDB >= 7.0 (automatically provided via Docker Compose)
 
 ### Installation
 
@@ -256,6 +257,7 @@ The E2E tests cover:
 │  └────────────┴──────────┴─────────┘ │
 └───────┬──────────────────┬───────────┘
         │                  │
+        │                  │
         ▼                  ▼
 ┌───────────────┐   ┌──────────────────┐
 │   virto-api   │   │  contracts-api   │
@@ -271,14 +273,27 @@ The E2E tests cover:
         │   Zombienet     │  ← Kreivo testnet
         │  (Port 21000)   │     (Kusama)
         └─────────────────┘
+        
+        ┌─────────────────┐
+        │    MongoDB      │  ← Database
+        │  (Port 27017)   │
+        └─────────────────┘
+                 ▲
+                 │
+    ┌────────────┘
+    │
+┌───┴────────────────┐
+│   adapter-api      │
+└────────────────────┘
 ```
 
 ### Key Components
 
-- **adapter-api**: NestJS API that exposes REST endpoints for authentication, calendar management, and project operations
+- **adapter-api**: NestJS API that exposes REST endpoints for authentication, calendar management, and project operations. Connects to MongoDB for data persistence
 - **contracts-api**: Express service for interacting with Ink! v5 smart contracts using polkadot-api
 - **virto-api**: NestJS mock of Virto Operating System (VOS), handles Pass Pallet registration and Communities operations
 - **zombienet**: Local Kreivo parachain testnet for development and testing
+- **mongodb**: MongoDB 7.0 database for adapter-api data storage 
 
 ## License
 
