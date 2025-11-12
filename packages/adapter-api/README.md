@@ -1,10 +1,38 @@
-# Projects Module
+# Adapter API
 
 ## Requirements
 
 - Node.js version 22 or higher
+- MongoDB 7.0 or higher
 
 This module provides endpoints to interact with ink!-based project management smart contracts.
+
+## Database Configuration
+
+The application requires a MongoDB database connection. Configure the connection using the `MONGODB_URI` environment variable:
+
+```bash
+MONGODB_URI=mongodb://admin:admin123@localhost:27017/abako?authSource=admin
+```
+
+## DAO Configuration
+
+Configure the default DAO address for project deployments:
+
+```bash
+DAO_ADDRESS=5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+```
+
+### Docker Compose Setup
+
+When using Docker Compose, MongoDB is automatically configured with:
+- **Username:** admin
+- **Password:** admin123
+- **Database:** abako
+- **Port:** 27017
+- **Container:** abako-mongodb
+
+The connection is established automatically when the services start.
 
 ## Available Endpoints
 

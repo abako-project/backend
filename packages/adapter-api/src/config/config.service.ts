@@ -58,4 +58,12 @@ export class ConfigService {
   getDerivePath(): string {
     return this.envConfig['DERIVE_PATH'] || process.env['DERIVE_PATH'] || '//Alice';
   }
+
+  getMongodbUri(): string {
+    return this.envConfig['MONGODB_URI'] || process.env['MONGODB_URI'] || 'mongodb://admin:admin123@localhost:27017/abako?authSource=admin';
+  }
+
+  getDaoAddress(): string {
+    return this.envConfig['DAO_ADDRESS'] || process.env['DAO_ADDRESS'] || '';
+  }
 }

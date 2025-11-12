@@ -108,3 +108,54 @@ export interface DeployResponse {
   inkVersion: string;
   contractType: string;
 }
+
+export interface CreateProposalRequest {
+  title: string;
+  summary?: string;
+  description?: string;
+  url?: string;
+  projectTypeId?: number;
+  budgetId: number;
+  deliveryTimeId: number;
+  deliveryDate: string; 
+}
+
+export interface UpdateProposalRequest {
+  title: string;
+  summary?: string;
+  description?: string;
+  url?: string;
+  projectTypeId?: number;
+  budgetId: number;
+  deliveryTimeId: number;
+  deliveryDate: string;
+}
+
+export interface RejectProposalRequest {
+  proposalRejectionReason?: string;
+}
+
+export interface CreateMilestoneRequest {
+  title: string;
+  description?: string;
+  budget: number;
+  deliveryTimeId: number;
+  deliveryDate: string;
+  roleId?: number;
+  proficiencyId?: number;
+  skills?: number[];
+  availability: 'fulltime' | 'parttime' | 'hourly';
+}
+
+export interface UpdateMilestoneRequest {
+  title: string;
+  description?: string;
+  budget: number;
+  deliveryTimeId: number;
+  deliveryDate: string;
+  roleId?: number;
+  proficiencyId?: number;
+  skills?: number[];
+  availability: 'fulltime' | 'parttime' | 'hourly';
+}
+
