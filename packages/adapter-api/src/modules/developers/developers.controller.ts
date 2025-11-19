@@ -17,7 +17,7 @@ import { DevelopersService } from './developers.service';
 import { CreateDeveloperRequest, UpdateDeveloperRequest } from './types';
 
 @ApiTags('developers')
-@Controller('developers')
+@Controller({ path: 'developers', version: '1' })
 export class DevelopersController {
   constructor(private readonly developersService: DevelopersService) {}
 

@@ -19,7 +19,7 @@ import { CreateClientRequest, UpdateClientRequest } from './types';
 
 
 @ApiTags('clients')
-@Controller('clients')
+@Controller({ path: 'clients', version: '1' })
 export class ClientsController {
   constructor(private readonly clientsService: ClientsService) {}
 

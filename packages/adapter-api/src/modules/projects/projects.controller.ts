@@ -14,7 +14,7 @@ import { CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest } from
 import { CreateMilestoneRequest, UpdateMilestoneRequest } from './types';
 
 @ApiTags('Projects')
-@Controller('projects')
+@Controller({ path: 'projects', version: '1' })
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
