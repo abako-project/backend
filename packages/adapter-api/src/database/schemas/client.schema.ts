@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
-import { User } from './user.schema';
+import { Document } from 'mongoose';
 
 export type ClientDocument = Client & Document;
 
@@ -9,26 +8,23 @@ export class Client {
   @Prop({ required: true })
   name: string;
 
-  @Prop()
-  company?: string;
+  @Prop({ required: true, unique: true })
+  email: string;
 
-  @Prop()
-  department?: string;
+  @Prop({ required: true })
+  company: string;
 
-  @Prop()
-  website?: string;
+  @Prop({ required: true })
+  department: string;
 
-  @Prop()
-  description?: string;
+  @Prop({ required: true })
+  website: string;
 
-  @Prop()
-  location?: string;
+  @Prop({ required: true })
+  description: string;
 
-  @Prop({ type: Number, ref: 'User', required: true })
-  userId: number;
-
-  @Prop({ type: [String], default: [] })
-  languages: string[];
+  @Prop({ required: true })
+  location: string;
 
   @Prop({ type: Date, default: Date.now })
   createdAt: number;

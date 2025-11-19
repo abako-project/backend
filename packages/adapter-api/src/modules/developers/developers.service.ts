@@ -2,16 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Developer, DeveloperDocument } from '../../database/schemas/developer.schema';
-import { User, UserDocument } from '../../database/schemas/user.schema';
 import { Project, ProjectDocument } from '../../database/schemas/project.schema';
 import { Milestone, MilestoneDocument } from '../../database/schemas/milestone.schema';
-import { UpdateDeveloperRequest } from '../../types';
+import { CreateDeveloperRequest, UpdateDeveloperRequest } from './types';
 
 @Injectable()
 export class DevelopersService {
   constructor(
     @InjectModel(Developer.name) private developerModel: Model<DeveloperDocument>,
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
     @InjectModel(Milestone.name) private milestoneModel: Model<MilestoneDocument>,
   ) {}
@@ -28,20 +26,23 @@ export class DevelopersService {
     return developer;
   }
 
-  async findByUserId(userId: number): Promise<Developer | null> {
-    return this.developerModel.findOne({ userId }).exec();
+  async findByEmail(email: string): Promise<Developer | null> {
+    return this.developerModel.findOne({ email }).exec();
   }
 
-  async create(userId: number, name: string): Promise<Developer> {
+  async create(data: CreateDeveloperRequest): Promise<Developer> {
     const newDeveloper = new this.developerModel({
-      userId,
-      name,
+      email: data.email,
+      name: data.name,
+      githubUsername: data.githubUsername,
+      portfolioUrl: data.portfolioUrl,
+      bio: '',
+      background: '',
+      role: 'junior',
+      location: '',
+      availability: 'NotAvailable',
       languages: [],
       skills: [],
-      isAvailableForHire: false,
-      isAvailableFullTime: false,
-      isAvailablePartTime: false,
-      isAvailableHourly: false,
     });
     return newDeveloper.save();
   }
@@ -49,24 +50,24 @@ export class DevelopersService {
   async update(
     developerId: number,
     updateData: UpdateDeveloperRequest,
-  ): Promise<Developer> {
-    const developer = await this.findOne(developerId);
+  ): Promise<DeveloperDocument> {
+    const developer = await this.developerModel.findOne({ id: developerId }).exec();
+    
+    if (!developer) {
+      throw new NotFoundException(`Developer with id ${developerId} not found`);
+    }
 
-    if (updateData.name) developer.name = updateData.name;
-    if (updateData.bio !== undefined) developer.bio = updateData.bio;
-    if (updateData.background !== undefined) developer.background = updateData.background;
-    if (updateData.roleId !== undefined) developer.roleId = updateData.roleId;
-    if (updateData.proficiencyId !== undefined) developer.proficiencyId = updateData.proficiencyId;
-    if (updateData.githubUsername !== undefined) developer.githubUsername = updateData.githubUsername;
+    developer.name = updateData.name;
+    developer.email = updateData.email;
+    developer.githubUsername = updateData.githubUsername;
     if (updateData.portfolioUrl !== undefined) developer.portfolioUrl = updateData.portfolioUrl;
-    if (updateData.location !== undefined) developer.location = updateData.location;
-    if (updateData.availability !== undefined) developer.availability = updateData.availability;
-    if (updateData.languages !== undefined) developer.languages = updateData.languages;
-    if (updateData.skills !== undefined) developer.skills = updateData.skills;
-    if (updateData.isAvailableForHire !== undefined) developer.isAvailableForHire = updateData.isAvailableForHire;
-    if (updateData.isAvailableFullTime !== undefined) developer.isAvailableFullTime = updateData.isAvailableFullTime;
-    if (updateData.isAvailablePartTime !== undefined) developer.isAvailablePartTime = updateData.isAvailablePartTime;
-    if (updateData.isAvailableHourly !== undefined) developer.isAvailableHourly = updateData.isAvailableHourly;
+    developer.bio = updateData.bio;
+    developer.background = updateData.background;
+    developer.role = updateData.role;
+    developer.location = updateData.location;
+    developer.availability = updateData.availability;
+    developer.languages = updateData.languages;
+    developer.skills = updateData.skills;
     if (updateData.availableHoursPerWeek !== undefined) developer.availableHoursPerWeek = updateData.availableHoursPerWeek;
 
     return developer.save();
@@ -76,8 +77,13 @@ export class DevelopersService {
     developerId: number,
     imageData: Buffer,
     mimeType: string,
-  ): Promise<Developer> {
-    const developer = await this.findOne(developerId);
+  ): Promise<DeveloperDocument> {
+    const developer = await this.developerModel.findOne({ id: developerId }).exec();
+    
+    if (!developer) {
+      throw new NotFoundException(`Developer with id ${developerId} not found`);
+    }
+    
     developer.imageData = imageData;
     developer.imageMimeType = mimeType;
     return developer.save();
@@ -118,8 +124,12 @@ export class DevelopersService {
   }
 
   async getWithRelations(developerId: number): Promise<any> {
-    const developer = await this.findOne(developerId);
-    const user = await this.userModel.findOne({ id: developer.userId }).exec();
+    const developer = await this.developerModel.findOne({ id: developerId }).exec();
+    
+    if (!developer) {
+      throw new NotFoundException(`Developer with id ${developerId} not found`);
+    }
+    
     const consultantProjects = await this.projectModel
       .find({ consultantId: developerId })
       .exec();
@@ -127,7 +137,6 @@ export class DevelopersService {
 
     return {
       ...developer.toObject(),
-      user,
       consultantProjects: projectNames,
     };
   }

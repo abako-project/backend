@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Put,
   Param,
   Body,
@@ -11,14 +12,56 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { DevelopersService } from './developers.service';
-import { UpdateDeveloperRequest } from '../../types';
+import { CreateDeveloperRequest, UpdateDeveloperRequest } from './types';
 
 @ApiTags('developers')
 @Controller('developers')
 export class DevelopersController {
   constructor(private readonly developersService: DevelopersService) {}
+
+  @Post()
+  @ApiOperation({ 
+    summary: 'Create developer profile',
+    description: 'Creates a new developer profile with user account. Requires: profile image, name, email, github username, and optional portfolio.'
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', example: 'developer@example.com' },
+        name: { type: 'string', example: 'Jane Smith' },
+        githubUsername: { type: 'string', example: 'janesmith' },
+        portfolioUrl: { type: 'string', example: 'https://portfolio.com' },
+        image: { type: 'string', format: 'binary', description: 'Profile image' }
+      },
+      required: ['email', 'name', 'githubUsername']
+    }
+  })
+  @ApiResponse({ status: 201, description: 'Developer created successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid request data' })
+  @UseInterceptors(FileInterceptor('image'))
+  async create(
+    @Body() body: CreateDeveloperRequest,
+    @UploadedFile() file?: any,
+  ) {
+    const developer = await this.developersService.create(body);
+
+    if (file) {
+      await this.developersService.updateImage(
+        developer.id!,
+        file.buffer,
+        file.mimetype,
+      );
+    }
+
+    return {
+      message: 'Developer profile created successfully',
+      developerId: developer.id,
+    };
+  }
 
   @Get()
   @ApiOperation({ summary: 'Get all developers' })
@@ -38,13 +81,38 @@ export class DevelopersController {
   }
 
   @Put(':developerId')
-  @ApiOperation({ summary: 'Update developer profile' })
+  @ApiOperation({ 
+    summary: 'Update developer profile',
+    description: 'Updates developer profile with additional information: bio, background, role, skills, spoken languages, location, and availability.'
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'Jane Smith' },
+        email: { type: 'string', format: 'email', example: 'developer@example.com' },
+        githubUsername: { type: 'string', example: 'janesmith' },
+        portfolioUrl: { type: 'string', example: 'https://portfolio.com' },
+        bio: { type: 'string', example: 'Experienced full-stack developer' },
+        background: { type: 'string', example: '5 years of experience in web development' },
+        role: { type: 'string', enum: ['junior', 'mid-level', 'senior'], example: 'mid-level' },
+        location: { type: 'string', example: 'San Francisco, USA' },
+        availability: { type: 'string', enum: ['NotAvailable', 'PartTime', 'FullTime', 'WeeklyHours'], example: 'FullTime' },
+        languages: { type: 'array', items: { type: 'string' }, example: ['1', '2'] },
+        skills: { type: 'array', items: { type: 'string' }, example: ['1', '2', '3'] },
+        availableHoursPerWeek: { type: 'number', example: 40 },
+        image: { type: 'string', format: 'binary', description: 'Profile image' }
+      },
+      required: ['name', 'email', 'githubUsername', 'bio', 'background', 'role', 'location', 'availability', 'languages', 'skills']
+    }
+  })
   @ApiResponse({ status: 200, description: 'Developer updated successfully' })
   @UseInterceptors(FileInterceptor('image'))
   async update(
     @Param('developerId', ParseIntPipe) developerId: number,
     @Body() updateData: UpdateDeveloperRequest,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file?: any,
   ) {
     const developer = await this.developersService.update(developerId, updateData);
 

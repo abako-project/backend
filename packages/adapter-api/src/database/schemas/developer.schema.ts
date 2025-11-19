@@ -5,59 +5,44 @@ export type DeveloperDocument = Developer & Document;
 
 @Schema({ timestamps: true })
 export class Developer {
+  @Prop({ required: true, unique: true })
+  email: string;
+
   @Prop({ required: true })
   name: string;
 
-  @Prop()
-  address?: string;
-
-  @Prop()
-  bio?: string;
-
-  @Prop()
-  background?: string;
-
-  @Prop()
-  githubUsername?: string;
+  @Prop({ required: true })
+  githubUsername: string;
 
   @Prop()
   portfolioUrl?: string;
 
-  @Prop()
-  location?: string;
+  @Prop({ required: true })
+  bio: string;
 
-  @Prop()
-  availability?: string;
+  @Prop({ required: true })
+  background: string;
 
-  @Prop({ type: Number, ref: 'User', required: true })
-  userId: number;
+  @Prop({ enum: ['junior', 'mid-level', 'senior'], required: true })
+  role: string;
 
-  @Prop()
-  roleId?: number;
+  @Prop({ required: true })
+  location: string;
 
-  @Prop()
-  proficiencyId?: number;
+  @Prop({ enum: ['NotAvailable', 'PartTime', 'FullTime', 'WeeklyHours'], required: true })
+  availability: string;
 
-  @Prop({ default: false })
-  isAvailableForHire: boolean;
+  @Prop({ type: [String], required: true, default: [] })
+  languages: string[];
 
-  @Prop({ default: false })
-  isAvailableFullTime: boolean;
-
-  @Prop({ default: false })
-  isAvailablePartTime: boolean;
-
-  @Prop({ default: false })
-  isAvailableHourly: boolean;
+  @Prop({ type: [String], required: true, default: [] })
+  skills: string[];
 
   @Prop()
   availableHoursPerWeek?: number;
 
-  @Prop({ type: [String], default: [] })
-  languages: string[];
-
-  @Prop({ type: [String], default: [] })
-  skills: string[];
+  @Prop()
+  proficiencyId?: number;
 
   @Prop({ type: Date, default: Date.now })
   createdAt: number;
