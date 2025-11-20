@@ -97,7 +97,7 @@ export interface ExtrinsicResponse {
 
 export interface QueryResponse {
   success: boolean;
-  method: string; string;
+  method: string;
   contractAddress: string;
   response: any;
 }
@@ -107,4 +107,28 @@ export interface DeployResponse {
   address: string;
   inkVersion: string;
   contractType: string;
+}
+
+export interface CreateMilestoneRequest {
+  title: string;
+  description?: string;
+  budget: number;
+  deliveryTimeId: number;
+  deliveryDate: string;
+  roleId?: number;
+  proficiencyId?: number;
+  skills?: number[];
+  availability: 'fulltime' | 'parttime' | 'hourly';
+}
+
+export interface UpdateMilestoneRequest {
+  title: string;
+  description?: string;
+  budget: number;
+  deliveryTimeId: number;
+  deliveryDate: string;
+  roleId?: number;
+  proficiencyId?: number;
+  skills?: number[];
+  availability: 'fulltime' | 'parttime' | 'hourly';
 }

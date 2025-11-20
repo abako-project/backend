@@ -1,4 +1,25 @@
 services:
+  mongodb:
+    image: mongo:7.0
+    container_name: abako-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin123
+      - MONGO_INITDB_DATABASE=abako
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - abako-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
   zombienet:
     image: kreivo-zombienet:e2e
     container_name: kreivo-zombienet
@@ -55,9 +76,12 @@ services:
       - JWT_SECRET=virto-server-example-secret-key-change-in-production
       - JWT_EXPIRES_IN=10m
       - NODE_NO_WARNINGS=1
+      - MONGODB_URI=mongodb://admin:admin123@mongodb:27017/abako?authSource=admin
     networks:
       - abako-network
     depends_on:
+      mongodb:
+        condition: service_healthy
       zombienet:
         condition: service_healthy
       contracts-api:
@@ -100,6 +124,8 @@ services:
         max-file: "3"
 
 volumes:
+  mongodb-data:
+    driver: local
   virto-api-data:
     driver: local
 
