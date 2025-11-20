@@ -18,7 +18,7 @@ import {
 } from './types';
 
 @ApiTags('Calendar')
-@Controller('calendar')
+@Controller({ path: 'calendar', version: '1' })
 export class CalendarController {
   constructor(private readonly calendarService: CalendarService) {}
 
