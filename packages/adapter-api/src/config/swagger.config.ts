@@ -23,7 +23,6 @@ export function setupSwagger(app: INestApplication): OpenAPIObject {
     .addTag('Projects', 'Project and milestone management')
     .addTag('Calendar', 'Calendar and availability management')
     .addBearerAuth()
-    .addServer('/v1', 'API Version 1')
     .build();
   
   document = SwaggerModule.createDocument(app, config);
