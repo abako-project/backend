@@ -132,3 +132,29 @@ export interface UpdateMilestoneRequest {
   skills?: number[];
   availability: 'fulltime' | 'parttime' | 'hourly';
 }
+
+export interface CreateProposalRequest {
+  title: string;
+  summary?: string;
+  description?: string;
+  url?: string;
+  projectTypeId?: number;
+  budgetId: number;
+  deliveryTimeId: number;
+  deliveryDate: string;
+}
+
+export interface UpdateProposalRequest {
+  title: string;
+  summary?: string;
+  description?: string;
+  url?: string;
+  projectTypeId?: number;
+  budgetId: number;
+  deliveryTimeId: number;
+  deliveryDate: string;
+}
+
+export interface ScopeRejectRequest {
+  clientResponse?: string;
+}

@@ -3,10 +3,9 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ConfigService } from '../../config/config.service';
 import { AuthService } from '../auth/auth.service';
-import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneRequest, UpdateMilestoneRequest } from './types';
+import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneRequest, UpdateMilestoneRequest, CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest } from './types';
 import { Project, ProjectDocument } from '../../database/schemas/project.schema';
 import { Milestone, MilestoneDocument } from '../../database/schemas/milestone.schema';
-import { CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest } from '../../types';
 
 @Injectable()
 export class ProjectsService {
