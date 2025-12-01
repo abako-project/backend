@@ -30,6 +30,8 @@
     "test:e2e:all": "jest --config ./jest.config.js --runInBand --bail",
     "test:e2e:auth": "jest --config ./jest.config.js --runInBand test/auth-registration.e2e-spec.ts",
     "test:e2e:calendar": "jest --config ./jest.config.js --runInBand test/calendar.e2e-spec.ts",
+    "test:clients": "jest --config ./jest.config.js --runInBand test/clients.spec.ts",
+    "test:developers": "jest --config ./jest.config.js --runInBand test/developers.spec.ts",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage"
   },
@@ -70,6 +72,7 @@
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.3",
     "jest": "^30.2.0",
+    "mongodb-memory-server": "^10.3.0",
     "nid-webauthn-emulator": "^0.2.7",
     "patch-package": "^8.0.1",
     "prettier": "^3.5.1",

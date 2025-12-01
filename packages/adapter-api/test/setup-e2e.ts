@@ -49,6 +49,7 @@ const originalError = console.error;
 
 switch (VERBOSE_LEVEL) {
   case 'all':
+  case 'debug':
     break; // keep all logs
   case 'info':
     console.log = () => {};
