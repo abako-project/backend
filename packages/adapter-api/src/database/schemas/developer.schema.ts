@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Connection, Document } from 'mongoose';
 
 export type DeveloperDocument = Developer & Document;
 
@@ -17,16 +17,16 @@ export class Developer {
   @Prop()
   portfolioUrl?: string;
 
-  @Prop({ required: true })
+  @Prop()
   bio: string;
 
-  @Prop({ required: true })
+  @Prop()
   background: string;
 
-  @Prop({ enum: ['junior', 'mid-level', 'senior'], required: true })
+  @Prop({ enum: ['junior', 'mid-level', 'senior'], required: true, default: 'junior' })
   role: string;
 
-  @Prop({ required: true })
+  @Prop()
   location: string;
 
   @Prop({ enum: ['NotAvailable', 'PartTime', 'FullTime', 'WeeklyHours'], required: true })
@@ -66,8 +66,11 @@ DeveloperSchema.pre('save', function (next) {
   next();
 });
 
-DeveloperSchema.plugin(require('mongoose-sequence')(require('mongoose')), {
-  inc_field: 'id',
-  id: 'developer_id_counter',
-});
+export const DeveloperSchemaFactory = (connection: Connection) => {
+  DeveloperSchema.plugin(require('mongoose-sequence')(connection), {
+    inc_field: 'id',
+    id: 'developer_id_counter',
+  });
 
+  return DeveloperSchema;
+};
