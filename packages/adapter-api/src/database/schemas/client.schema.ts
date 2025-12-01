@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Connection, Document } from 'mongoose';
 
 export type ClientDocument = Client & Document;
 
@@ -48,8 +48,11 @@ ClientSchema.pre('save', function (next) {
   next();
 });
 
-ClientSchema.plugin(require('mongoose-sequence')(require('mongoose')), {
-  inc_field: 'id',
-  id: 'client_id_counter',
-});
+export const ClientSchemaFactory = (connection: Connection) => {
+  ClientSchema.plugin(require('mongoose-sequence')(connection), {
+    inc_field: 'id',
+    id: 'client_id_counter',
+  });
 
+  return ClientSchema;
+};

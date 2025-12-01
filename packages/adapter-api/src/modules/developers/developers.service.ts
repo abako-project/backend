@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Developer, DeveloperDocument } from '../../database/schemas/developer.schema';
@@ -31,20 +31,24 @@ export class DevelopersService {
   }
 
   async create(data: CreateDeveloperRequest): Promise<Developer> {
-    const newDeveloper = new this.developerModel({
-      email: data.email,
-      name: data.name,
-      githubUsername: data.githubUsername,
-      portfolioUrl: data.portfolioUrl,
-      bio: '',
-      background: '',
-      role: 'junior',
-      location: '',
-      availability: 'NotAvailable',
-      languages: [],
-      skills: [],
-    });
-    return newDeveloper.save();
+    try {
+      const newDeveloper = new this.developerModel({
+        email: data.email,
+        name: data.name,
+        githubUsername: data.githubUsername,
+        portfolioUrl: data.portfolioUrl,
+        availability: 'NotAvailable',
+        languages: [],
+        skills: [],
+      });
+      return await newDeveloper.save();
+    } catch (error: any) {
+      if (error.name === 'ValidationError') {
+        const messages = Object.values(error.errors).map((err: any) => err.message);
+        throw new BadRequestException(messages.join(', '));
+      }
+      throw error;
+    }
   }
 
   async update(
@@ -57,20 +61,28 @@ export class DevelopersService {
       throw new NotFoundException(`Developer with id ${developerId} not found`);
     }
 
-    developer.name = updateData.name;
-    developer.email = updateData.email;
-    developer.githubUsername = updateData.githubUsername;
-    if (updateData.portfolioUrl !== undefined) developer.portfolioUrl = updateData.portfolioUrl;
-    developer.bio = updateData.bio;
-    developer.background = updateData.background;
-    developer.role = updateData.role;
-    developer.location = updateData.location;
-    developer.availability = updateData.availability;
-    developer.languages = updateData.languages;
-    developer.skills = updateData.skills;
-    if (updateData.availableHoursPerWeek !== undefined) developer.availableHoursPerWeek = updateData.availableHoursPerWeek;
+    try {
+      developer.name = updateData.name;
+      developer.email = updateData.email;
+      developer.githubUsername = updateData.githubUsername;
+      if (updateData.portfolioUrl !== undefined) developer.portfolioUrl = updateData.portfolioUrl;
+      developer.bio = updateData.bio;
+      developer.background = updateData.background;
+      developer.role = updateData.role;
+      developer.location = updateData.location;
+      developer.availability = updateData.availability;
+      developer.languages = updateData.languages;
+      developer.skills = updateData.skills;
+      if (updateData.availableHoursPerWeek !== undefined) developer.availableHoursPerWeek = updateData.availableHoursPerWeek;
 
-    return developer.save();
+      return await developer.save();
+    } catch (error: any) {
+      if (error.name === 'ValidationError') {
+        const messages = Object.values(error.errors).map((err: any) => err.message);
+        throw new BadRequestException(messages.join(', '));
+      }
+      throw error;
+    }
   }
 
   async updateImage(
