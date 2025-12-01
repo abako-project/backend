@@ -10,8 +10,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
-import { CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest } from '../../types';
-import { CreateMilestoneRequest, UpdateMilestoneRequest } from './types';
+import { CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CreateMilestoneRequest, UpdateMilestoneRequest } from './types';
 
 @ApiTags('Projects')
 @Controller({ path: 'projects', version: '1' })
