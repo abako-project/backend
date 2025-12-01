@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Client, ClientDocument } from '../../database/schemas/client.schema';
@@ -29,16 +29,24 @@ export class ClientsService {
   }
 
   async create(data: CreateClientRequest): Promise<Client> {
-    const newClient = new this.clientModel({
-      name: data.name,
-      email: data.email,
-      company: data.company,
-      department: data.department,
-      website: data.website,
-      description: data.description,
-      location: data.location,
-    });
-    return newClient.save();
+    try {
+      const newClient = new this.clientModel({
+        name: data.name,
+        email: data.email,
+        company: data.company,
+        department: data.department,
+        website: data.website,
+        description: data.description,
+        location: data.location,
+      });
+      return await newClient.save();
+    } catch (error: any) {
+      if (error.name === 'ValidationError') {
+        const messages = Object.values(error.errors).map((err: any) => err.message);
+        throw new BadRequestException(messages.join(', '));
+      }
+      throw error;
+    }
   }
 
   async update(
@@ -51,15 +59,23 @@ export class ClientsService {
       throw new NotFoundException(`Client with id ${clientId} not found`);
     }
 
-    if (updateData.name !== undefined) client.name = updateData.name;
-    if (updateData.email !== undefined) client.email = updateData.email;
-    if (updateData.company !== undefined) client.company = updateData.company;
-    if (updateData.department !== undefined) client.department = updateData.department;
-    if (updateData.website !== undefined) client.website = updateData.website;
-    if (updateData.description !== undefined) client.description = updateData.description;
-    if (updateData.location !== undefined) client.location = updateData.location;
+    try {
+      if (updateData.name !== undefined) client.name = updateData.name;
+      if (updateData.email !== undefined) client.email = updateData.email;
+      if (updateData.company !== undefined) client.company = updateData.company;
+      if (updateData.department !== undefined) client.department = updateData.department;
+      if (updateData.website !== undefined) client.website = updateData.website;
+      if (updateData.description !== undefined) client.description = updateData.description;
+      if (updateData.location !== undefined) client.location = updateData.location;
 
-    return client.save();
+      return await client.save();
+    } catch (error: any) {
+      if (error.name === 'ValidationError') {
+        const messages = Object.values(error.errors).map((err: any) => err.message);
+        throw new BadRequestException(messages.join(', '));
+      }
+      throw error;
+    }
   }
 
   async updateImage(
