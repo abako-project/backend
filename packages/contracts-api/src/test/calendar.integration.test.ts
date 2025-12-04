@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { CalendarService } from '../calendar';
 import { DeployService } from '../deployService';
-import { alicePolkadotSigner, alicePublicAddress } from '../util/signer';
+import { alicePolkadotSigner, alicePublicAddress } from './util/signer';
 import { getPolkadotSigner } from 'polkadot-api/signer';
 import { sr25519CreateDerive } from '@polkadot-labs/hdkd';
 import { DEV_PHRASE, entropyToMiniSecret, mnemonicToEntropy, ss58Encode } from '@polkadot-labs/hdkd-helpers';
