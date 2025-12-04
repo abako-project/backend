@@ -3,7 +3,7 @@ import { ProjectsService } from '../projects';
 import { CalendarService } from '../calendar';
 import { RatingsService } from '../ratings';
 import { DeployService } from '../deployService';
-import { alicePolkadotSigner, alicePublicAddress, charliePolkadotSigner, charliePublicAddress } from '../util/signer';
+import { adminPublicAddress, alicePolkadotSigner, alicePublicAddress, charliePolkadotSigner, charliePublicAddress } from './util/signer';
 import { sr25519CreateDerive } from '@polkadot-labs/hdkd';
 import { DEV_PHRASE, entropyToMiniSecret, mnemonicToEntropy, ss58Encode } from '@polkadot-labs/hdkd-helpers';
 import { Binary, createClient } from 'polkadot-api';
@@ -106,6 +106,52 @@ describe('ProjectsService Integration Tests', () => {
     if (ratingsService) {
       await ratingsService.destroy();
     }
+  });
+
+  describe('Deployed Contract Addresse', () => {
+    test('should deploy a project contract without dao address', async () => {
+      const deployConfig = deployService.getDeployConfigs().v5;
+      const deployResult = await deployService.deployContract(deployConfig, {
+        name: 'Test Project without dao address',
+      });
+
+      expect(deployResult.success).toBe(true);
+      expect(deployResult.address).toBeDefined();
+
+      if (!deployResult.address) {
+        throw new Error('Deploy result address is undefined');
+      }
+
+      const result = await projectsService.queryMethod(
+        deployResult.address,
+        'get_project_info',
+        {}
+      );
+
+      expect(result.success).toBe(true);
+      
+      const projectName = result.response[0];
+      expect(projectName).toBe('Test Project without dao address');
+
+      const daoAddress = result.response[2];
+      expect(daoAddress).toBe(adminPublicAddress);
+
+      console.log('  - Projects contract:', deployResult.address);
+    });
+
+    test('should deploy a project contract with dao address', async () => {
+      const deployConfig = deployService.getDeployConfigs().v5;
+      const deployResult = await deployService.deployContract(deployConfig, {
+        name: 'Test Project',
+        dao_address: alicePublicAddress,
+        calendar_contract: calendarContractAddress,
+        ratings_contract: ratingsContractAddress
+      });
+
+      expect(deployResult.success).toBe(true);
+      expect(deployResult.address).toBeDefined();
+      console.log('  - Projects contract:', deployResult.address);
+    });
   });
 
   describe('Query Methods - get_project_info', () => {

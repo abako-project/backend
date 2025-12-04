@@ -6,7 +6,7 @@ import { withPolkadotSdkCompat } from 'polkadot-api/polkadot-sdk-compat'
 import { getWsProvider } from 'polkadot-api/ws-provider/node'
 import { createInkV5Sdk, createReviveSdk } from '@polkadot-api/sdk-ink'
 import { contracts, kreivo } from '@polkadot-api/descriptors'
-import { alicePolkadotSigner, alicePublicAddress } from './util/signer'
+import { adminPolkadotSigner, adminPublicAddress } from './util/signer'
 
 export interface DeployConfig {
   inkVersion: '5' | '6'
@@ -88,14 +88,14 @@ export class DeployService {
       if (config.inkVersion === '6') {
         return {
           name: params.name,
-          dao_address: Binary.fromHex(params.dao_address),
+          dao_address: Binary.fromHex(params.dao_address || adminPublicAddress),
           calendar_contract: params.calendar_contract ? Binary.fromHex(params.calendar_contract) : undefined,
           ratings_contract: params.ratings_contract ? Binary.fromHex(params.ratings_contract) : undefined
         }
       } else {
         return {
           name: params.name,
-          dao_address: params.dao_address,
+          dao_address: params.dao_address || adminPublicAddress,
           calendar_contract: params.calendar_contract || undefined,
           ratings_contract: params.ratings_contract || undefined
         }
@@ -136,7 +136,7 @@ export class DeployService {
 
       const tx = deployer.deploy("new", {
         data: constructorData,
-        origin: alicePublicAddress,
+        origin: adminPublicAddress,
         options: { salt }
       })
       
@@ -151,7 +151,7 @@ export class DeployService {
       })
 
       const licenseResult = await new Promise((resolve, reject) => {
-        license.signSubmitAndWatch(alicePolkadotSigner)
+        license.signSubmitAndWatch(adminPolkadotSigner)
           .subscribe({
             next: (event: any) => {
               console.info('License transaction event:', event);
@@ -196,7 +196,7 @@ export class DeployService {
       const encoded = await instantiate.getEncodedData()
       console.log("Encoded instantiate", encoded.asHex())
 
-      const encodedBatch = await instantiate.signAndSubmit(alicePolkadotSigner)
+      const encodedBatch = await instantiate.signAndSubmit(adminPolkadotSigner)
 
       console.log(encodedBatch)
       

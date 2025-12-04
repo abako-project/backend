@@ -4,7 +4,7 @@ import { createClient, Binary } from "polkadot-api"
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat"
 import { getWsProvider } from "polkadot-api/ws-provider/node"
 import contractMetadata from '../.papi/contracts/ratings_v5.json'
-import { alicePublicAddress, alicePolkadotSigner } from "./util/signer"
+import { adminPublicAddress, adminPolkadotSigner } from "./util/signer"
 
 export class RatingsService {
   private client: any
@@ -89,7 +89,7 @@ export class RatingsService {
     try {
       const contract = this.getContract(contractAddress)
       const response = await contract.query(methodName as any, {
-        origin: alicePublicAddress,
+        origin: adminPublicAddress,
         data: data,
       })
 
@@ -126,7 +126,7 @@ export class RatingsService {
       console.log("Rest:", rest)
 
       const tx = await contract.send(methodName as any, { 
-        origin: caller || alicePublicAddress, 
+        origin: caller || adminPublicAddress, 
         data: rest.data || rest
       });
 
@@ -159,7 +159,7 @@ export class RatingsService {
       })
 
       console.log(`Signing and submitting method: ${methodName}`)
-      const result = await dispatchTx.signAndSubmit(alicePolkadotSigner);
+      const result = await dispatchTx.signAndSubmit(adminPolkadotSigner);
       
       return {
         method: methodName,

@@ -15,31 +15,20 @@ const entropy = mnemonicToEntropy(PHRASE || DEV_PHRASE);
 const seed = entropyToMiniSecret(entropy);
 const derive = sr25519CreateDerive(seed);
 
-const aliceKeyPair = derive("//Alice");
-export const alicePolkadotSigner = getPolkadotSigner(
-    aliceKeyPair.publicKey,
+let publicKey: Uint8Array;
+let keyPair: KeyPair;
+
+if (process.env.DERIVE_PATH) {
+    keyPair = derive(process.env.DERIVE_PATH);
+    publicKey = keyPair.publicKey;
+} else {
+    keyPair = derive("");
+    publicKey = keyPair.publicKey;
+}
+
+export const adminPolkadotSigner = getPolkadotSigner(
+    publicKey,
     "Sr25519",
-    aliceKeyPair.sign
+    keyPair.sign
 );
-export const alicePublicAddress = ss58Encode(alicePolkadotSigner.publicKey);
-
-const bobKeyPair = derive("//Bob");
-export const bobPolkadotSigner = getPolkadotSigner(
-    bobKeyPair.publicKey,
-    "Sr25519",
-    bobKeyPair.sign
-);
-export const bobPublicAddress = ss58Encode(bobPolkadotSigner.publicKey);
-
-const charlieKeyPair = derive("//Charlie");
-export const charliePolkadotSigner = getPolkadotSigner(
-    charlieKeyPair.publicKey,
-    "Sr25519",
-    charlieKeyPair.sign
-);
-export const charliePublicAddress = ss58Encode(charliePolkadotSigner.publicKey);
-
-console.log('Alice public address:', alicePublicAddress);
-console.log('Bob public address:', bobPublicAddress);
-console.log('Charlie public address:', charliePublicAddress);
-
+export const adminPublicAddress = ss58Encode(adminPolkadotSigner.publicKey);

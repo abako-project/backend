@@ -5,7 +5,7 @@ import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat"
 import { getWsProvider } from "polkadot-api/ws-provider/node"
 import { ADDRESS } from "./util/address"
 import contractMetadata from '../.papi/contracts/projects_v5.json'
-import { alicePolkadotSigner, alicePublicAddress, charliePolkadotSigner, charliePublicAddress } from "./util/signer"
+import { adminPolkadotSigner, adminPublicAddress } from "./util/signer"
 
 export class ProjectsService {
   private client: any
@@ -181,7 +181,7 @@ export class ProjectsService {
     try {
       const contract = this.getContract(contractAddress)
       const response = await contract.query(methodName as any, {
-        origin: alicePublicAddress,
+        origin: adminPublicAddress,
         data: data,
       })
 
@@ -241,7 +241,7 @@ export class ProjectsService {
 
         console.log(`[callMethod] Preparing to send transaction to contract`)
         const tx = await contract.send(methodName as any, {
-          origin: caller || alicePublicAddress,
+          origin: caller || adminPublicAddress,
           data: contractData,
           gas_limit: {
             ref_time: 10000000000n,
@@ -305,7 +305,7 @@ export class ProjectsService {
 
           console.log(`[callMethod] Preparing to send transaction to contract`)
           const tx = await contract.send(methodName as any, {
-            origin: caller || alicePublicAddress,
+            origin: caller || adminPublicAddress,
             data: dataToSend,
             gas_limit: {
               ref_time: 10000000000n,
@@ -345,7 +345,7 @@ export class ProjectsService {
             }
           })
 
-          const result = await encodedDataTx.signAndSubmit(alicePolkadotSigner);
+          const result = await encodedDataTx.signAndSubmit(adminPolkadotSigner);
           console.log('Result:', result);
 
           return {
@@ -367,13 +367,13 @@ export class ProjectsService {
 
       // Normal flow for other methods
       const tx = await contract.send(methodName as any, {
-        origin: alicePublicAddress,
+        origin: adminPublicAddress,
         data: data,
       })
 
       console.log(`Signing and submitting method: ${methodName}`)
 
-      const result = await tx.signAndSubmit(alicePolkadotSigner);
+      const result = await tx.signAndSubmit(adminPolkadotSigner);
 
       return {
         method: methodName,
