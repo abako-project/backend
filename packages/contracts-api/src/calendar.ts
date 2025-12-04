@@ -4,7 +4,7 @@ import { createClient, Binary } from "polkadot-api"
 import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat"
 import { getWsProvider } from "polkadot-api/ws-provider/node"
 import contractMetadata from '../.papi/contracts/calendar_v5.json'
-import { alicePublicAddress, alicePolkadotSigner } from "./util/signer"
+import { adminPublicAddress, adminPolkadotSigner } from "./util/signer"
 
 export class CalendarService {
   private client: any
@@ -89,7 +89,7 @@ export class CalendarService {
     try {
       const contract = this.getContract(contractAddress)
       const response = await contract.query(methodName as any, {
-        origin: alicePublicAddress,
+        origin: adminPublicAddress,
         data: data,
       })
 
@@ -141,7 +141,7 @@ export class CalendarService {
           storage_deposit_limit: 100000000000n,
         })
         : await contract.send(methodName as any, { 
-          origin: alicePublicAddress, 
+          origin: adminPublicAddress, 
           data: rest.data 
         });
 
@@ -197,7 +197,7 @@ export class CalendarService {
       })
 
       console.log(`Signing and submitting method: ${methodName}`)
-      const result = await dispatchTx.signAndSubmit(alicePolkadotSigner);
+      const result = await dispatchTx.signAndSubmit(adminPolkadotSigner);
       return {
         method: methodName,
         success: result.ok,  
