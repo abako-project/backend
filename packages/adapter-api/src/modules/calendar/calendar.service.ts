@@ -104,43 +104,6 @@ export class CalendarService {
     return this.callReadMethod(contractAddress, 'get_all_workers_availability');
   }
 
-  async deployContract(
-    version: string,
-    authToken: string
-  ): Promise<DeployResponse> {
-    try {
-      const signingServiceUrl = this.configService.getSigningServiceUrl();
-      const deployerUrl = `${signingServiceUrl}/calendar/deploy/${version}`;
-      const address = await this.authService.getAddress(authToken);
-
-      console.log(deployerUrl);
-
-      const deployerResponse = await fetch(deployerUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ address })
-      });
-
-      console.log(deployerResponse);
-      if (!deployerResponse.ok) {
-        throw new Error(`Deployer service error: ${deployerResponse.status} ${deployerResponse.statusText}`);
-      }
-
-      const deployerResult = await deployerResponse.json() as DeployResponse;
-      console.log('Deployer result:', deployerResult);
-
-      return deployerResult;
-    } catch (error) {
-      console.error('Error in deploy contract:', error);
-      throw new HttpException(
-        `Error calling deploy service: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
   private async callWriteMethodWithSigning(
     contractAddress: string,
     method: string,
