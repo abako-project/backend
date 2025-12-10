@@ -122,16 +122,16 @@ export class DevelopersService {
       .exec();
 
     // Get projects for each milestone
-    const projectIds = [...new Set(milestones.map(m => m.projectId))];
+    const contractAddresses = [...new Set(milestones.map(m => m.contractAddress))];
     const projects = await this.projectModel
-      .find({ id: { $in: projectIds } })
+      .find({ contractAddress: { $in: contractAddresses } })
       .exec();
 
-    const projectMap = new Map(projects.map(p => [p.id, p]));
+    const projectMap = new Map(projects.map(p => [p.contractAddress, p]));
 
     return milestones.map(milestone => ({
       ...milestone.toObject(),
-      project: projectMap.get(milestone.projectId),
+      project: projectMap.get(milestone.contractAddress),
     }));
   }
 

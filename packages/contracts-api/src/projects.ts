@@ -6,6 +6,7 @@ import { getWsProvider } from "polkadot-api/ws-provider/node"
 import { ADDRESS } from "./util/address"
 import contractMetadata from '../.papi/contracts/projects_v5.json'
 import { adminPolkadotSigner, adminPublicAddress } from "./util/signer"
+import { ss58Encode } from '@polkadot-labs/hdkd-helpers'
 
 export class ProjectsService {
   private client: any
@@ -280,6 +281,98 @@ export class ProjectsService {
         return {
           method: methodName,
           encodedData: encodedData.asHex(),
+        }
+      }
+
+      // assign_coordinator executes and returns the coordinator AccountId
+      if (methodName === 'assign_coordinator') {
+        console.log(`[callMethod] Executing assign_coordinator`)
+        
+        try {
+          const tx = await contract.send(methodName as any, {
+            origin: caller || adminPublicAddress,
+            data: {},
+            gas_limit: {
+              ref_time: 10000000000n,
+              proof_size: 1000000n
+            },
+            storage_deposit_limit: 100000000000n,
+          })
+
+          console.log(`[callMethod] Transaction prepared for assign_coordinator`)
+
+          const result = await tx.signAndSubmit(adminPolkadotSigner);
+          console.log('assign_coordinator result:', result);
+
+          // Find the ContractEmitted event to extract coordinator
+          const contractEmittedEvent = result.events.find((event: any) => 
+            event.type === 'Contracts' && event.value?.type === 'ContractEmitted'
+          );
+
+          console.log('ContractEmitted event:', contractEmittedEvent);
+
+          // The coordinator AccountId is in the event topics
+          let coordinator = null;
+          
+          if (contractEmittedEvent) {
+            console.log('Event data:', contractEmittedEvent.value);
+            
+            // Try to get data as hex and decode it
+            const eventData = contractEmittedEvent.value?.value?.data;
+            if (eventData && typeof eventData.asHex === 'function') {
+              const dataHex = eventData.asHex();
+              console.log('Event data hex:', dataHex);
+            }
+            
+            // Topics contain indexed event data
+            // topics[0] = event signature (CoordinatorAssigned event hash)
+            // topics[1] = project name (indexed String)
+            // topics[2] = coordinator AccountId (indexed AccountId)
+            const topics = contractEmittedEvent.topics;
+            if (topics && topics.length >= 3) {
+              console.log('Event topics count:', topics.length);
+              
+              // Extract coordinator from Topic 2
+              const coordinatorTopic = topics[2];
+              if (coordinatorTopic && typeof coordinatorTopic.asHex === 'function') {
+                const coordinatorHex = coordinatorTopic.asHex();
+                console.log('Coordinator topic hex:', coordinatorHex);
+                
+                // Remove 0x prefix and convert to Uint8Array
+                const hexWithout0x = coordinatorHex.startsWith('0x') ? coordinatorHex.slice(2) : coordinatorHex;
+                const coordinatorBytes = new Uint8Array(
+                  hexWithout0x.match(/.{1,2}/g)?.map((byte: string) => parseInt(byte, 16)) || []
+                );
+                
+                // Encode to SS58 address (Kreivo network uses prefix 2 for Substrate)
+                coordinator = ss58Encode(coordinatorBytes, 2);
+                console.log('Coordinator SS58 address:', coordinator);
+              }
+              
+              // Log all topics for debugging
+              topics.forEach((topic: any, index: number) => {
+                if (typeof topic.asHex === 'function') {
+                  console.log(`Topic ${index}:`, topic.asHex());
+                }
+              });
+            }
+          }
+
+          return {
+            method: methodName,
+            success: result.ok,
+            coordinator: coordinator,
+            transactionHash: result.txHash,
+            blockHash: result.blockHash,
+            blockNumber: result.blockNumber,
+          }
+        } catch (error) {
+          console.error(`[callMethod] Error in assign_coordinator:`, error);
+          return {
+            method: methodName,
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }
         }
       }
 
