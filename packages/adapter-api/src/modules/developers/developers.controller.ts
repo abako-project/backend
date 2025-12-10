@@ -152,8 +152,38 @@ export class DevelopersController {
   }
 
   @Get(':developerId/milestones')
-  @ApiOperation({ summary: 'Get all milestones assigned to a developer' })
-  @ApiResponse({ status: 200, description: 'List of developer milestones with project info' })
+  @ApiOperation({ 
+    summary: 'Get all milestones assigned to a developer',
+    description: 'Retrieves all milestones where the developer is assigned. Includes project information and milestone details (role, proficiency, skills).'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'List of developer milestones with project info',
+    schema: {
+      type: 'object',
+      properties: {
+        milestones: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'number' },
+              contractAddress: { type: 'string' },
+              title: { type: 'string' },
+              description: { type: 'string' },
+              budget: { type: 'number' },
+              deliveryTime: { type: 'number' },
+              deliveryDate: { type: 'string' },
+              role: { type: 'string' },
+              proficiency: { type: 'string' },
+              skills: { type: 'array', items: { type: 'string' } },
+              project: { type: 'object' }
+            }
+          }
+        }
+      }
+    }
+  })
   async getMilestones(@Param('developerId', ParseIntPipe) developerId: number) {
     const milestones = await this.developersService.getMilestones(developerId);
     return { milestones };

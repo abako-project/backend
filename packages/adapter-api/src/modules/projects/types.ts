@@ -113,11 +113,11 @@ export interface CreateMilestoneRequest {
   title: string;
   description?: string;
   budget: number;
-  deliveryTimeId: number;
+  deliveryTime: number;
   deliveryDate: string;
-  roleId?: number;
-  proficiencyId?: number;
-  skills?: number[];
+  role?: string;
+  proficiency?: string;
+  skills?: string[];
   availability: 'fulltime' | 'parttime' | 'hourly';
 }
 
@@ -125,11 +125,11 @@ export interface UpdateMilestoneRequest {
   title: string;
   description?: string;
   budget: number;
-  deliveryTimeId: number;
+  deliveryTime: number;
   deliveryDate: string;
-  roleId?: number;
-  proficiencyId?: number;
-  skills?: number[];
+  role?: string;
+  proficiency?: string;
+  skills?: string[];
   availability: 'fulltime' | 'parttime' | 'hourly';
 }
 
@@ -138,9 +138,9 @@ export interface CreateProposalRequest {
   summary?: string;
   description?: string;
   url?: string;
-  projectTypeId?: number;
-  budgetId: number;
-  deliveryTimeId: number;
+  projectType?: number;
+  budget: number;
+  deliveryTime: number;
   deliveryDate: string;
 }
 
@@ -149,12 +149,18 @@ export interface UpdateProposalRequest {
   summary?: string;
   description?: string;
   url?: string;
-  projectTypeId?: number;
-  budgetId: number;
-  deliveryTimeId: number;
+  projectType?: number;
+  budget: number;
+  deliveryTime: number;
   deliveryDate: string;
 }
 
 export interface ScopeRejectRequest {
   clientResponse?: string;
+}
+
+export interface CoordinatorApprovalRequest {
+  milestones: CreateMilestoneRequest[];
+  advance_payment_percentage: number;
+  document_hash: string;
 }

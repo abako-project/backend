@@ -15,7 +15,7 @@ export class Project {
   summary?: string;
 
   @Prop()
-  projectTypeId?: number;
+  projectType?: number;
 
   @Prop({ required: true, default: 'draft' })
   state: string;
@@ -24,10 +24,10 @@ export class Project {
   url?: string;
 
   @Prop()
-  budgetId?: number;
+  budget?: number;
 
   @Prop()
-  deliveryTimeId?: number;
+  deliveryTime?: number;
 
   @Prop({ type: Date })
   deliveryDate?: number;
@@ -36,10 +36,19 @@ export class Project {
   proposalRejectionReason?: string;
 
   @Prop({ required: true })
-  clientId: number;
+  clientId: string;
 
   @Prop()
-  consultantId?: number;
+  consultantId?: string;
+
+  @Prop({ unique: true, sparse: true })
+  contractAddress?: string;
+
+  @Prop()
+  coordinatorApprovalStatus?: string;
+
+  @Prop()
+  coordinatorRejectionReason?: string;
 
   @Prop({ type: Date, default: Date.now })
   createdAt: number;
