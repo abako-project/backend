@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Connection, Document } from 'mongoose';
 
 export type MilestoneDocument = Milestone & Document;
 
@@ -15,22 +15,22 @@ export class Milestone {
   budget: number;
 
   @Prop({ required: true })
-  deliveryTimeId: number;
+  deliveryTime: number;
 
   @Prop({ type: Date, required: true })
   deliveryDate: number;
 
   @Prop()
-  roleId?: number;
+  role?: string;
 
   @Prop()
-  proficiencyId?: number;
+  proficiency?: string;
 
   @Prop({ required: true, default: 0 })
   displayOrder: number;
 
   @Prop({ required: true })
-  projectId: number;
+  contractAddress: string;
 
   @Prop({ default: false })
   neededFullTimeDeveloper: boolean;
@@ -61,13 +61,18 @@ export class Milestone {
 
 export const MilestoneSchema = SchemaFactory.createForClass(Milestone);
 
+MilestoneSchema.index({ contractAddress: 1 });
+
 MilestoneSchema.pre('save', function (next) {
   this.updatedAt = Date.now();
   next();
 });
 
-MilestoneSchema.plugin(require('mongoose-sequence')(require('mongoose')), {
-  inc_field: 'id',
-  id: 'milestone_id_counter',
-});
+export const MilestoneSchemaFactory = (connection: Connection) => {
+  MilestoneSchema.plugin(require('mongoose-sequence')(connection), {
+    inc_field: 'id',
+    id: 'milestone_id_counter',
+  });
 
+  return MilestoneSchema;
+};

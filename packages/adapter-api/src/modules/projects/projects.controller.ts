@@ -237,85 +237,6 @@ export class ProjectsController {
     return await this.projectsService.setCalendarContract(contractAddress, body, token);
   }
 
-  @Post(':contractAddress/propose_scope')
-  @ApiOperation({ 
-    summary: 'Propose project scope',
-    description: 'Proposes a scope for the project with tasks, advance payment percentage, and document hash'
-  })
-  @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
-    type: 'string'
-  })
-  @ApiBearerAuth()
-  @ApiHeader({
-    name: 'authorization',
-    description: 'Bearer token for authentication',
-    required: true,
-    schema: {
-      type: 'string',
-      example: 'Bearer <your-jwt-token>'
-    }
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        tasks: { 
-          type: 'array',
-          items: {
-            type: 'array',
-            items: {
-              oneOf: [
-                { type: 'number' },
-                { type: 'object' },
-                { type: 'string' },
-                { type: 'array', items: { type: 'number' } }
-              ]
-            },
-            minItems: 4,
-            maxItems: 4
-          },
-          description: 'Array of tasks as [id, complexity, cost, dependencies] tuples'
-        },
-        advance_payment_percentage: { 
-          type: 'number',
-          description: 'Percentage of advance payment',
-          example: 30
-        },
-        document_hash: { 
-          type: 'string',
-          description: 'Hash of the project document',
-          example: '0x1234567890abcdef...'
-        }
-      },
-      required: ['tasks', 'advance_payment_percentage', 'document_hash']
-    }
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Scope proposed successfully'
-  })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized - Invalid token'
-  })
-  @ApiResponse({ 
-    status: 500, 
-    description: 'Internal server error'
-  })
-  async proposeScope(
-    @Param('contractAddress') contractAddress: string,
-    @Body() body: { 
-      tasks: Array<[number, any, string, number[]]>;
-      advance_payment_percentage: number;
-      document_hash: string;
-    },
-    @Headers('authorization') authHeader: string
-  ) {
-    const token = this.extractToken(authHeader);
-    return await this.projectsService.proposeScope(contractAddress, body, token);
-  }
 
   @Post(':contractAddress/approve_scope')
   @ApiOperation({ 
@@ -503,6 +424,11 @@ export class ProjectsController {
   })
   async getProjectInfo(@Param('contractAddress') contractAddress: string) {
     return await this.projectsService.getProjectInfo(contractAddress);
+  }
+
+  @Get(':contractAddress')
+  async getProject(@Param('contractAddress') contractAddress: string) {
+    return await this.projectsService.getProject(contractAddress);
   }
 
   @Get(':contractAddress/get_team')
@@ -698,20 +624,20 @@ export class ProjectsController {
           description: 'Project URL',
           example: 'https://example.com'
         },
-        projectTypeId: { 
+        projectType: { 
           type: 'number',
-          description: 'Project type ID',
+          description: 'Project type',
           example: 1
         },
-        budgetId: { 
+        budget: { 
           type: 'number',
-          description: 'Budget ID',
-          example: 1
+          description: 'Project budget in tokens',
+          example: 5000
         },
-        deliveryTimeId: { 
+        deliveryTime: { 
           type: 'number',
-          description: 'Delivery time ID',
-          example: 1
+          description: 'Expected delivery time',
+          example: 30
         },
         deliveryDate: { 
           type: 'string',
@@ -719,12 +645,13 @@ export class ProjectsController {
           example: '2024-12-31'
         },
         clientId: { 
-          type: 'number',
-          description: 'Client ID',
-          example: 1
+          type: 'string',
+          description: 'Client AccountId',
+          example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY'
         }
       },
-      required: ['title', 'budgetId', 'deliveryTimeId', 'deliveryDate', 'clientId']
+      required: ['title', 'budget', 'deliveryTime', 'deliveryDate', 'clientId'],
+      description: 'Project will automatically use DAO default Ratings and Calendar contracts deployed at blockchain initialization'
     }
   })
   @ApiResponse({ 
@@ -741,11 +668,12 @@ export class ProjectsController {
   })
   async deployContract(
     @Param('version') version: string,
-    @Body() body: CreateProposalRequest & { clientId: number },
+    @Body() body: CreateProposalRequest & { clientId: string },
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
     const { clientId, ...proposalData } = body;
+    
     return await this.projectsService.deployContract(version, proposalData, clientId, token);
   }
 
@@ -793,20 +721,20 @@ export class ProjectsController {
           description: 'Project URL',
           example: 'https://example.com'
         },
-        projectTypeId: { 
+        projectType: { 
           type: 'number',
-          description: 'Project type ID',
+          description: 'Project type',
           example: 1
         },
-        budgetId: { 
+        budget: { 
           type: 'number',
-          description: 'Budget ID',
-          example: 1
+          description: 'Project budget in tokens',
+          example: 5000
         },
-        deliveryTimeId: { 
+        deliveryTime: { 
           type: 'number',
-          description: 'Delivery time ID',
-          example: 1
+          description: 'Expected delivery time',
+          example: 30
         },
         deliveryDate: { 
           type: 'string',
@@ -814,7 +742,7 @@ export class ProjectsController {
           example: '2024-12-31'
         }
       },
-      required: ['title', 'budgetId', 'deliveryTimeId', 'deliveryDate']
+      required: ['title', 'budget', 'deliveryTime', 'deliveryDate']
     }
   })
   @ApiResponse({ 
@@ -842,20 +770,20 @@ export class ProjectsController {
     return await this.projectsService.updateProject(contractAddress, body);
   }
 
-  @Post(':projectId/milestones')
+  @Post(':contractAddress/propose_scope')
   @ApiOperation({ 
-    summary: 'Create milestone',
-    description: 'Creates a new milestone for the specified project'
+    summary: 'Coordinator approves project and proposes scope',
+    description: 'Coordinator approves a project by creating milestones and proposing scope to the smart contract. This is an atomic operation that saves milestones to the database and converts them into tasks for the blockchain contract.'
   })
   @ApiParam({ 
-    name: 'projectId', 
-    description: 'The ID of the project',
-    type: 'number'
+    name: 'contractAddress', 
+    description: 'The contract address of the project',
+    type: 'string'
   })
   @ApiBearerAuth()
   @ApiHeader({
     name: 'authorization',
-    description: 'Bearer token for authentication',
+    description: 'Bearer token for authentication (coordinator)',
     required: true,
     schema: {
       type: 'string',
@@ -866,87 +794,137 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        title: { 
-          type: 'string',
-          description: 'Title of the milestone',
-          example: 'Phase 1: Design'
-        },
-        description: { 
-          type: 'string',
-          description: 'Description of the milestone',
-          example: 'Complete the UI/UX design'
-        },
-        budget: { 
-          type: 'number',
-          description: 'Budget for the milestone',
-          example: 5000
-        },
-        deliveryTimeId: { 
-          type: 'number',
-          description: 'Delivery time ID',
-          example: 1
-        },
-        deliveryDate: { 
-          type: 'string',
-          description: 'Expected delivery date (ISO format)',
-          example: '2024-12-31'
-        },
-        roleId: { 
-          type: 'number',
-          description: 'Required role ID',
-          example: 1
-        },
-        proficiencyId: { 
-          type: 'number',
-          description: 'Required proficiency ID',
-          example: 2
-        },
-        skills: { 
+        milestones: {
           type: 'array',
-          items: { type: 'number' },
-          description: 'Required skill IDs',
-          example: [1, 2, 3]
+          description: 'Array of milestones for the project',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', example: 'Phase 1: Design' },
+              description: { type: 'string', example: 'Complete UI/UX design' },
+              budget: { type: 'number', example: 5000 },
+              deliveryTime: { type: 'number', example: 15 },
+              deliveryDate: { type: 'string', example: '2024-12-31' },
+              role: { type: 'string', example: 'Frontend Developer' },
+              proficiency: { type: 'string', example: 'Senior' },
+              skills: { 
+                type: 'array',
+                items: { type: 'string' },
+                example: ['React', 'TypeScript', 'CSS']
+              }
+            }
+          }
         },
-        availability: { 
+        advance_payment_percentage: {
+          type: 'number',
+          description: 'Percentage of advance payment (0-100)',
+          example: 20
+        },
+        document_hash: {
           type: 'string',
-          enum: ['fulltime', 'parttime', 'hourly'],
-          description: 'Developer availability type',
-          example: 'fulltime'
+          description: 'IPFS or document hash containing detailed project scope',
+          example: 'QmXYZ...'
         }
       },
-      required: ['title', 'budget', 'deliveryTimeId', 'deliveryDate', 'availability']
+      required: ['milestones', 'advance_payment_percentage', 'document_hash']
     }
   })
   @ApiResponse({ 
     status: 201, 
-    description: 'Milestone created successfully'
+    description: 'Project approved, milestones created, and scope proposed successfully'
   })
   @ApiResponse({ 
     status: 401, 
-    description: 'Unauthorized - Invalid token'
+    description: 'Unauthorized - Invalid token or not a coordinator'
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Project not found'
   })
   @ApiResponse({ 
     status: 500, 
     description: 'Internal server error'
   })
-  async createMilestone(
-    @Param('projectId', ParseIntPipe) projectId: number,
-    @Body() body: CreateMilestoneRequest,
+  async proposeScope(
+    @Param('contractAddress') contractAddress: string,
+    @Body() body: {
+      milestones: CreateMilestoneRequest[];
+      advance_payment_percentage: number;
+      document_hash: string;
+    },
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.createMilestone(projectId, body);
+    return await this.projectsService.coordinatorApproveProject(contractAddress, body, token);
   }
 
-  @Get(':projectId/milestones')
+  @Post(':contractAddress/coordinator_reject')
+  @ApiOperation({ 
+    summary: 'Coordinator rejects project',
+    description: 'Coordinator rejects a project with a reason. The rejection is stored.'
+  })
+  @ApiParam({ 
+    name: 'contractAddress', 
+    description: 'The contract address of the project',
+    type: 'string'
+  })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'authorization',
+    description: 'Bearer token for authentication (coordinator)',
+    required: true,
+    schema: {
+      type: 'string',
+      example: 'Bearer <your-jwt-token>'
+    }
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        rejectionReason: {
+          type: 'string',
+          description: 'Detailed reason for project rejection',
+          example: 'Project scope is unclear and budget is insufficient'
+        }
+      },
+      required: ['rejectionReason']
+    }
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Project rejected successfully'
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Unauthorized - Invalid token or not a coordinator'
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Project not found'
+  })
+  @ApiResponse({ 
+    status: 500, 
+    description: 'Internal server error'
+  })
+  async coordinatorRejectProject(
+    @Param('contractAddress') contractAddress: string,
+    @Body() body: { rejectionReason: string },
+    @Headers('authorization') authHeader: string
+  ) {
+    const token = this.extractToken(authHeader);
+    return await this.projectsService.coordinatorRejectProject(contractAddress, body.rejectionReason);
+  }
+
+  @Get(':contractAddress/milestones')
   @ApiOperation({ 
     summary: 'Get project milestones',
     description: 'Retrieves all milestones for the specified project'
   })
   @ApiParam({ 
-    name: 'projectId', 
-    description: 'The ID of the project',
-    type: 'number'
+    name: 'contractAddress', 
+    description: 'The contract address of the project',
+    type: 'string'
   })
   @ApiBearerAuth()
   @ApiHeader({
@@ -967,22 +945,22 @@ export class ProjectsController {
     description: 'Unauthorized - Invalid token'
   })
   async getMilestones(
-    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('contractAddress') contractAddress: string,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.getMilestonesByProject(projectId);
+    return await this.projectsService.getMilestonesByProject(contractAddress);
   }
 
-  @Get(':projectId/milestones/:milestoneId')
+  @Get(':contractAddress/milestones/:milestoneId')
   @ApiOperation({ 
     summary: 'Get milestone by ID',
     description: 'Retrieves a specific milestone by its ID'
   })
   @ApiParam({ 
-    name: 'projectId', 
-    description: 'The ID of the project',
-    type: 'number'
+    name: 'contractAddress', 
+    description: 'The contract address of the project',
+    type: 'string'
   })
   @ApiParam({ 
     name: 'milestoneId', 
@@ -1012,23 +990,23 @@ export class ProjectsController {
     description: 'Milestone not found'
   })
   async getMilestone(
-    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('contractAddress') contractAddress: string,
     @Param('milestoneId', ParseIntPipe) milestoneId: number,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.getMilestoneById(projectId, milestoneId);
+    return await this.projectsService.getMilestoneById(contractAddress, milestoneId);
   }
 
-  @Put(':projectId/milestones/:milestoneId')
+  @Put(':contractAddress/milestones/:milestoneId')
   @ApiOperation({ 
     summary: 'Update milestone',
     description: 'Updates a specific milestone'
   })
   @ApiParam({ 
-    name: 'projectId', 
-    description: 'The ID of the project',
-    type: 'number'
+    name: 'contractAddress', 
+    description: 'The contract address of the project',
+    type: 'string'
   })
   @ApiParam({ 
     name: 'milestoneId', 
@@ -1061,34 +1039,34 @@ export class ProjectsController {
         },
         budget: { 
           type: 'number',
-          description: 'Budget for the milestone',
+          description: 'Budget for the milestone in tokens',
           example: 5000
         },
-        deliveryTimeId: { 
+        deliveryTime: { 
           type: 'number',
-          description: 'Delivery time ID',
-          example: 1
+          description: 'Delivery time in days',
+          example: 15
         },
         deliveryDate: { 
           type: 'string',
           description: 'Expected delivery date (ISO format)',
           example: '2024-12-31'
         },
-        roleId: { 
-          type: 'number',
-          description: 'Required role ID',
-          example: 1
+        role: { 
+          type: 'string',
+          description: 'Required role for the milestone',
+          example: 'Frontend Developer'
         },
-        proficiencyId: { 
-          type: 'number',
-          description: 'Required proficiency ID',
-          example: 2
+        proficiency: { 
+          type: 'string',
+          description: 'Required proficiency level',
+          example: 'Senior'
         },
         skills: { 
           type: 'array',
-          items: { type: 'number' },
-          description: 'Required skill IDs',
-          example: [1, 2, 3]
+          items: { type: 'string' },
+          description: 'Required skills',
+          example: ['React', 'TypeScript', 'CSS']
         },
         availability: { 
           type: 'string',
@@ -1097,7 +1075,7 @@ export class ProjectsController {
           example: 'fulltime'
         }
       },
-      required: ['title', 'budget', 'deliveryTimeId', 'deliveryDate', 'availability']
+      required: ['title', 'budget', 'deliveryTime', 'deliveryDate', 'availability']
     }
   })
   @ApiResponse({ 
@@ -1117,24 +1095,24 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async updateMilestone(
-    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('contractAddress') contractAddress: string,
     @Param('milestoneId', ParseIntPipe) milestoneId: number,
     @Body() body: UpdateMilestoneRequest,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.updateMilestone(projectId, milestoneId, body);
+    return await this.projectsService.updateMilestone(contractAddress, milestoneId, body);
   }
 
-  @Delete(':projectId/milestones/:milestoneId')
+  @Delete(':contractAddress/milestones/:milestoneId')
   @ApiOperation({ 
     summary: 'Delete milestone',
     description: 'Deletes a specific milestone'
   })
   @ApiParam({ 
-    name: 'projectId', 
-    description: 'The ID of the project',
-    type: 'number'
+    name: 'contractAddress', 
+    description: 'The contract address of the project',
+    type: 'string'
   })
   @ApiParam({ 
     name: 'milestoneId', 
@@ -1168,12 +1146,12 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async deleteMilestone(
-    @Param('projectId', ParseIntPipe) projectId: number,
+    @Param('contractAddress') contractAddress: string,
     @Param('milestoneId', ParseIntPipe) milestoneId: number,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    await this.projectsService.deleteMilestone(projectId, milestoneId);
+    await this.projectsService.deleteMilestone(contractAddress, milestoneId);
     return { success: true, message: 'Milestone deleted successfully' };
   }
 }
