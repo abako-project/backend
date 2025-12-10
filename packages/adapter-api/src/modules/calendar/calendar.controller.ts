@@ -444,55 +444,5 @@ export class CalendarController {
   async getAllWorkersAvailability(@Param('contractAddress') contractAddress: string) {
     return await this.calendarService.getAllWorkersAvailability(contractAddress);
   }
-
-  @Post('deploy/:version')
-  @ApiOperation({ 
-    summary: 'Deploy calendar contract',
-    description: 'Deploys a new calendar contract with the specified version'
-  })
-  @ApiParam({ 
-    name: 'version', 
-    description: 'Version of the contract to deploy',
-    type: 'string',
-    example: 'v1.0.0'
-  })
-  @ApiBearerAuth()
-  @ApiHeader({
-    name: 'authorization',
-    description: 'Bearer token for authentication',
-    required: true,
-    schema: {
-      type: 'string',
-      example: 'Bearer <your-jwt-token>'
-    }
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Contract deployed successfully',
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean' },
-        address: { type: 'string' },
-        inkVersion: { type: 'string' },
-        contractType: { type: 'string' }
-      }
-    }
-  })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized - Invalid token'
-  })
-  @ApiResponse({ 
-    status: 500, 
-    description: 'Internal server error'
-  })
-  async deployContract(
-    @Param('version') version: string,
-    @Headers('authorization') authHeader: string
-  ) {
-    const token = this.extractToken(authHeader);
-    return await this.calendarService.deployContract(version, token);
-  }
 }
 

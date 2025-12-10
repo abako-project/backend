@@ -218,6 +218,70 @@ echo "   membership NFTs from the PolkaTalent DAO."
 echo ""
 echo "All contracts deployed. Zombienet is still running. Logs available at /tmp/zombienet.log"
 
+echo "Waiting for membership NFTs transaction to be finalized..."
+# Get the block number where the ratings transaction was included
+MEMBERSHIP_NFT_BLOCK_HEX=$(curl -s -H "Content-Type: application/json" -d '{"id":1, "jsonrpc":"2.0", "method": "chain_getHeader"}' http://localhost:21000 2>/dev/null | jq -r '.result.number' 2>/dev/null || echo "0x0")
+MEMBERSHIP_NFT_BLOCK_NUM=$(printf "%d" $MEMBERSHIP_NFT_BLOCK_HEX 2>/dev/null || echo "0")
+
+echo "Membership NFTs transaction included in block number: $MEMBERSHIP_NFT_BLOCK_NUM"
+
+# Wait for the membership NFTs block to be finalized
+for i in {1..120}; do
+  FINALIZED_HASH=$(curl -s -H "Content-Type: application/json" -d '{"id":1, "jsonrpc":"2.0", "method": "chain_getFinalizedHead"}' http://localhost:21000 2>/dev/null | jq -r '.result' 2>/dev/null || echo "")
+  
+  if [ ! -z "$FINALIZED_HASH" ] && [ "$FINALIZED_HASH" != "null" ]; then
+    # Get the finalized block number
+    FINALIZED_BLOCK=$(curl -s -H "Content-Type: application/json" -d "{\"id\":1, \"jsonrpc\":\"2.0\", \"method\": \"chain_getHeader\", \"params\": [\"$FINALIZED_HASH\"]}" http://localhost:21000 2>/dev/null | jq -r '.result.number' 2>/dev/null || echo "0x0")
+    FINALIZED_BLOCK_NUM=$(printf "%d" $FINALIZED_BLOCK 2>/dev/null || echo "0")
+    
+    echo "Current finalized block: $FINALIZED_BLOCK_NUM, Membership NFTs block: $MEMBERSHIP_NFT_BLOCK_NUM"
+    
+    if [ "$FINALIZED_BLOCK_NUM" -ge "$MEMBERSHIP_NFT_BLOCK_NUM" ]; then
+      echo "Membership NFTs transaction has been finalized at block $FINALIZED_BLOCK_NUM!"
+      
+      # Wait for at least 2 more blocks to be finalized after membership NFTs finalization
+      TARGET_FINALIZED_BLOCK=$((FINALIZED_BLOCK_NUM + 2))
+      
+      for j in {1..60}; do
+        CURRENT_FINALIZED_HASH=$(curl -s -H "Content-Type: application/json" -d '{"id":1, "jsonrpc":"2.0", "method": "chain_getFinalizedHead"}' http://localhost:21000 2>/dev/null | jq -r '.result' 2>/dev/null || echo "")
+        
+        if [ ! -z "$CURRENT_FINALIZED_HASH" ] && [ "$CURRENT_FINALIZED_HASH" != "null" ]; then
+          CURRENT_FINALIZED_BLOCK_HEX=$(curl -s -H "Content-Type: application/json" -d "{\"id\":1, \"jsonrpc\":\"2.0\", \"method\": \"chain_getHeader\", \"params\": [\"$CURRENT_FINALIZED_HASH\"]}" http://localhost:21000 2>/dev/null | jq -r '.result.number' 2>/dev/null || echo "0x0")
+          CURRENT_FINALIZED_BLOCK_NUM=$(printf "%d" $CURRENT_FINALIZED_BLOCK_HEX 2>/dev/null || echo "0")
+          
+          echo "Current finalized block: $CURRENT_FINALIZED_BLOCK_NUM, Waiting for finalized block >= $TARGET_FINALIZED_BLOCK"
+          
+          if [ "$CURRENT_FINALIZED_BLOCK_NUM" -ge "$TARGET_FINALIZED_BLOCK" ]; then
+            echo "Ready to execute custom call."
+            break
+          fi
+        fi
+        sleep 2
+      done
+      
+      break
+    fi
+  fi
+  sleep 2
+done
+
+echo ""
+echo "================================================================================"
+echo "Deploying Calendar & Ratings Contracts"
+echo "================================================================================"
+echo ""
+echo "The PolkaTalent DAO is now deploying the Calendar & Ratings contracts."
+echo "Executing deploy transaction..."
+subskribinto \
+  --endpoint ws://localhost:21000 \
+  --phrase "bottom drive obey lake curtain smoke basket hold race lonely fit walk" \
+  --derive-path "//Alice" \
+  --call 0x2b0010510302000000510402000000000000000000000000109bae9d5e00510301000000510401000000000000000000000000949bae9d5e01fa84cd6bcb8b1a9e068d7e419aa5d6c3b47bf7a1f83d441827e9302b832fa64900
+
+echo ""
+echo "✅ Calendar & Ratings contracts deployed successfully!"
+echo "   The Calendar & Ratings contracts are now available for use."
+echo ""
+echo "All contracts deployed. Zombienet is still running. Logs available at /tmp/zombienet.log"
+
 tail -f /tmp/zombienet.log
-
-
