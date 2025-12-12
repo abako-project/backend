@@ -131,9 +131,7 @@ export class CalendarService {
       const tx = methodName == 'set_availability' ?
         await contract.send("set_availability", {
           origin: caller,
-          data: { 
-            availability: { type: "PartTime", value: undefined } 
-          },
+          data: rest.data,
           gas_limit: {
             ref_time: 10000000000n,
             proof_size: 1000000n
