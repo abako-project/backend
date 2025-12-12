@@ -52,6 +52,7 @@ services:
       - DERIVE_PATH=//Alice
       - PROJECTS_APP_ID=0
       - CALENDAR_APP_ID=1
+      - RATINGS_APP_ID=2
     networks:
       - abako-network
     depends_on:
