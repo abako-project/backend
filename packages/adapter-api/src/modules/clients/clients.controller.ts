@@ -95,7 +95,6 @@ export class ClientsController {
     schema: {
       type: 'object',
       properties: {
-        email: { type: 'string', format: 'email', example: 'client@example.com' },
         name: { type: 'string', example: 'John Doe' },
         company: { type: 'string', example: 'Acme Corp' },
         department: { type: 'string', example: 'Engineering' },
