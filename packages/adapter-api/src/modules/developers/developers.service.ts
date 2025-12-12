@@ -63,12 +63,12 @@ export class DevelopersService {
 
     try {
       developer.name = updateData.name;
-      developer.email = updateData.email;
       developer.githubUsername = updateData.githubUsername;
       if (updateData.portfolioUrl !== undefined) developer.portfolioUrl = updateData.portfolioUrl;
       developer.bio = updateData.bio;
       developer.background = updateData.background;
-      developer.role = updateData.role;
+      developer.proficiency = updateData.proficiency;
+      if (updateData.role !== undefined) developer.role = updateData.role;
       developer.location = updateData.location;
       developer.availability = updateData.availability;
       developer.languages = updateData.languages;

@@ -83,7 +83,7 @@ export class DevelopersController {
   @Put(':developerId')
   @ApiOperation({ 
     summary: 'Update developer profile',
-    description: 'Updates developer profile with additional information: bio, background, role, skills, spoken languages, location, and availability.'
+    description: 'Updates developer profile with additional information: bio, background, proficiency, skills, spoken languages, location, and availability.'
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -91,20 +91,20 @@ export class DevelopersController {
       type: 'object',
       properties: {
         name: { type: 'string', example: 'Jane Smith' },
-        email: { type: 'string', format: 'email', example: 'developer@example.com' },
         githubUsername: { type: 'string', example: 'janesmith' },
         portfolioUrl: { type: 'string', example: 'https://portfolio.com' },
         bio: { type: 'string', example: 'Experienced full-stack developer' },
         background: { type: 'string', example: '5 years of experience in web development' },
-        role: { type: 'string', enum: ['junior', 'mid-level', 'senior'], example: 'mid-level' },
+        proficiency: { type: 'string', enum: ['junior', 'mid-level', 'senior'], example: 'mid-level', description: 'Developer proficiency level' },
+        role: { type: 'string', example: 'Full Stack Developer', description: 'Optional role title' },
         location: { type: 'string', example: 'San Francisco, USA' },
         availability: { type: 'string', enum: ['NotAvailable', 'PartTime', 'FullTime', 'WeeklyHours'], example: 'FullTime' },
-        languages: { type: 'array', items: { type: 'string' }, example: ['1', '2'] },
-        skills: { type: 'array', items: { type: 'string' }, example: ['1', '2', '3'] },
+        languages: { type: 'array', items: { type: 'string' }, example: ['English', 'Spanish'] },
+        skills: { type: 'array', items: { type: 'string' }, example: ['React', 'Node.js', 'TypeScript'] },
         availableHoursPerWeek: { type: 'number', example: 40 },
         image: { type: 'string', format: 'binary', description: 'Profile image' }
       },
-      required: ['name', 'email', 'githubUsername', 'bio', 'background', 'role', 'location', 'availability', 'languages', 'skills']
+      required: ['name', 'githubUsername', 'bio', 'background', 'proficiency', 'location', 'availability', 'languages', 'skills']
     }
   })
   @ApiResponse({ status: 200, description: 'Developer updated successfully' })
