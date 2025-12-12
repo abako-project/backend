@@ -277,6 +277,30 @@ app.post('/calendar/deploy/v5', async (req: Request, res: Response) => {
   }
 })
 
+app.post('/ratings/deploy/v5', async (req: Request, res: Response) => {
+  console.log("Ratings deploy v5 endpoint called")
+  try {
+    const configs = deployService.getDeployConfigs()
+    const params = req.body || {} // Ratings constructor accepts empty params
+    const result = await deployService.deployContract(configs.ratings_v5, params)
+    
+    if (result.success) {
+      res.json(result)
+    } else {
+      res.status(400).json(result)
+    }
+  } catch (error) {
+    console.error('Error in ratings deploy v5 endpoint:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      inkVersion: '5',
+      contractType: 'ratings',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+})
+
 async function startServer() {
   try {
     await initializeServices()

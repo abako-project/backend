@@ -1,4 +1,4 @@
-export type DeveloperRole = 'junior' | 'mid-level' | 'senior';
+export type DeveloperProficiency = 'junior' | 'mid-level' | 'senior';
 
 export enum DeveloperAvailability {
   NotAvailable = 'NotAvailable',
@@ -15,7 +15,8 @@ export interface Developer {
   portfolioUrl?: string;
   bio: string;
   background: string;
-  role: DeveloperRole;
+  proficiency: DeveloperProficiency;
+  role?: string;
   location: string;
   availability: DeveloperAvailability;
   languages: string[];
@@ -24,7 +25,6 @@ export interface Developer {
   proficiencyId?: number;
   createdAt: number;
   updatedAt: number;
-  proficiency?: string;
   consultantProjects?: string[];
 }
 
@@ -39,12 +39,12 @@ export interface CreateDeveloperRequest {
   
   export interface UpdateDeveloperRequest {
     name: string;
-    email: string;
     githubUsername: string;
     portfolioUrl?: string;
     bio: string;
     background: string;
-    role: DeveloperRole;
+    proficiency: DeveloperProficiency;
+    role?: string;
     location: string;
     availability: DeveloperAvailability;
     languages: string[];

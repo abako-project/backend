@@ -288,11 +288,7 @@ export class ProjectsService {
     return this.callPreSignedWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id });
   }
 
-  async getProjectInfo(contractAddress: string): Promise<QueryResponse> {
-    return this.callReadMethod(contractAddress, 'get_project_info');
-  }
-
-  async getProject(contractAddress: string): Promise<Project> {
+  async getProjectInfo(contractAddress: string): Promise<Project> {
     const project = await this.projectModel.findOne({ contractAddress }).exec();
     if (!project) {
       throw new NotFoundException(`Project with contract address ${contractAddress} not found`);
@@ -308,16 +304,31 @@ export class ProjectsService {
     return this.callReadMethod(contractAddress, 'get_scope_info');
   }
 
-  async getTask(contractAddress: string, taskId: number): Promise<QueryResponse> {
-    return this.callReadMethod(contractAddress, 'get_task', { task_id: taskId });
+  async getTask(contractAddress: string, taskId: number): Promise<QueryResponse & { milestone?: Milestone }> {
+    const taskResponse = await this.callReadMethod(contractAddress, 'get_task', { task_id: taskId });
+    const milestone = await this.milestoneModel.findOne({ contractAddress, id: taskId }).exec();
+    return {
+      ...taskResponse,
+      milestone: milestone ? milestone.toObject() : undefined,
+    };
   }
 
-  async getTaskCompletionStatus(contractAddress: string, taskId: number): Promise<QueryResponse> {
-    return this.callReadMethod(contractAddress, 'get_task_completion_status', { task_id: taskId });
+  async getTaskCompletionStatus(contractAddress: string, taskId: number): Promise<QueryResponse & { milestoneState?: string }> {
+    const taskStatusResponse = await this.callReadMethod(contractAddress, 'get_task_completion_status', { task_id: taskId });
+    const milestone = await this.milestoneModel.findOne({ contractAddress, id: taskId }).exec();
+    return {
+      ...taskStatusResponse,
+      milestoneState: milestone ? milestone.state : undefined,
+    };
   }
 
-  async getAllTasks(contractAddress: string): Promise<QueryResponse> {
-    return this.callReadMethod(contractAddress, 'get_all_tasks');
+  async getAllTasks(contractAddress: string): Promise<QueryResponse & { milestones: Milestone[] }> {
+    const tasksResponse = await this.callReadMethod(contractAddress, 'get_all_tasks');
+    const milestones = await this.milestoneModel.find({ contractAddress }).sort({ displayOrder: 1 }).exec();
+    return {
+      ...tasksResponse,
+      milestones: milestones.map(m => m.toObject()),
+    };
   }
 
   async deployContract(
@@ -332,14 +343,18 @@ export class ProjectsService {
       const deployerUrl = `${signingServiceUrl}/projects/deploy/${version}`;
       const address = await this.authService.getAddress(authToken!);
       
+      // Use provided contracts or fallback to defaults
       const defaultRatingsContract = process.env.DEFAULT_RATINGS_CONTRACT || 'JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY';
       const defaultCalendarContract = process.env.DEFAULT_CALENDAR_CONTRACT || 'Cfqrpkb3Fs17DBpQR5UmBq3bDzaDTnFe89RK9EwZvPWtJpr';
+      
+      const calendarContract = proposalData.calendarContract || defaultCalendarContract;
+      const ratingsContract = proposalData.ratingsContract || defaultRatingsContract;
       
       const deployBody: any = {
         name: proposalData.title,
         dao_address: daoAddress,
-        calendar_contract: defaultCalendarContract,
-        ratings_contract: defaultRatingsContract,
+        calendar_contract: calendarContract,
+        ratings_contract: ratingsContract,
       };
 
       console.log({deployerUrl, deployBody});
@@ -372,6 +387,7 @@ export class ProjectsService {
           deliveryTime: proposalData.deliveryTime,
           deliveryDate: new Date(proposalData.deliveryDate).getTime(),
           clientId: clientId,
+          calendarContract: calendarContract,
           state: 'deployed',
         });
 

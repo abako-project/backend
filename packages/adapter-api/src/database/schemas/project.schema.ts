@@ -45,6 +45,9 @@ export class Project {
   contractAddress?: string;
 
   @Prop()
+  calendarContract?: string;
+
+  @Prop()
   coordinatorApprovalStatus?: string;
 
   @Prop()
