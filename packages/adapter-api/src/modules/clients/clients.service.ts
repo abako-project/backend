@@ -61,7 +61,6 @@ export class ClientsService {
 
     try {
       if (updateData.name !== undefined) client.name = updateData.name;
-      if (updateData.email !== undefined) client.email = updateData.email;
       if (updateData.company !== undefined) client.company = updateData.company;
       if (updateData.department !== undefined) client.department = updateData.department;
       if (updateData.website !== undefined) client.website = updateData.website;
