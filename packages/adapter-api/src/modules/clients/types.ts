@@ -23,7 +23,6 @@ export interface CreateClientRequest {
   }
   
   export interface UpdateClientRequest {
-    email?: string;
     name?: string;
     company?: string;
     department?: string;

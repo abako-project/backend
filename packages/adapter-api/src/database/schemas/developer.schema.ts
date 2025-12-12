@@ -24,7 +24,7 @@ export class Developer {
   background: string;
 
   @Prop({ enum: ['junior', 'mid-level', 'senior'], required: true, default: 'junior' })
-  role: string;
+  proficiency: string;
 
   @Prop()
   location: string;
@@ -42,7 +42,7 @@ export class Developer {
   availableHoursPerWeek?: number;
 
   @Prop()
-  proficiencyId?: number;
+  role?: string;
 
   @Prop({ type: Date, default: Date.now })
   createdAt: number;
