@@ -142,6 +142,8 @@ export interface CreateProposalRequest {
   budget: number;
   deliveryTime: number;
   deliveryDate: string;
+  calendarContract?: string;
+  ratingsContract?: string;
 }
 
 export interface UpdateProposalRequest {
