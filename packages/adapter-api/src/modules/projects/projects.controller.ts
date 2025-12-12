@@ -426,11 +426,6 @@ export class ProjectsController {
     return await this.projectsService.getProjectInfo(contractAddress);
   }
 
-  @Get(':contractAddress')
-  async getProject(@Param('contractAddress') contractAddress: string) {
-    return await this.projectsService.getProject(contractAddress);
-  }
-
   @Get(':contractAddress/get_team')
   @ApiOperation({ 
     summary: 'Get project team',
@@ -485,8 +480,8 @@ export class ProjectsController {
 
   @Get(':contractAddress/get_task')
   @ApiOperation({ 
-    summary: 'Get specific task information',
-    description: 'Retrieves detailed information about a specific task in the project'
+    summary: 'Get specific task information and milestone',
+    description: 'Retrieves detailed information about a specific task from the smart contract and its corresponding milestone from MongoDB'
   })
   @ApiParam({ 
     name: 'contractAddress', 
@@ -501,7 +496,41 @@ export class ProjectsController {
   })
   @ApiResponse({ 
     status: 200, 
-    description: 'Task information retrieved successfully'
+    description: 'Task and milestone information retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        method: { type: 'string' },
+        contractAddress: { type: 'string' },
+        response: {
+          type: 'object',
+          description: 'Task information from the smart contract',
+          properties: {
+            id: { type: 'number' },
+            cost: { type: 'string' },
+            complexity: { type: 'object' },
+            dependencies: { type: 'array' },
+            status: { type: 'object' }
+          }
+        },
+        milestone: {
+          type: 'object',
+          description: 'Milestone information from MongoDB',
+          properties: {
+            id: { type: 'number' },
+            contractAddress: { type: 'string' },
+            title: { type: 'string' },
+            description: { type: 'string' },
+            budget: { type: 'number' },
+            deliveryTime: { type: 'number' },
+            role: { type: 'string' },
+            proficiency: { type: 'string' },
+            skills: { type: 'array', items: { type: 'string' } }
+          }
+        }
+      }
+    }
   })
   @ApiResponse({ 
     status: 404, 
@@ -555,8 +584,8 @@ export class ProjectsController {
 
   @Get(':contractAddress/get_all_tasks')
   @ApiOperation({ 
-    summary: 'Get all project tasks',
-    description: 'Retrieves all tasks associated with a specific project'
+    summary: 'Get all project tasks and milestones',
+    description: 'Retrieves all tasks from the smart contract and milestones from MongoDB for a specific project'
   })
   @ApiParam({ 
     name: 'contractAddress', 
@@ -565,7 +594,47 @@ export class ProjectsController {
   })
   @ApiResponse({ 
     status: 200, 
-    description: 'All tasks retrieved successfully'
+    description: 'All tasks and milestones retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        method: { type: 'string' },
+        contractAddress: { type: 'string' },
+        response: {
+          type: 'array',
+          description: 'Array of tasks from the smart contract',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'number' },
+              cost: { type: 'string' },
+              complexity: { type: 'object' },
+              dependencies: { type: 'array' },
+              status: { type: 'object' }
+            }
+          }
+        },
+        milestones: {
+          type: 'array',
+          description: 'Array of milestones from MongoDB',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'number' },
+              contractAddress: { type: 'string' },
+              title: { type: 'string' },
+              description: { type: 'string' },
+              budget: { type: 'number' },
+              deliveryTime: { type: 'number' },
+              role: { type: 'string' },
+              proficiency: { type: 'string' },
+              skills: { type: 'array', items: { type: 'string' } }
+            }
+          }
+        }
+      }
+    }
   })
   @ApiResponse({ 
     status: 404, 
@@ -648,10 +717,20 @@ export class ProjectsController {
           type: 'string',
           description: 'Client AccountId',
           example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY'
+        },
+        calendarContract: {
+          type: 'string',
+          description: 'Optional: Calendar contract address. If not provided, uses DAO default calendar contract.',
+          example: 'Cfqrpkb3Fs17DBpQR5UmBq3bDzaDTnFe89RK9EwZvPWtJpr'
+        },
+        ratingsContract: {
+          type: 'string',
+          description: 'Optional: Ratings contract address. If not provided, uses DAO default ratings contract.',
+          example: 'JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY'
         }
       },
       required: ['title', 'budget', 'deliveryTime', 'deliveryDate', 'clientId'],
-      description: 'Project will automatically use DAO default Ratings and Calendar contracts deployed at blockchain initialization'
+      description: 'Project will use provided contract addresses or default to DAO shared contracts if not specified'
     }
   })
   @ApiResponse({ 
@@ -914,88 +993,6 @@ export class ProjectsController {
   ) {
     const token = this.extractToken(authHeader);
     return await this.projectsService.coordinatorRejectProject(contractAddress, body.rejectionReason);
-  }
-
-  @Get(':contractAddress/milestones')
-  @ApiOperation({ 
-    summary: 'Get project milestones',
-    description: 'Retrieves all milestones for the specified project'
-  })
-  @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
-    type: 'string'
-  })
-  @ApiBearerAuth()
-  @ApiHeader({
-    name: 'authorization',
-    description: 'Bearer token for authentication',
-    required: true,
-    schema: {
-      type: 'string',
-      example: 'Bearer <your-jwt-token>'
-    }
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Milestones retrieved successfully'
-  })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized - Invalid token'
-  })
-  async getMilestones(
-    @Param('contractAddress') contractAddress: string,
-    @Headers('authorization') authHeader: string
-  ) {
-    const token = this.extractToken(authHeader);
-    return await this.projectsService.getMilestonesByProject(contractAddress);
-  }
-
-  @Get(':contractAddress/milestones/:milestoneId')
-  @ApiOperation({ 
-    summary: 'Get milestone by ID',
-    description: 'Retrieves a specific milestone by its ID'
-  })
-  @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
-    type: 'string'
-  })
-  @ApiParam({ 
-    name: 'milestoneId', 
-    description: 'The ID of the milestone',
-    type: 'number'
-  })
-  @ApiBearerAuth()
-  @ApiHeader({
-    name: 'authorization',
-    description: 'Bearer token for authentication',
-    required: true,
-    schema: {
-      type: 'string',
-      example: 'Bearer <your-jwt-token>'
-    }
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Milestone retrieved successfully'
-  })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Unauthorized - Invalid token'
-  })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Milestone not found'
-  })
-  async getMilestone(
-    @Param('contractAddress') contractAddress: string,
-    @Param('milestoneId', ParseIntPipe) milestoneId: number,
-    @Headers('authorization') authHeader: string
-  ) {
-    const token = this.extractToken(authHeader);
-    return await this.projectsService.getMilestoneById(contractAddress, milestoneId);
   }
 
   @Put(':contractAddress/milestones/:milestoneId')
