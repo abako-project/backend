@@ -89,10 +89,20 @@ export class VosMockService {
       const registerRes = await new Promise((resolve, reject) => {
         registerCharlotte.signSubmitAndWatch(polkadotSigner)
           .subscribe({
-            next: (event) => {
+            next: (event: any) => {
               console.info('Transaction event:', event.type);
               if (event.type === 'txBestBlocksState') {
-                resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+                if (event.ok) {
+                  resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+                } else {
+                  if (event.dispatchError) {
+                    console.error('Full dispatchError:', JSON.stringify(event.dispatchError, null, 2));
+                    if (event.dispatchError.type === 'Module' && event.dispatchError.value) {
+                      console.error('Module error details:', event.dispatchError.value);
+                    }
+                  }
+                  reject(new Error('Failed to register: ' + (event.dispatchError ? JSON.stringify(event.dispatchError) : 'Unknown error')));
+                }
               }
             },
             error: (error) => {
@@ -199,10 +209,20 @@ export class VosMockService {
     const addMemberRes = await new Promise((resolve, reject) => {
       addMember.signSubmitAndWatch(polkadotSigner)
         .subscribe({
-          next: (event) => {
+          next: (event: any) => {
             console.info('Add member transaction event:', event.type);
             if (event.type === 'txBestBlocksState') {
-              resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+              if (event.ok) {
+                resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+              } else {
+                if (event.dispatchError) {
+                  console.error('Full dispatchError:', JSON.stringify(event.dispatchError, null, 2));
+                  if (event.dispatchError.type === 'Module' && event.dispatchError.value) {
+                    console.error('Module error details:', event.dispatchError.value);
+                  }
+                }
+                reject(new Error('Failed to add member: ' + (event.dispatchError ? JSON.stringify(event.dispatchError) : 'Unknown error')));
+              }
             }
           },
           error: (error) => {
@@ -266,10 +286,20 @@ export class VosMockService {
       const transferRes = await new Promise((resolve, reject) => {
         transfer.signSubmitAndWatch(polkadotSigner)
           .subscribe({
-            next: (event) => {
+            next: (event: any) => {
               console.info('Fund transfer transaction event:', event.type);
               if (event.type === 'txBestBlocksState') {
-                resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+                if (event.ok) {
+                  resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+                } else {
+                  if (event.dispatchError) {
+                    console.error('Full dispatchError:', JSON.stringify(event.dispatchError, null, 2));
+                    if (event.dispatchError.type === 'Module' && event.dispatchError.value) {
+                      console.error('Module error details:', event.dispatchError.value);
+                    }
+                  }
+                  reject(new Error('Failed to fund: ' + (event.dispatchError ? JSON.stringify(event.dispatchError) : 'Unknown error')));
+                }
               }
             },
             error: (error) => {
