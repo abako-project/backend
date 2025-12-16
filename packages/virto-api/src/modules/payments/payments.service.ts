@@ -48,7 +48,17 @@ export class PaymentsService {
             next: (event: any) => {
               console.info('Create payment transaction event:', event.type);
               if (event.type === 'txBestBlocksState') {
-                resolve({ ok: true, txHash: event.txHash, blockHash: event.found, events: event.events });
+                if (event.ok) {
+                  resolve({ ok: true, txHash: event.txHash, blockHash: event.found, events: event.events });
+                } else {
+                  if (event.dispatchError) {
+                    console.error('Full dispatchError:', JSON.stringify(event.dispatchError, null, 2));
+                    if (event.dispatchError.type === 'Module' && event.dispatchError.value) {
+                      console.error('Module error details:', event.dispatchError.value);
+                    }
+                  }
+                  reject(new Error('Failed to create payment: ' + (event.dispatchError ? JSON.stringify(event.dispatchError) : 'Unknown error')));
+                }
               }
             },
             error: (error) => {

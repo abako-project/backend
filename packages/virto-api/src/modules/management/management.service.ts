@@ -70,10 +70,20 @@ export class ManagementService {
       const result = await new Promise<{ ok: boolean; txHash: string; blockHash?: any }>((resolve, reject) => {
         addMemberTx.signSubmitAndWatch(polkadotSigner)
           .subscribe({
-            next: (event) => {
+            next: (event: any) => {
               console.info('Add member transaction event:', event.type);
               if (event.type === 'txBestBlocksState') {
-                resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+                if (event.ok) {
+                  resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+                } else {
+                  if (event.dispatchError) {
+                    console.error('Full dispatchError:', JSON.stringify(event.dispatchError, null, 2));
+                    if (event.dispatchError.type === 'Module' && event.dispatchError.value) {
+                      console.error('Module error details:', event.dispatchError.value);
+                    }
+                  }
+                  reject(new Error('Failed to add member: ' + (event.dispatchError ? JSON.stringify(event.dispatchError) : 'Unknown error')));
+                }
               }
             },
             error: (error) => {
@@ -182,10 +192,20 @@ export class ManagementService {
       const result = await new Promise<{ ok: boolean; txHash: string; blockHash?: any }>((resolve, reject) => {
         removeMemberTx.signSubmitAndWatch(polkadotSigner)
           .subscribe({
-            next: (event) => {
+            next: (event: any) => {
               console.info('Remove member transaction event:', event.type);
               if (event.type === 'txBestBlocksState') {
-                resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+                if (event.ok) {
+                  resolve({ ok: true, txHash: event.txHash, blockHash: event.found });
+                } else {
+                  if (event.dispatchError) {
+                    console.error('Full dispatchError:', JSON.stringify(event.dispatchError, null, 2));
+                    if (event.dispatchError.type === 'Module' && event.dispatchError.value) {
+                      console.error('Module error details:', event.dispatchError.value);
+                    }
+                  }
+                  reject(new Error('Failed to remove member: ' + (event.dispatchError ? JSON.stringify(event.dispatchError) : 'Unknown error')));
+                }
               }
             },
             error: (error) => {
