@@ -16,7 +16,6 @@
     }
   },
   "ink": {
-    "calendar": ".papi/contracts/calendar.json",
     "calendar_v5": ".papi/contracts/calendar_v5.json",
     "projects_v5": ".papi/contracts/projects_v5.json",
     "projects_v6": ".papi/contracts/projects_v6.json",
