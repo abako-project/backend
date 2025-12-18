@@ -497,7 +497,7 @@ describe('ProjectsService Integration Tests', () => {
   });
 
   describe('Error Handling Tests', () => {
-    let contractAddress = 'GqbSPewPBKrUgkNBuDS8ce85DxE9pPWEeBAFwU9iwBZ7YTY';
+    let contractAddress = 'CxFEcoMsw1aTVJLWhnsjWoUcTEmaXVbJw6ix2RHeET1Eqsi';
 
     // beforeAll(async () => {
     //   // Deploy a fresh contract without scope
@@ -517,44 +517,44 @@ describe('ProjectsService Integration Tests', () => {
     //   contractAddress = deployResult.address;
     // });
 
-    // describe('Query Method Error Handling', () => {
-    //   test('should handle result null when querying non-existent task', async () => {
-    //     const result = await projectsService.queryMethod(
-    //       contractAddress,
-    //       'get_task',
-    //       { task_id: 999 }
-    //     );
+    describe('Query Method Error Handling', () => {
+      test('should handle result null when querying non-existent task', async () => {
+        const result = await projectsService.queryMethod(
+          contractAddress,
+          'get_task',
+          { task_id: 999 }
+        );
 
-    //     console.log('📝 get_task result:', JSON.stringify(result, null, 2));
+        console.log('📝 get_task result:', JSON.stringify(result, null, 2));
 
-    //     expect(result.success).toBe(true); // Compare with true because the return in the contract is a Option<Task>
-    //     expect(result.response).toBeNull(); // Verify response is null on error
-    //   });
+        expect(result.success).toBe(true); // Compare with true because the return in the contract is a Option<Task>
+        expect(result.response).toBeNull(); // Verify response is null on error
+      });
 
-    //   test('should handle ScopeNotDefined error when getting tasks before scope is defined', async () => {
-    //     await expect(
-    //       projectsService.queryMethod(contractAddress, 'get_all_tasks', {})
-    //     ).rejects.toMatchObject({
-    //       name: 'ContractError',
-    //       method: 'get_all_tasks',
-    //       contractAddress: contractAddress,
-    //       errorMessage: expect.stringContaining('ScopeNotDefined'),
-    //       errorCode: expect.any(String)
-    //     });
-    //   });
+      test('should handle ScopeNotDefined error when getting tasks before scope is defined', async () => {
+        await expect(
+          projectsService.queryMethod(contractAddress, 'get_all_tasks', {})
+        ).rejects.toMatchObject({
+          name: 'ContractError',
+          method: 'get_all_tasks',
+          contractAddress: contractAddress,
+          errorMessage: expect.stringContaining('ScopeNotDefined'),
+          errorCode: expect.any(String)
+        });
+      });
 
-    //   test('should handle error when getting task completion status without scope', async () => {
-    //     await expect(
-    //       projectsService.queryMethod(contractAddress, 'get_task_completion_status', { task_id: [999] })
-    //     ).rejects.toMatchObject({
-    //       name: 'ContractError',
-    //       method: 'get_task_completion_status',
-    //       contractAddress: contractAddress,
-    //       errorMessage: expect.stringContaining('ScopeNotDefined'),
-    //       errorCode: expect.any(String)
-    //     });
-    //   });
-    // });
+      test('should handle error when getting task completion status without scope', async () => {
+        await expect(
+          projectsService.queryMethod(contractAddress, 'get_task_completion_status', { task_id: [999] })
+        ).rejects.toMatchObject({
+          name: 'ContractError',
+          method: 'get_task_completion_status',
+          contractAddress: contractAddress,
+          errorMessage: expect.stringContaining('ScopeNotDefined'),
+          errorCode: expect.any(String)
+        });
+      });
+    });
 
     describe('Call Method Error Handling', () => {
       test('should handle CalendarContractNotSet error when assigning coordinator without calendar', async () => {
@@ -582,44 +582,44 @@ describe('ProjectsService Integration Tests', () => {
       });
     });
 
-    // describe('Error Response Structure Validation', () => {
-    //   test('should handle method validation errors', async () => {
-    //     try {
-    //       await projectsService.queryMethod(
-    //         contractAddress,
-    //         'non_existent_method',
-    //         {}
-    //       );
+    describe('Error Response Structure Validation', () => {
+      test('should handle method validation errors', async () => {
+        try {
+          await projectsService.queryMethod(
+            contractAddress,
+            'non_existent_method',
+            {}
+          );
 
-    //       // Should not reach here
-    //       fail('Expected method to throw error for invalid method name');
-    //     } catch (error: any) {
-    //       console.log('📝 Method validation error:', error.message);
+          // Should not reach here
+          fail('Expected method to throw error for invalid method name');
+        } catch (error: any) {
+          console.log('📝 Method validation error:', error.message);
 
-    //       expect(error).toBeInstanceOf(Error);
-    //       expect(error.message).toContain('not found in contract');
-    //       expect(error.message).toContain('Available methods');
-    //     }
-    //   });
+          expect(error).toBeInstanceOf(Error);
+          expect(error.message).toContain('not found in contract');
+          expect(error.message).toContain('Available methods');
+        }
+      });
 
-    //   test('should list available methods on validation error', async () => {
-    //     try {
-    //       await projectsService.callMethod(
-    //         contractAddress,
-    //         'invalid_method_name',
-    //         {}
-    //       );
+      test('should list available methods on validation error', async () => {
+        try {
+          await projectsService.callMethod(
+            contractAddress,
+            'invalid_method_name',
+            {}
+          );
 
-    //       fail('Expected method to throw error');
-    //     } catch (error: any) {
-    //       console.log('📝 Available methods error:', error.message);
+          fail('Expected method to throw error');
+        } catch (error: any) {
+          console.log('📝 Available methods error:', error.message);
 
-    //       expect(error.message).toContain('Available methods');
-    //       expect(error.message).toContain('assign_coordinator');
-    //       expect(error.message).toContain('get_project_info');
-    //     }
-    //   });
-    // });
+          expect(error.message).toContain('Available methods');
+          expect(error.message).toContain('assign_coordinator');
+          expect(error.message).toContain('get_project_info');
+        }
+      });
+    });
   });
 });
 
