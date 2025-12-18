@@ -7,6 +7,58 @@ import { ADDRESS } from "./util/address"
 import contractMetadata from '../.papi/contracts/projects_v5.json'
 import { adminPolkadotSigner, adminPublicAddress } from "./util/signer"
 import { ss58Encode } from '@polkadot-labs/hdkd-helpers'
+import { ContractError } from "./util/contractError"
+
+/**
+ * Extracts error definitions from contract metadata
+ * @param metadata Contract metadata JSON
+ * @returns Map of error index to error name
+ */
+function extractErrorsFromMetadata(metadata: any): Map<number, string> {
+  const errors = new Map<number, string>();
+  
+  try {
+    // Find the Error type in the metadata types
+    const errorType = metadata.types?.find((type: any) => {
+      const path = type.type?.path;
+      return Array.isArray(path) &&
+        path.length >= 2 &&
+        path[path.length - 1] === 'Error';
+    });
+
+    if (!errorType) {
+      console.warn('Error type not found in contract metadata');
+      return errors;
+    }
+
+    const variants = errorType.type?.def?.variant?.variants;
+    if (!Array.isArray(variants)) {
+      console.warn('Error variants not found in contract metadata');
+      return errors;
+    }
+
+    // Map each variant to its index
+    variants.forEach((variant: any) => {
+      const index = variant.index;
+      const name = variant.name;
+      
+      if (typeof index === 'number' && typeof name === 'string') {
+        // For Detailed error with fields, provide more context
+        if (name === 'Detailed' && Array.isArray(variant.fields)) {
+          errors.set(index, `${name}: Check error details for more information`);
+        } else {
+          errors.set(index, name);
+        }
+      }
+    });
+
+    console.log(`Loaded ${errors.size} error definitions from contract metadata`);
+  } catch (error) {
+    console.error('Failed to extract errors from metadata:', error);
+  }
+
+  return errors;
+}
 
 export class ProjectsService {
   private client: any
@@ -14,10 +66,41 @@ export class ProjectsService {
   private projectsSdk: any
   private contracts: Map<string, any> = new Map()
   private availableMethods: string[]
+  private contractErrors: Map<number, string>
 
   constructor() {
     this.availableMethods = contractMetadata.spec.messages.map((message: any) => message.label)
+    this.contractErrors = extractErrorsFromMetadata(contractMetadata)
     console.log("Available methods", this.availableMethods)
+    console.log("Loaded contract errors:", Array.from(this.contractErrors.entries()))
+  }
+
+  /**
+   * Decodes a contract error code into a human-readable message
+   * @param errorCode Hexadecimal error code (e.g., '0x000107')
+   * @returns Decoded error message
+   */
+  private decodeErrorMessage(errorCode: string): string {
+    try {
+      // Remove '0x' prefix if present
+      const hexString = errorCode.startsWith('0x') ? errorCode.slice(2) : errorCode;
+      
+      // The error format is typically: [Result flag][Error type flag][Error index]
+      // For '0x000107': 00 = Result::Err, 01 = Error variant, 07 = error index (7 in decimal)
+      
+      // Get the last byte which represents the error index
+      const errorIndex = parseInt(hexString.slice(-2), 16);
+      
+      const errorName = this.contractErrors.get(errorIndex);
+      
+      if (errorName) {
+        return errorName;
+      }
+      
+      return `Unknown error (code: ${errorCode}, index: ${errorIndex})`;
+    } catch (error) {
+      return `Failed to decode error (code: ${errorCode})`;
+    }
   }
 
   async initialize() {
@@ -34,8 +117,16 @@ export class ProjectsService {
 
   private getContract(contractAddress: string) {
     if (!this.contracts.has(contractAddress)) {
-      const contract = this.projectsSdk.getContract(contractAddress)
-      this.contracts.set(contractAddress, contract)
+      try {
+        const contract = this.projectsSdk.getContract(contractAddress)
+        this.contracts.set(contractAddress, contract)
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('not found')) {
+          throw new Error(`Contract ${contractAddress} not found on chain. Please verify the contract address.`);
+        }
+        // Re-throw other errors
+        throw error;
+      }
     }
     return this.contracts.get(contractAddress)
   }
@@ -186,17 +277,66 @@ export class ProjectsService {
         data: data,
       })
 
-      console.log(response)
+      console.log("before response hdp", response)
 
-      const serializedResponse = response.success ? this.serializeBigInt(response.value.response) : null
+      // Handle successful response
+      if (response.success) {
+        const serializedResponse = response.value.response ? this.serializeBigInt(response.value.response) : null;
 
-      return {
-        success: response.success,
-        method: methodName,
-        contractAddress: contractAddress,
-        response: serializedResponse,
+        console.log('serializedResponse:', serializedResponse);
+        return {
+          success: true,
+          method: methodName,
+          contractAddress: contractAddress,
+          response: serializedResponse ?? null,
+        };
       }
+
+      console.log('response:', response);
+
+      // Handle error response - throw exception to propagate as HTTP error
+      console.log('errorResponse type:', response.value?.type);
+      console.log('errorResponse message:', response.value?.value?.message);
+      console.log('errorResponse is FlagReverted:', response.value?.type === 'FlagReverted');
+
+      // Handle Module error (usually means contract not found or other blockchain-level error)
+      if (response.value?.type === 'Module') {
+        throw new Error(`Contract ${contractAddress} not found on chain. Please verify the contract address.`);
+      }
+
+      // Decode error if it's a FlagReverted
+      let errorMessage = 'Query failed';
+      let errorCode: string | null = null;
+      let gasRequired: { ref_time: string; proof_size: string } | undefined;
+      let storageDeposit: string | undefined;
+
+      if (response.value?.type === 'FlagReverted' && response.value.value?.message) {
+        const decodedError = this.decodeErrorMessage(response.value.value.message);
+        errorMessage = decodedError;
+        errorCode = response.value.value.message;
+      }
+
+      throw new ContractError(
+        methodName,
+        contractAddress,
+        errorMessage,
+        errorCode,
+      );
     } catch (error) {
+      console.log('error:', error)
+      console.log('error.message:', error instanceof Error ? error.message : 'Unknown error')
+      console.log('error.toJSON():', error instanceof ContractError ? error.toJSON() : 'Unknown error')
+
+      // Re-throw ContractError as-is
+      if (error instanceof ContractError) {
+        throw error;
+      }
+
+      // Handle contract not found error
+      if (error instanceof Error && error.message.includes('not found')) {
+        throw new Error(`Contract ${contractAddress} not found on chain. Please verify the contract address.`);
+      }
+
       console.error(`Error querying method ${methodName} on contract ${contractAddress}:`, error)
       throw new Error(`Failed to query method ${methodName} on contract ${contractAddress}: ${error}`)
     }
@@ -226,6 +366,44 @@ export class ProjectsService {
       console.log(`[callMethod] ========== START ${methodName} ==========`)
       console.log(`[callMethod] Caller:`, caller)
       console.log(`[callMethod] Rest data:`, rest)
+
+      const txResponse = await contract.query(methodName as any, {
+        origin: caller || adminPublicAddress,
+        data: {},
+        gas_limit: {
+          ref_time: 10000000000n,
+          proof_size: 1000000n
+        },
+        storage_deposit_limit: 100000000000n,
+      })
+
+      console.log('txResponse:', txResponse);
+
+      // Check if the query failed with a revert
+      if (!txResponse.success) {
+        // Extract error information from the reverted response and throw exception
+        let errorMessage = 'Contract call would fail';
+        let errorCode: string | null = null;
+
+        if (txResponse.value?.type === 'FlagReverted') {
+          const revertedValue = txResponse.value.value;
+
+          // Decode the error message from hex code
+          if (revertedValue.message) {
+            const decodedError = this.decodeErrorMessage(revertedValue.message);
+            console.log('decodedError:', decodedError)
+            errorMessage = decodedError;
+            errorCode = revertedValue.message;
+          }
+        }
+
+        throw new ContractError(
+          methodName,
+          contractAddress,
+          errorMessage,
+          errorCode,
+        );
+      }
 
       if (encodedDataMethods.includes(methodName)) {
         console.log(`[callMethod] Method ${methodName} is in encodedDataMethods list`)
@@ -287,7 +465,7 @@ export class ProjectsService {
       // assign_coordinator executes and returns the coordinator AccountId
       if (methodName === 'assign_coordinator') {
         console.log(`[callMethod] Executing assign_coordinator`)
-        
+
         try {
           const tx = await contract.send(methodName as any, {
             origin: caller || adminPublicAddress,
@@ -305,7 +483,7 @@ export class ProjectsService {
           console.log('assign_coordinator result:', result);
 
           // Find the ContractEmitted event to extract coordinator
-          const contractEmittedEvent = result.events.find((event: any) => 
+          const contractEmittedEvent = result.events.find((event: any) =>
             event.type === 'Contracts' && event.value?.type === 'ContractEmitted'
           );
 
@@ -368,11 +546,8 @@ export class ProjectsService {
           }
         } catch (error) {
           console.error(`[callMethod] Error in assign_coordinator:`, error);
-          return {
-            method: methodName,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
+          // Re-throw the error to propagate it
+          throw error;
         }
       }
 
@@ -450,11 +625,9 @@ export class ProjectsService {
             dispatchError: result.dispatchError,
           }
         } catch (error) {
-          return {
-            method: methodName,
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }
+          console.error(`[callMethod] Error in ${methodName}:`, error);
+          // Re-throw the error to propagate it
+          throw error;
         }
       }
 
@@ -476,6 +649,19 @@ export class ProjectsService {
         blockNumber: result.blockNumber,
       }
     } catch (error) {
+      // Re-throw ContractError as-is
+      if (error instanceof ContractError) {
+        console.error(`[callMethod] ========== END ${methodName} CONTRACT ERROR ==========`)
+        throw error;
+      }
+
+      // Handle contract not found error
+      if (error instanceof Error && error.message.includes('not found')) {
+        console.error(`[callMethod] ========== END ${methodName} CONTRACT NOT FOUND ==========`)
+        throw new Error(`Contract ${contractAddress} not found on chain. Please verify the contract address.`);
+      }
+
+      // Log and wrap other errors
       console.error(`[callMethod] ========== END ${methodName} ERROR ==========`)
       console.error(`[callMethod] Error:`, error)
       throw new Error(`Failed to call method ${methodName} on contract ${contractAddress}: ${error}`)
