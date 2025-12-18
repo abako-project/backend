@@ -8,57 +8,7 @@ import contractMetadata from '../.papi/contracts/projects_v5.json'
 import { adminPolkadotSigner, adminPublicAddress } from "./util/signer"
 import { ss58Encode } from '@polkadot-labs/hdkd-helpers'
 import { ContractError } from "./util/contractError"
-
-/**
- * Extracts error definitions from contract metadata
- * @param metadata Contract metadata JSON
- * @returns Map of error index to error name
- */
-function extractErrorsFromMetadata(metadata: any): Map<number, string> {
-  const errors = new Map<number, string>();
-  
-  try {
-    // Find the Error type in the metadata types
-    const errorType = metadata.types?.find((type: any) => {
-      const path = type.type?.path;
-      return Array.isArray(path) &&
-        path.length >= 2 &&
-        path[path.length - 1] === 'Error';
-    });
-
-    if (!errorType) {
-      console.warn('Error type not found in contract metadata');
-      return errors;
-    }
-
-    const variants = errorType.type?.def?.variant?.variants;
-    if (!Array.isArray(variants)) {
-      console.warn('Error variants not found in contract metadata');
-      return errors;
-    }
-
-    // Map each variant to its index
-    variants.forEach((variant: any) => {
-      const index = variant.index;
-      const name = variant.name;
-      
-      if (typeof index === 'number' && typeof name === 'string') {
-        // For Detailed error with fields, provide more context
-        if (name === 'Detailed' && Array.isArray(variant.fields)) {
-          errors.set(index, `${name}: Check error details for more information`);
-        } else {
-          errors.set(index, name);
-        }
-      }
-    });
-
-    console.log(`Loaded ${errors.size} error definitions from contract metadata`);
-  } catch (error) {
-    console.error('Failed to extract errors from metadata:', error);
-  }
-
-  return errors;
-}
+import { errorExtractor, decodeErrorMessage } from "./util/errorExtractor"
 
 export class ProjectsService {
   private client: any
@@ -70,37 +20,9 @@ export class ProjectsService {
 
   constructor() {
     this.availableMethods = contractMetadata.spec.messages.map((message: any) => message.label)
-    this.contractErrors = extractErrorsFromMetadata(contractMetadata)
+    this.contractErrors = errorExtractor(contractMetadata)
     console.log("Available methods", this.availableMethods)
     console.log("Loaded contract errors:", Array.from(this.contractErrors.entries()))
-  }
-
-  /**
-   * Decodes a contract error code into a human-readable message
-   * @param errorCode Hexadecimal error code (e.g., '0x000107')
-   * @returns Decoded error message
-   */
-  private decodeErrorMessage(errorCode: string): string {
-    try {
-      // Remove '0x' prefix if present
-      const hexString = errorCode.startsWith('0x') ? errorCode.slice(2) : errorCode;
-      
-      // The error format is typically: [Result flag][Error type flag][Error index]
-      // For '0x000107': 00 = Result::Err, 01 = Error variant, 07 = error index (7 in decimal)
-      
-      // Get the last byte which represents the error index
-      const errorIndex = parseInt(hexString.slice(-2), 16);
-      
-      const errorName = this.contractErrors.get(errorIndex);
-      
-      if (errorName) {
-        return errorName;
-      }
-      
-      return `Unknown error (code: ${errorCode}, index: ${errorIndex})`;
-    } catch (error) {
-      return `Failed to decode error (code: ${errorCode})`;
-    }
   }
 
   async initialize() {
@@ -311,7 +233,7 @@ export class ProjectsService {
       let storageDeposit: string | undefined;
 
       if (response.value?.type === 'FlagReverted' && response.value.value?.message) {
-        const decodedError = this.decodeErrorMessage(response.value.value.message);
+        const decodedError = decodeErrorMessage(response.value.value.message, this.contractErrors);
         errorMessage = decodedError;
         errorCode = response.value.value.message;
       }
@@ -390,7 +312,7 @@ export class ProjectsService {
 
           // Decode the error message from hex code
           if (revertedValue.message) {
-            const decodedError = this.decodeErrorMessage(revertedValue.message);
+            const decodedError = decodeErrorMessage(revertedValue.message, this.contractErrors);
             console.log('decodedError:', decodedError)
             errorMessage = decodedError;
             errorCode = revertedValue.message;

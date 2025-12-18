@@ -5,6 +5,8 @@ import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat"
 import { getWsProvider } from "polkadot-api/ws-provider/node"
 import contractMetadata from '../.papi/contracts/calendar_v5.json'
 import { adminPublicAddress, adminPolkadotSigner } from "./util/signer"
+import { ContractError } from "./util/contractError"
+import { errorExtractor, decodeErrorMessage } from "./util/errorExtractor"
 
 export class CalendarService {
   private client: any
@@ -12,10 +14,13 @@ export class CalendarService {
   private calendarSdk: any
   private contracts: Map<string, any> = new Map()
   private availableMethods: string[]
+  private contractErrors: Map<number, string>
 
   constructor() {
     this.availableMethods = contractMetadata.spec.messages.map((message: any) => message.label)
+    this.contractErrors = errorExtractor(contractMetadata)
     console.log("Available methods", this.availableMethods)
+    console.log("Loaded calendar contract errors:", Array.from(this.contractErrors.entries()))
   }
 
   async initialize() {
@@ -95,15 +100,49 @@ export class CalendarService {
 
       console.log(response)
 
-      const serializedResponse = response.success ? this.serializeBigInt(response.value.response) : null
-
-      return {
-        success: response.success,
-        method: methodName,
-        contractAddress: contractAddress,
-        response: serializedResponse,
+      // Handle successful response
+      if (response.success) {
+        const serializedResponse = response.value.response ? this.serializeBigInt(response.value.response) : null;
+        return {
+          success: true,
+          method: methodName,
+          contractAddress: contractAddress,
+          response: serializedResponse ?? null,
+        };
       }
+
+      // Handle Module error (contract not found)
+      if (response.value?.type === 'Module') {
+        throw new Error(`Contract ${contractAddress} not found on chain. Please verify the contract address.`);
+      }
+
+      // Handle FlagReverted error
+      let errorMessage = 'Query failed';
+      let errorCode: string | null = null;
+
+      if (response.value?.type === 'FlagReverted' && response.value.value?.message) {
+        const decodedError = decodeErrorMessage(response.value.value.message, this.contractErrors);
+        errorMessage = decodedError;
+        errorCode = response.value.value.message;
+      }
+
+      throw new ContractError(
+        methodName,
+        contractAddress,
+        errorMessage,
+        errorCode
+      );
     } catch (error) {
+      // Re-throw ContractError as-is
+      if (error instanceof ContractError) {
+        throw error;
+      }
+
+      // Handle contract not found error
+      if (error instanceof Error && error.message.includes('not found')) {
+        throw new Error(`Contract ${contractAddress} not found on chain. Please verify the contract address.`);
+      }
+
       console.error(`Error querying method ${methodName} on contract ${contractAddress}:`, error)
       throw new Error(`Failed to query method ${methodName} on contract ${contractAddress}: ${error}`)
     }

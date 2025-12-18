@@ -358,5 +358,95 @@ describe('CalendarService Integration Tests', () => {
       }
     });
   });
+
+  describe('Error Handling Tests', () => {
+    describe('Call Method Error Handling', () => {
+      test('should handle error when setting availability for non-registered worker', async () => {
+        await expect(
+          calendarService.callMethod(contractAddress, 'set_availability', { availability: { type: 'FullTime' } })
+        ).rejects.toMatchObject({
+          name: 'ContractError',
+          method: 'set_availability',
+          contractAddress: contractAddress,
+          errorMessage: expect.stringContaining('WorkerNotRegistered'),
+          errorCode: expect.any(String)
+        });
+      });
+    });
+
+    describe('Error Response Structure Validation', () => {
+      test('should handle method validation errors', async () => {
+        await expect(
+          calendarService.queryMethod(
+            contractAddress,
+            'non_existent_method',
+            {}
+          )
+        ).rejects.toMatchObject({
+          message: expect.stringContaining('not found in contract')
+        });
+      });
+
+      test('should list available methods on validation error', async () => {
+        try {
+          await calendarService.callMethod(
+            contractAddress,
+            'invalid_method_name',
+            {}
+          );
+
+          fail('Expected method to throw error');
+        } catch (error: any) {
+          console.log('📝 Available methods error:', error.message);
+
+          expect(error.message).toContain('not found in contract');
+          expect(error.message).toContain('Available methods');
+          expect(error.message).toContain('register_worker');
+          expect(error.message).toContain('set_availability');
+        }
+      });
+
+      test('should reject invalid method names in queryMethod', async () => {
+        await expect(
+          calendarService.queryMethod(
+            contractAddress,
+            'totally_fake_method',
+            {}
+          )
+        ).rejects.toThrow('Method "totally_fake_method" not found in contract');
+      });
+
+      test('should reject invalid method names in callMethod', async () => {
+        await expect(
+          calendarService.callMethod(
+            contractAddress,
+            'another_fake_method',
+            {}
+          )
+        ).rejects.toThrow('Method "another_fake_method" not found in contract');
+      });
+    });
+
+    describe('Contract Address Validation', () => {
+      test('should handle invalid contract address', async () => {
+        const invalidAddress = 'InvalidAddress123';
+
+        try {
+          await calendarService.queryMethod(
+            invalidAddress,
+            'get_registered_workers',
+            {}
+          );
+
+          fail('Expected method to throw error for invalid address');
+        } catch (error: any) {
+          console.log('📝 Invalid address error:', error.message);
+
+          expect(error).toBeInstanceOf(Error);
+          expect(error.message).toBeDefined();
+        }
+      });
+    });
+  });
 });
 
