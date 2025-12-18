@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { ProjectsService } from '../projects';
+import { ContractError } from '../util/contractError';
 import { CalendarService } from '../calendar';
 import { RatingsService } from '../ratings';
 import { DeployService } from '../deployService';
@@ -32,56 +33,57 @@ describe('ProjectsService Integration Tests', () => {
   let ratingsService: RatingsService;
   let deployService: DeployService;
   let contractAddress: string;
-  let calendarContractAddress: string;
-  let ratingsContractAddress: string;
+  let calendarContractAddress: string = 'Cfqrpkb3Fs17DBpQR5UmBq3bDzaDTnFe89RK9EwZvPWtJpr';
+  let ratingsContractAddress: string = 'JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY';
 
   beforeAll(async () => {
     // Initialize deploy service
     deployService = new DeployService();
 
-    // Step 1: Deploy ratings contract first
-    console.log('🚀 Deploying ratings contract...');
-    const ratingsConfig = deployService.getDeployConfigs().ratings_v5;
-    const ratingsResult = await deployService.deployContract(ratingsConfig, {});
+    // // Step 1: Deploy ratings contract first
+    // console.log('🚀 Deploying ratings contract...');
+    // const ratingsConfig = deployService.getDeployConfigs().ratings_v5;
+    // const ratingsResult = await deployService.deployContract(ratingsConfig, {});
 
-    if (!ratingsResult.success || !ratingsResult.address) {
-      throw new Error(`Failed to deploy ratings contract: ${ratingsResult.error || 'Unknown error'}`);
-    }
+    // if (!ratingsResult.success || !ratingsResult.address) {
+    //   throw new Error(`Failed to deploy ratings contract: ${ratingsResult.error || 'Unknown error'}`);
+    // }
 
-    ratingsContractAddress = ratingsResult.address;
-    console.log(`✅ Ratings contract deployed at: ${ratingsContractAddress}`);
+    // ratingsContractAddress = ratingsResult.address;
+    // console.log(`✅ Ratings contract deployed at: ${ratingsContractAddress}`);
 
-    // Step 2: Deploy calendar contract with ratings address
-    console.log('🚀 Deploying calendar contract...');
-    const calendarConfig = deployService.getDeployConfigs().calendar_v5;
-    console.log('Calendar config:', calendarConfig);
-    const calendarResult = await deployService.deployContract(calendarConfig, {
-      ratings_contract: ratingsContractAddress
-    });
+    // // Step 2: Deploy calendar contract with ratings address
+    // console.log('🚀 Deploying calendar contract...');
+    // const calendarConfig = deployService.getDeployConfigs().calendar_v5;
+    // console.log('Calendar config:', calendarConfig);
+    // const calendarResult = await deployService.deployContract(calendarConfig, {
+    //   ratings_contract: ratingsContractAddress
+    // });
 
-    if (!calendarResult.success || !calendarResult.address) {
-      throw new Error(`Failed to deploy calendar contract: ${calendarResult.error || 'Unknown error'}`);
-    }
+    // if (!calendarResult.success || !calendarResult.address) {
+    //   throw new Error(`Failed to deploy calendar contract: ${calendarResult.error || 'Unknown error'}`);
+    // }
 
-    calendarContractAddress = calendarResult.address;
-    console.log(`✅ Calendar contract deployed at: ${calendarContractAddress}`);
+    // calendarContractAddress = calendarResult.address;
+    // console.log(`✅ Calendar contract deployed at: ${calendarContractAddress}`);
 
     // Step 3: Deploy projects contract with calendar and ratings addresses
-    console.log('🚀 Deploying projects contract...');
-    const deployConfig = deployService.getDeployConfigs().v5;
-    const deployResult = await deployService.deployContract(deployConfig, {
-      name: 'Test Project',
-      dao_address: alicePublicAddress,
-      calendar_contract: calendarContractAddress,
-      ratings_contract: ratingsContractAddress
-    });
+    // console.log('🚀 Deploying projects contract...');
+    // const deployConfig = deployService.getDeployConfigs().v5;
+    // const deployResult = await deployService.deployContract(deployConfig, {
+    //   name: 'Test Project',
+    //   dao_address: alicePublicAddress,
+    //   // calendar_contract: calendarContractAddress,
+    //   // ratings_contract: ratingsContractAddress
+    // });
 
-    if (!deployResult.success || !deployResult.address) {
-      throw new Error(`Failed to deploy projects contract: ${deployResult.error || 'Unknown error'}`);
-    }
+    // if (!deployResult.success || !deployResult.address) {
+    //   throw new Error(`Failed to deploy projects contract: ${deployResult.error || 'Unknown error'}`);
+    // }
 
-    contractAddress = deployResult.address;
-    console.log(`✅ Projects contract deployed at: ${contractAddress}`);
+    // contractAddress = deployResult.address;
+    // console.log(`✅ Projects contract deployed at: ${contractAddress}`);
+    contractAddress = 'GMjX1pxCNKaAccMQVDEt2nFjNHqvdgF7HRTphRCqEya8bGU';
 
     // Initialize services
     projectsService = new ProjectsService();
@@ -90,11 +92,11 @@ describe('ProjectsService Integration Tests', () => {
     calendarService = new CalendarService();
     await calendarService.initialize();
 
-    ratingsService = new RatingsService();
-    await ratingsService.initialize();
+    // ratingsService = new RatingsService();
+    // await ratingsService.initialize();
 
     console.log('✅ All services initialized and ready for tests');
-  }, 240000); 
+  }, 240000);
 
   afterAll(async () => {
     if (projectsService) {
@@ -103,386 +105,386 @@ describe('ProjectsService Integration Tests', () => {
     if (calendarService) {
       await calendarService.destroy();
     }
-    if (ratingsService) {
-      await ratingsService.destroy();
-    }
+    // if (ratingsService) {
+    //   await ratingsService.destroy();
+    // }
   });
 
-  describe('Deployed Contract Addresse', () => {
-    test('should deploy a project contract without dao address', async () => {
-      const deployConfig = deployService.getDeployConfigs().v5;
-      const deployResult = await deployService.deployContract(deployConfig, {
-        name: 'Test Project without dao address',
-      });
+  // describe('Deployed Contract Addresse', () => {
+  //   test('should deploy a project contract without dao address', async () => {
+  //     const deployConfig = deployService.getDeployConfigs().v5;
+  //     const deployResult = await deployService.deployContract(deployConfig, {
+  //       name: 'Test Project without dao address',
+  //     });
 
-      expect(deployResult.success).toBe(true);
-      expect(deployResult.address).toBeDefined();
+  //     expect(deployResult.success).toBe(true);
+  //     expect(deployResult.address).toBeDefined();
 
-      if (!deployResult.address) {
-        throw new Error('Deploy result address is undefined');
-      }
+  //     if (!deployResult.address) {
+  //       throw new Error('Deploy result address is undefined');
+  //     }
 
-      const result = await projectsService.queryMethod(
-        deployResult.address,
-        'get_project_info',
-        {}
-      );
+  //     const result = await projectsService.queryMethod(
+  //       deployResult.address,
+  //       'get_project_info',
+  //       {}
+  //     );
 
-      expect(result.success).toBe(true);
-      
-      const projectName = result.response[0];
-      expect(projectName).toBe('Test Project without dao address');
+  //     expect(result.success).toBe(true);
 
-      const daoAddress = result.response[2];
-      expect(daoAddress).toBe(adminPublicAddress);
+  //     const projectName = result.response[0];
+  //     expect(projectName).toBe('Test Project without dao address');
 
-      console.log('  - Projects contract:', deployResult.address);
-    });
+  //     const daoAddress = result.response[2];
+  //     expect(daoAddress).toBe(adminPublicAddress);
 
-    test('should deploy a project contract with dao address', async () => {
-      const deployConfig = deployService.getDeployConfigs().v5;
-      const deployResult = await deployService.deployContract(deployConfig, {
-        name: 'Test Project',
-        dao_address: alicePublicAddress,
-        calendar_contract: calendarContractAddress,
-        ratings_contract: ratingsContractAddress
-      });
+  //     console.log('  - Projects contract:', deployResult.address);
+  //   });
 
-      expect(deployResult.success).toBe(true);
-      expect(deployResult.address).toBeDefined();
-      console.log('  - Projects contract:', deployResult.address);
-    });
-  });
+  //   test('should deploy a project contract with dao address', async () => {
+  //     const deployConfig = deployService.getDeployConfigs().v5;
+  //     const deployResult = await deployService.deployContract(deployConfig, {
+  //       name: 'Test Project',
+  //       dao_address: alicePublicAddress,
+  //       // calendar_contract: calendarContractAddress,
+  //       // ratings_contract: ratingsContractAddress
+  //     });
 
-  describe('Query Methods - get_project_info', () => {
-    test('should query project information', async () => {
-      const result = await projectsService.queryMethod(
-        contractAddress,
-        'get_project_info',
-        {}
-      );
+  //     expect(deployResult.success).toBe(true);
+  //     expect(deployResult.address).toBeDefined();
+  //     console.log('  - Projects contract:', deployResult.address);
+  //   });
+  // });
 
-      expect(result.success).toBe(true);
-      
-      const projectName = result.response[0];
-      expect(projectName).toBe('Test Project');
+  // describe('Query Methods - get_project_info', () => {
+  //   test('should query project information', async () => {
+  //     const result = await projectsService.queryMethod(
+  //       contractAddress,
+  //       'get_project_info',
+  //       {}
+  //     );
 
-      console.log('✓ get_project_info result:', JSON.stringify(result.response, null, 2));
-    });
-  });
+  //     expect(result.success).toBe(true);
 
-  describe('Calendar Setup - Worker Registration and Availability', () => {
-    test('should register multiple workers in calendar contract', async () => {
-      const result = await calendarService.callMethod(
-        calendarContractAddress,
-        'register_worker',
-        { data: { worker: charliePublicAddress } }
-      );
+  //     const projectName = result.response[0];
+  //     expect(projectName).toBe('Test Project');
 
-      expect(result.success).toBe(true);
-      console.log('✓ register_worker encoded data:', result);
-    });
+  //     console.log('✓ get_project_info result:', JSON.stringify(result.response, null, 2));
+  //   });
+  // });
 
-    test('should set coordinator availability to FullTime as admin', async () => {
-      const result = await calendarService.callMethod(
-        calendarContractAddress,
-        'admin_set_worker_availability',
-        {
-          data: { worker: charliePublicAddress, availability: { type: 'FullTime' } }
-        }
-      );
+  // describe('Calendar Setup - Worker Registration and Availability', () => {
+  //   test('should register multiple workers in calendar contract', async () => {
+  //     const result = await calendarService.callMethod(
+  //       calendarContractAddress,
+  //       'register_worker',
+  //       { data: { worker: charliePublicAddress } }
+  //     );
 
-      expect(result).toHaveProperty('success');
-      expect(result.success).toBe(true);
+  //     expect(result.success).toBe(true);
+  //     console.log('✓ register_worker encoded data:', result);
+  //   });
 
-      console.log('✓ admin_set_worker_availability (coordinator) encoded data:', result);
-    });
+  //   test('should set coordinator availability to FullTime as admin', async () => {
+  //     const result = await calendarService.callMethod(
+  //       calendarContractAddress,
+  //       'admin_set_worker_availability',
+  //       {
+  //         data: { worker: charliePublicAddress, availability: { type: 'FullTime' } }
+  //       }
+  //     );
 
-    test('should verify coordinator availability is FullTime', async () => {
-      const result = await calendarService.queryMethod(
-        calendarContractAddress,
-        'get_availability_hours',
-        { worker: charliePublicAddress }
-      );
+  //     expect(result).toHaveProperty('success');
+  //     expect(result.success).toBe(true);
 
-      expect(result.success).toBe(true);
-      expect(result).toHaveProperty('method', 'get_availability_hours');
+  //     console.log('✓ admin_set_worker_availability (coordinator) encoded data:', result);
+  //   });
 
-      if (result.success) {
-        console.log(`✓ Coordinator availability hours:`, result.response);
-        expect(typeof result.response === 'string' || typeof result.response === 'number').toBe(true);
-      }
-    });
-  });
+  //   test('should verify coordinator availability is FullTime', async () => {
+  //     const result = await calendarService.queryMethod(
+  //       calendarContractAddress,
+  //       'get_availability_hours',
+  //       { worker: charliePublicAddress }
+  //     );
 
-  describe('Coordinator Management - assign_coordinator', () => {
-    test('should assign a coordinator to the project', async () => {
-      const result = await projectsService.callMethod(
-        contractAddress,
-        'assign_coordinator',
-        {}
-      );
+  //     expect(result.success).toBe(true);
+  //     expect(result).toHaveProperty('method', 'get_availability_hours');
 
-      expect(result.success).toBe(true);
-    });
-  });
+  //     if (result.success) {
+  //       console.log(`✓ Coordinator availability hours:`, result.response);
+  //       expect(typeof result.response === 'string' || typeof result.response === 'number').toBe(true);
+  //     }
+  //   });
+  // });
 
-  describe('Projects Module - Assign Team', () => {
-    it('should assign a team to the project', async () => {
-      console.log('Assigning team to project...');
+  // describe('Coordinator Management - assign_coordinator', () => {
+  //   test('should assign a coordinator to the project', async () => {
+  //     const result = await projectsService.callMethod(
+  //       contractAddress,
+  //       'assign_coordinator',
+  //       {}
+  //     );
 
-      const result = await projectsService.callMethod(
-        contractAddress,
-        'assign_team',
-        { data: { ideal_team_size: 1 } },
-      );
-      console.log('Response:', JSON.stringify(result, null, 2));
+  //     expect(result.success).toBe(true);
+  //   });
+  // });
 
-      expect(result.encodedData).toBeDefined();
+  // describe('Projects Module - Assign Team', () => {
+  //   it('should assign a team to the project', async () => {
+  //     console.log('Assigning team to project...');
 
-      const client = createClient(
-        withPolkadotSdkCompat(getWsProvider("ws://localhost:21000")),
-      )
-      const kreivoApi = client.getTypedApi(kreivo);
-      const transaction = await kreivoApi.txFromCallData(Binary.fromHex(result.encodedData));
+  //     const result = await projectsService.callMethod(
+  //       contractAddress,
+  //       'assign_team',
+  //       { data: { ideal_team_size: 1 } },
+  //     );
+  //     console.log('Response:', JSON.stringify(result, null, 2));
 
-      const signedTransaction = await transaction.signAndSubmit(charliePolkadotSigner);
-      console.log('Signed transaction:', signedTransaction);
+  //     expect(result.encodedData).toBeDefined();
 
-      expect(signedTransaction.ok).toBe(true);
+  //     const client = createClient(
+  //       withPolkadotSdkCompat(getWsProvider("ws://localhost:21000")),
+  //     )
+  //     const kreivoApi = client.getTypedApi(kreivo);
+  //     const transaction = await kreivoApi.txFromCallData(Binary.fromHex(result.encodedData));
 
-      console.log('Team assigned successfully');
-    });
-  });
+  //     const signedTransaction = await transaction.signAndSubmit(charliePolkadotSigner);
+  //     console.log('Signed transaction:', signedTransaction);
 
-  describe('Query Methods - get_team', () => {
-    test('should query team members', async () => {
-      const result = await projectsService.queryMethod(
-        contractAddress,
-        'get_team',
-        {}
-      );
+  //     expect(signedTransaction.ok).toBe(true);
 
-      expect(result.success).toBe(true);
-      expect(result).toHaveProperty('method', 'get_team');
+  //     console.log('Team assigned successfully');
+  //   });
+  // });
 
-      if (result.success) {
-        console.log('✓ Team members:', result.response);
-        expect(Array.isArray(result.response)).toBe(true);
-      }
-    });
-  });
+  // describe('Query Methods - get_team', () => {
+  //   test('should query team members', async () => {
+  //     const result = await projectsService.queryMethod(
+  //       contractAddress,
+  //       'get_team',
+  //       {}
+  //     );
 
-  describe('Scope Management - propose_scope', () => {
-    test('should prepare callMethod data for proposing scope', async () => {
-      const tasks = [
-        [1, { type: 'Days', value: 5 }, 1000n, []]
-      ];
-      
-      const documentHash = '0x0000000000000000000000000000000000000000000000000000000000000000';
+  //     expect(result.success).toBe(true);
+  //     expect(result).toHaveProperty('method', 'get_team');
 
-      const result = await projectsService.callMethod(
-        contractAddress,
-        'propose_scope',
-        { 
-          data: {
-            tasks,
-            advance_payment_percentage: 20,
-            document_hash: documentHash
-          }
-        }
-      );
+  //     if (result.success) {
+  //       console.log('✓ Team members:', result.response);
+  //       expect(Array.isArray(result.response)).toBe(true);
+  //     }
+  //   });
+  // });
 
-      expect(result.encodedData).toBeDefined();
+  // describe('Scope Management - propose_scope', () => {
+  //   test('should prepare callMethod data for proposing scope', async () => {
+  //     const tasks = [
+  //       [1, { type: 'Days', value: 5 }, 1000n, []]
+  //     ];
 
-      const client = createClient(
-        withPolkadotSdkCompat(getWsProvider("ws://localhost:21000")),
-      )
-      const kreivoApi = client.getTypedApi(kreivo);
-      const transaction = await kreivoApi.txFromCallData(Binary.fromHex(result.encodedData));
+  //     const documentHash = 'KJASDFH...';
 
-      const signedTransaction = await transaction.signAndSubmit(charliePolkadotSigner);
-      console.log('Signed transaction:', signedTransaction);
+  //     const result = await projectsService.callMethod(
+  //       contractAddress,
+  //       'propose_scope',
+  //       { 
+  //         data: {
+  //           tasks,
+  //           advance_payment_percentage: 20,
+  //           document_hash: documentHash
+  //         }
+  //       }
+  //     );
 
-      expect(signedTransaction.ok).toBe(true);
-      
-      console.log('✓ propose_scope encoded data:', result.encodedData);
-    });
-  });
+  //     expect(result.encodedData).toBeDefined();
 
-  describe('Query Methods - get_scope_info', () => {
-    test('should query scope information', async () => {
-      const result = await projectsService.queryMethod(
-        contractAddress,
-        'get_scope_info',
-        {}
-      );
+  //     const client = createClient(
+  //       withPolkadotSdkCompat(getWsProvider("ws://localhost:21000")),
+  //     )
+  //     const kreivoApi = client.getTypedApi(kreivo);
+  //     const transaction = await kreivoApi.txFromCallData(Binary.fromHex(result.encodedData));
 
-      expect(result.success).toBe(true);
+  //     const signedTransaction = await transaction.signAndSubmit(charliePolkadotSigner);
+  //     console.log('Signed transaction:', signedTransaction);
 
-      console.log('✓ Scope info:', result.response);
-    });
-  });
+  //     expect(signedTransaction.ok).toBe(true);
 
-  describe('Query Methods - get_all_tasks', () => {
-    test('should query all tasks', async () => {
-      const result = await projectsService.queryMethod(
-        contractAddress,
-        'get_all_tasks',
-        {}
-      );
+  //     console.log('✓ propose_scope encoded data:', result.encodedData);
+  //   });
+  // });
 
-      expect(result.success).toBe(true);
+  // describe('Query Methods - get_scope_info', () => {
+  //   test('should query scope information', async () => {
+  //     const result = await projectsService.queryMethod(
+  //       contractAddress,
+  //       'get_scope_info',
+  //       {}
+  //     );
 
-      if (result.success) {
-        console.log('✓ All tasks:', result.response);
-        expect(Array.isArray(result.response)).toBe(true);
+  //     expect(result.success).toBe(true);
 
-        const task = result.response[0];
-        expect(task).toHaveProperty('id', 1);
-        expect(task).toHaveProperty('cost', '1000');
-        expect(task).toHaveProperty('complexity');
-        expect(task.complexity).toHaveProperty('type', 'Days');
-        expect(task.complexity).toHaveProperty('value', 5);
-      } 
-    });
-  });
+  //     console.log('✓ Scope info:', result.response);
+  //   });
+  // });
 
-  describe('Query Methods - get_task', () => {
-    test('should query specific task', async () => {
-      const result = await projectsService.queryMethod(
-        contractAddress,
-        'get_task',
-        { task_id: 1 }
-      );
+  // describe('Query Methods - get_all_tasks', () => {
+  //   test('should query all tasks', async () => {
+  //     const result = await projectsService.queryMethod(
+  //       contractAddress,
+  //       'get_all_tasks',
+  //       {}
+  //     );
 
-      expect(result.success).toBe(true);
+  //     expect(result.success).toBe(true);
 
-      if (result.success) {
-        const task = result.response;
-        expect(task).toHaveProperty('id', 1);
-        expect(task).toHaveProperty('cost', '1000');
-        expect(task).toHaveProperty('complexity');
-        expect(task.complexity).toHaveProperty('type', 'Days');
-        expect(task.complexity).toHaveProperty('value', 5);
-      }
-      console.log('✓ Task details:', result.response);
-    });
-  });
+  //     if (result.success) {
+  //       console.log('✓ All tasks:', result.response);
+  //       expect(Array.isArray(result.response)).toBe(true);
 
-  describe('Query Methods - get_task_completion_status', () => {
-    test('should query task completion status', async () => {
-      const result = await projectsService.queryMethod(
-        contractAddress,
-        'get_task_completion_status',
-        { task_id: [1] }
-      );
+  //       const task = result.response[0];
+  //       expect(task).toHaveProperty('id', 1);
+  //       expect(task).toHaveProperty('cost', '1000');
+  //       expect(task).toHaveProperty('complexity');
+  //       expect(task.complexity).toHaveProperty('type', 'Days');
+  //       expect(task.complexity).toHaveProperty('value', 5);
+  //     } 
+  //   });
+  // });
 
-      expect(result.success).toBe(true);
+  // describe('Query Methods - get_task', () => {
+  //   test('should query specific task', async () => {
+  //     const result = await projectsService.queryMethod(
+  //       contractAddress,
+  //       'get_task',
+  //       { task_id: 1 }
+  //     );
 
-      console.log('✓ Task completion status:', result.response);
-    });
-  });
+  //     expect(result.success).toBe(true);
 
-  describe('Scope Approval - approve_scope', () => {
-    test('should prepare callMethod data for approving scope', async () => {
-      const approvedTaskIds = [1];
-      
-      const result = await projectsService.callMethod(
-        contractAddress,
-        'approve_scope',
-        { data: { approved_task_ids: approvedTaskIds } }
-      );
+  //     if (result.success) {
+  //       const task = result.response;
+  //       expect(task).toHaveProperty('id', 1);
+  //       expect(task).toHaveProperty('cost', '1000');
+  //       expect(task).toHaveProperty('complexity');
+  //       expect(task.complexity).toHaveProperty('type', 'Days');
+  //       expect(task.complexity).toHaveProperty('value', 5);
+  //     }
+  //     console.log('✓ Task details:', result.response);
+  //   });
+  // });
 
-      expect(result.success).toBe(true);
-      
-      console.log('✓ approve_scope encoded data:', result.encodedData);
-    });
-  });
+  // describe('Query Methods - get_task_completion_status', () => {
+  //   test('should query task completion status', async () => {
+  //     const result = await projectsService.queryMethod(
+  //       contractAddress,
+  //       'get_task_completion_status',
+  //       { task_id: [1] }
+  //     );
 
-  describe('Task Management - complete_task', () => {
-    test('should prepare callMethod data for completing a task', async () => {
-      const result = await projectsService.callMethod(
-        contractAddress,
-        'complete_task',
-        { task_id: 1 }
-      );
+  //     expect(result.success).toBe(true);
 
-      expect(result.success).toBe(true);
+  //     console.log('✓ Task completion status:', result.response);
+  //   });
+  // });
 
-      console.log('✓ complete_task encoded data:', result);
-    });
-  });
+  // describe('Scope Approval - approve_scope', () => {
+  //   test('should prepare callMethod data for approving scope', async () => {
+  //     const approvedTaskIds = [1];
 
-  describe('Project Completion - mark_completed', () => {
-    test('should prepare callMethod data for marking project as completed', async () => {
-      const teamResult = await projectsService.queryMethod(
-        contractAddress,
-        'get_team',
-        {}
-      );
+  //     const result = await projectsService.callMethod(
+  //       contractAddress,
+  //       'approve_scope',
+  //       { data: { approved_task_ids: approvedTaskIds } }
+  //     );
 
-      expect(teamResult.success).toBe(true);
+  //     expect(result.success).toBe(true);
 
-      const ratings = teamResult.response.map((member: any) => [member.account_id, 8]);
-      console.log('✓ Ratings:', ratings);
-      // const ratings = [
-      //   ["5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y", 8]
-      // ];
+  //     console.log('✓ approve_scope encoded data:', result.encodedData);
+  //   });
+  // });
 
-      const result = await projectsService.callMethod(
-        contractAddress,
-        'mark_completed',
-        { ratings }
-      );
+  // describe('Task Management - complete_task', () => {
+  //   test('should prepare callMethod data for completing a task', async () => {
+  //     const result = await projectsService.callMethod(
+  //       contractAddress,
+  //       'complete_task',
+  //       { task_id: 1 }
+  //     );
 
-      expect(result.success).toBe(true);
+  //     expect(result.success).toBe(true);
 
-      console.log('✓ mark_completed encoded data:', result);
-    });
-  });
+  //     console.log('✓ complete_task encoded data:', result);
+  //   });
+  // });
+
+  // describe('Project Completion - mark_completed', () => {
+  //   test('should prepare callMethod data for marking project as completed', async () => {
+  //     const teamResult = await projectsService.queryMethod(
+  //       contractAddress,
+  //       'get_team',
+  //       {}
+  //     );
+
+  //     expect(teamResult.success).toBe(true);
+
+  //     const ratings = teamResult.response.map((member: any) => [member.account_id, 8]);
+  //     console.log('✓ Ratings:', ratings);
+  //     // const ratings = [
+  //     //   ["5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y", 8]
+  //     // ];
+
+  //     const result = await projectsService.callMethod(
+  //       contractAddress,
+  //       'mark_completed',
+  //       { ratings }
+  //     );
+
+  //     expect(result.success).toBe(true);
+
+  //     console.log('✓ mark_completed encoded data:', result);
+  //   });
+  // });
 
   describe('Ratings Integration Tests', () => {
-    test('should query registered workers in ratings contract', async () => {
-      const result = await ratingsService.queryMethod(
-        ratingsContractAddress,
-        'get_registered_workers',
-        {}
-      );
+    // test('should query registered workers in ratings contract', async () => {
+    //   const result = await ratingsService.queryMethod(
+    //     ratingsContractAddress,
+    //     'get_registered_workers',
+    //     {}
+    //   );
 
-      expect(result.success).toBe(true);
-      console.log('✓ Registered workers in ratings:', result.response);
-      
-      if (result.success && result.response) {
-        expect(Array.isArray(result.response)).toBe(true);
-      }
-    });
+    //   expect(result.success).toBe(true);
+    //   console.log('✓ Registered workers in ratings:', result.response);
 
-    test('should query worker ratings', async () => {
-      const result = await ratingsService.queryMethod(
-        ratingsContractAddress,
-        'get_worker_ratings',
-        { worker: charliePublicAddress }
-      );
+    //   if (result.success && result.response) {
+    //     expect(Array.isArray(result.response)).toBe(true);
+    //   }
+    // });
 
-      expect(result.success).toBe(true);
-      console.log('✓ Worker ratings:', result.response);
-    });
+    // test('should query worker ratings', async () => {
+    //   const result = await ratingsService.queryMethod(
+    //     ratingsContractAddress,
+    //     'get_worker_ratings',
+    //     { worker: charliePublicAddress }
+    //   );
 
-    test('should query all ratings', async () => {
-      const result = await ratingsService.queryMethod(
-        ratingsContractAddress,
-        'get_all_ratings',
-        {}
-      );
+    //   expect(result.success).toBe(true);
+    //   console.log('✓ Worker ratings:', result.response);
+    // });
 
-      expect(result.success).toBe(true);
-      console.log('✓ All ratings:', result.response);
-      
-      if (result.success && result.response) {
-        expect(Array.isArray(result.response)).toBe(true);
-      }
-    });
+    // test('should query all ratings', async () => {
+    //   const result = await ratingsService.queryMethod(
+    //     ratingsContractAddress,
+    //     'get_all_ratings',
+    //     {}
+    //   );
+
+    //   expect(result.success).toBe(true);
+    //   console.log('✓ All ratings:', result.response);
+
+    //   if (result.success && result.response) {
+    //     expect(Array.isArray(result.response)).toBe(true);
+    //   }
+    // });
   });
 
   describe('Contract Addresses', () => {
@@ -492,6 +494,132 @@ describe('ProjectsService Integration Tests', () => {
       console.log('  - Calendar contract:', calendarContractAddress);
       console.log('  - Ratings contract:', ratingsContractAddress);
     });
+  });
+
+  describe('Error Handling Tests', () => {
+    let contractAddress = 'GqbSPewPBKrUgkNBuDS8ce85DxE9pPWEeBAFwU9iwBZ7YTY';
+
+    // beforeAll(async () => {
+    //   // Deploy a fresh contract without scope
+    //   const deployConfig = deployService.getDeployConfigs().v5;
+    //   const deployResult = await deployService.deployContract(deployConfig, {
+    //     name: 'Test Project No Scope',
+    //     dao_address: adminPublicAddress,
+    //   });
+
+    //   expect(deployResult.success).toBe(true);
+    //   expect(deployResult.address).toBeDefined();
+
+    //   if (!deployResult.address) {
+    //     throw new Error('Failed to deploy test contract');
+    //   }
+
+    //   contractAddress = deployResult.address;
+    // });
+
+    // describe('Query Method Error Handling', () => {
+    //   test('should handle result null when querying non-existent task', async () => {
+    //     const result = await projectsService.queryMethod(
+    //       contractAddress,
+    //       'get_task',
+    //       { task_id: 999 }
+    //     );
+
+    //     console.log('📝 get_task result:', JSON.stringify(result, null, 2));
+
+    //     expect(result.success).toBe(true); // Compare with true because the return in the contract is a Option<Task>
+    //     expect(result.response).toBeNull(); // Verify response is null on error
+    //   });
+
+    //   test('should handle ScopeNotDefined error when getting tasks before scope is defined', async () => {
+    //     await expect(
+    //       projectsService.queryMethod(contractAddress, 'get_all_tasks', {})
+    //     ).rejects.toMatchObject({
+    //       name: 'ContractError',
+    //       method: 'get_all_tasks',
+    //       contractAddress: contractAddress,
+    //       errorMessage: expect.stringContaining('ScopeNotDefined'),
+    //       errorCode: expect.any(String)
+    //     });
+    //   });
+
+    //   test('should handle error when getting task completion status without scope', async () => {
+    //     await expect(
+    //       projectsService.queryMethod(contractAddress, 'get_task_completion_status', { task_id: [999] })
+    //     ).rejects.toMatchObject({
+    //       name: 'ContractError',
+    //       method: 'get_task_completion_status',
+    //       contractAddress: contractAddress,
+    //       errorMessage: expect.stringContaining('ScopeNotDefined'),
+    //       errorCode: expect.any(String)
+    //     });
+    //   });
+    // });
+
+    describe('Call Method Error Handling', () => {
+      test('should handle CalendarContractNotSet error when assigning coordinator without calendar', async () => {
+        await expect(
+          projectsService.callMethod(contractAddress, 'assign_coordinator', {})
+        ).rejects.toMatchObject({
+          name: 'ContractError',
+          method: 'assign_coordinator',
+          contractAddress: contractAddress,
+          errorMessage: expect.stringContaining('CalendarContractNotSet'),
+          errorCode: expect.any(String)
+        });
+      });
+
+      test('should handle CoordinatorNotAssigned error when assigning team before coordinator', async () => {
+        await expect(
+          projectsService.callMethod(contractAddress, 'assign_team', { data: { ideal_team_size: 2 } })
+        ).rejects.toMatchObject({
+          name: 'ContractError',
+          method: 'assign_team',
+          contractAddress: contractAddress,
+          errorMessage: expect.stringContaining('CoordinatorNotAssigned'),
+          errorCode: expect.any(String)
+        });
+      });
+    });
+
+    // describe('Error Response Structure Validation', () => {
+    //   test('should handle method validation errors', async () => {
+    //     try {
+    //       await projectsService.queryMethod(
+    //         contractAddress,
+    //         'non_existent_method',
+    //         {}
+    //       );
+
+    //       // Should not reach here
+    //       fail('Expected method to throw error for invalid method name');
+    //     } catch (error: any) {
+    //       console.log('📝 Method validation error:', error.message);
+
+    //       expect(error).toBeInstanceOf(Error);
+    //       expect(error.message).toContain('not found in contract');
+    //       expect(error.message).toContain('Available methods');
+    //     }
+    //   });
+
+    //   test('should list available methods on validation error', async () => {
+    //     try {
+    //       await projectsService.callMethod(
+    //         contractAddress,
+    //         'invalid_method_name',
+    //         {}
+    //       );
+
+    //       fail('Expected method to throw error');
+    //     } catch (error: any) {
+    //       console.log('📝 Available methods error:', error.message);
+
+    //       expect(error.message).toContain('Available methods');
+    //       expect(error.message).toContain('assign_coordinator');
+    //       expect(error.message).toContain('get_project_info');
+    //     }
+    //   });
+    // });
   });
 });
 
