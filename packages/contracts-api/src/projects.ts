@@ -291,7 +291,7 @@ export class ProjectsService {
 
       const txResponse = await contract.query(methodName as any, {
         origin: caller || adminPublicAddress,
-        data: {},
+        data: rest,
         gas_limit: {
           ref_time: 10000000000n,
           proof_size: 1000000n
@@ -571,6 +571,10 @@ export class ProjectsService {
         blockNumber: result.blockNumber,
       }
     } catch (error) {
+      console.log('error:', error)
+      console.log('error.message:', error instanceof Error ? error.message : 'Unknown error')
+      console.log('error.toJSON():', error instanceof ContractError ? error.toJSON() : 'Unknown error')
+
       // Re-throw ContractError as-is
       if (error instanceof ContractError) {
         console.error(`[callMethod] ========== END ${methodName} CONTRACT ERROR ==========`)

@@ -499,23 +499,23 @@ describe('ProjectsService Integration Tests', () => {
   describe('Error Handling Tests', () => {
     let contractAddress = 'CxFEcoMsw1aTVJLWhnsjWoUcTEmaXVbJw6ix2RHeET1Eqsi';
 
-    // beforeAll(async () => {
-    //   // Deploy a fresh contract without scope
-    //   const deployConfig = deployService.getDeployConfigs().v5;
-    //   const deployResult = await deployService.deployContract(deployConfig, {
-    //     name: 'Test Project No Scope',
-    //     dao_address: adminPublicAddress,
-    //   });
+    beforeAll(async () => {
+      // Deploy a fresh contract without scope
+      const deployConfig = deployService.getDeployConfigs().v5;
+      const deployResult = await deployService.deployContract(deployConfig, {
+        name: 'Test Project No Scope',
+        dao_address: adminPublicAddress,
+      });
 
-    //   expect(deployResult.success).toBe(true);
-    //   expect(deployResult.address).toBeDefined();
+      expect(deployResult.success).toBe(true);
+      expect(deployResult.address).toBeDefined();
 
-    //   if (!deployResult.address) {
-    //     throw new Error('Failed to deploy test contract');
-    //   }
+      if (!deployResult.address) {
+        throw new Error('Failed to deploy test contract');
+      }
 
-    //   contractAddress = deployResult.address;
-    // });
+      contractAddress = deployResult.address;
+    });
 
     describe('Query Method Error Handling', () => {
       test('should handle result null when querying non-existent task', async () => {
@@ -584,22 +584,15 @@ describe('ProjectsService Integration Tests', () => {
 
     describe('Error Response Structure Validation', () => {
       test('should handle method validation errors', async () => {
-        try {
-          await projectsService.queryMethod(
+        await expect(
+          calendarService.queryMethod(
             contractAddress,
             'non_existent_method',
             {}
-          );
-
-          // Should not reach here
-          fail('Expected method to throw error for invalid method name');
-        } catch (error: any) {
-          console.log('📝 Method validation error:', error.message);
-
-          expect(error).toBeInstanceOf(Error);
-          expect(error.message).toContain('not found in contract');
-          expect(error.message).toContain('Available methods');
-        }
+          )
+        ).rejects.toMatchObject({
+          message: expect.stringContaining('not found in contract')
+        });
       });
 
       test('should list available methods on validation error', async () => {
