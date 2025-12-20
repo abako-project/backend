@@ -34,12 +34,14 @@ export class CalendarService {
     body: SetAvailabilityRequest,
     authToken: string
   ): Promise<any> {
-    return this.callWriteMethodWithSigning(
+    const response = await this.callWriteMethodWithSigning(
       contractAddress,
       'set_availability',
       { availability: body.availability },
       authToken
     );
+    console.log('response:', response);
+    return response;
   }
 
   async registerWorkers(
@@ -115,9 +117,24 @@ export class CalendarService {
       const craftUrl = `${signingServiceUrl}/calendar/call/${contractAddress}/${method}`;
       const requestBody = { data };
 
-      const caller = await this.authService.getAddress(authToken);
+      const userId = await this.authService.getUserIdFromToken(authToken);
+
+      const federateServerUrl = this.configService.getFederateServer();
+      const url = `${federateServerUrl}/get-user-address?userId=${encodeURIComponent(userId)}`;
+
+      const callerResponse = await fetch(url, { method: "GET" });
+      if (!callerResponse.ok) {
+        throw new HttpException(
+          `Failed to fetch caller address from FederateServer: ${callerResponse.status} ${callerResponse.statusText}`,
+          HttpStatus.INTERNAL_SERVER_ERROR
+        );
+      }
+
+      const { address: caller } = await callerResponse.json() as { address: string };
+
 
       console.log({caller});
+      console.log({craftUrl});
 
       const craftResponse = await fetch(craftUrl, {
         method: 'POST',
@@ -128,6 +145,7 @@ export class CalendarService {
       });
 
       if (!craftResponse.ok) {
+        console.log('craftResponse:', craftResponse);
         throw new Error(`Craft service error: ${craftResponse.status} ${craftResponse.statusText}`);
       }
 
@@ -152,6 +170,7 @@ export class CalendarService {
         throw new HttpException('Crafted extrinsic is missing encoded data', HttpStatus.INTERNAL_SERVER_ERROR);
       }
     } catch (error) {
+      console.log('error:', error);
       throw new HttpException(
         `Error calling write method with signing ${method}: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR

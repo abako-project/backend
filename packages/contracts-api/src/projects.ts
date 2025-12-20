@@ -289,43 +289,7 @@ export class ProjectsService {
       console.log(`[callMethod] Caller:`, caller)
       console.log(`[callMethod] Rest data:`, rest)
 
-      const txResponse = await contract.query(methodName as any, {
-        origin: caller || adminPublicAddress,
-        data: rest,
-        gas_limit: {
-          ref_time: 10000000000n,
-          proof_size: 1000000n
-        },
-        storage_deposit_limit: 100000000000n,
-      })
-
-      console.log('txResponse:', txResponse);
-
-      // Check if the query failed with a revert
-      if (!txResponse.success) {
-        // Extract error information from the reverted response and throw exception
-        let errorMessage = 'Contract call would fail';
-        let errorCode: string | null = null;
-
-        if (txResponse.value?.type === 'FlagReverted') {
-          const revertedValue = txResponse.value.value;
-
-          // Decode the error message from hex code
-          if (revertedValue.message) {
-            const decodedError = decodeErrorMessage(revertedValue.message, this.contractErrors);
-            console.log('decodedError:', decodedError)
-            errorMessage = decodedError;
-            errorCode = revertedValue.message;
-          }
-        }
-
-        throw new ContractError(
-          methodName,
-          contractAddress,
-          errorMessage,
-          errorCode,
-        );
-      }
+      
 
       if (encodedDataMethods.includes(methodName)) {
         console.log(`[callMethod] Method ${methodName} is in encodedDataMethods list`)
@@ -338,6 +302,44 @@ export class ProjectsService {
           console.log(`[callMethod] Starting data conversion for ${methodName}`)
           contractData = this.convertNumbersToBigInt(contractData, methodName)
           console.log(`[callMethod] Final contract data after conversion:`, contractData)
+        }
+
+        const txResponse = await contract.query(methodName as any, {
+          origin: caller || adminPublicAddress,
+          data: contractData,
+          gas_limit: {
+            ref_time: 10000000000n,
+            proof_size: 1000000n
+          },
+          storage_deposit_limit: 100000000000n,
+        })
+  
+        console.log('txResponse:', txResponse);
+  
+        // Check if the query failed with a revert
+        if (!txResponse.success) {
+          // Extract error information from the reverted response and throw exception
+          let errorMessage = 'Contract call would fail';
+          let errorCode: string | null = null;
+  
+          if (txResponse.value?.type === 'FlagReverted') {
+            const revertedValue = txResponse.value.value;
+  
+            // Decode the error message from hex code
+            if (revertedValue.message) {
+              const decodedError = decodeErrorMessage(revertedValue.message, this.contractErrors);
+              console.log('decodedError:', decodedError)
+              errorMessage = decodedError;
+              errorCode = revertedValue.message;
+            }
+          }
+  
+          throw new ContractError(
+            methodName,
+            contractAddress,
+            errorMessage,
+            errorCode,
+          );
         }
 
         console.log(`[callMethod] Preparing to send transaction to contract`)
@@ -387,6 +389,44 @@ export class ProjectsService {
       // assign_coordinator executes and returns the coordinator AccountId
       if (methodName === 'assign_coordinator') {
         console.log(`[callMethod] Executing assign_coordinator`)
+
+        const txResponse = await contract.query(methodName as any, {
+          origin: caller || adminPublicAddress,
+          data: {},
+          gas_limit: {
+            ref_time: 10000000000n,
+            proof_size: 1000000n
+          },
+          storage_deposit_limit: 100000000000n,
+        })
+  
+        console.log('txResponse:', txResponse);
+  
+        // Check if the query failed with a revert
+        if (!txResponse.success) {
+          // Extract error information from the reverted response and throw exception
+          let errorMessage = 'Contract call would fail';
+          let errorCode: string | null = null;
+  
+          if (txResponse.value?.type === 'FlagReverted') {
+            const revertedValue = txResponse.value.value;
+  
+            // Decode the error message from hex code
+            if (revertedValue.message) {
+              const decodedError = decodeErrorMessage(revertedValue.message, this.contractErrors);
+              console.log('decodedError:', decodedError)
+              errorMessage = decodedError;
+              errorCode = revertedValue.message;
+            }
+          }
+  
+          throw new ContractError(
+            methodName,
+            contractAddress,
+            errorMessage,
+            errorCode,
+          );
+        }
 
         try {
           const tx = await contract.send(methodName as any, {
@@ -477,6 +517,8 @@ export class ProjectsService {
       if (methodName === 'approve_scope' || methodName === 'complete_task' || methodName === 'mark_completed') {
         try {
           let dataToSend;
+          const communityAddress = "F3opxRaMqPWKwA5yup6vZy2GLA28aJ3XSEX31Uf8qrhmaQt";
+          const simulationOrigin = communityAddress || adminPublicAddress;
           // const dataToSend = methodName === 'approve_scope' ? {
           //   approved_task_ids: Binary.fromBytes(new Uint8Array([1]))
           // } : contractData
@@ -491,6 +533,44 @@ export class ProjectsService {
             dataToSend = {
               ratings: contractData.ratings
             }
+          }
+
+          const txResponse = await contract.query(methodName as any, {
+            origin: simulationOrigin,
+            data: dataToSend,
+            gas_limit: {
+              ref_time: 10000000000n,
+              proof_size: 1000000n
+            },
+            storage_deposit_limit: 100000000000n,
+          })
+    
+          console.log('txResponse:', txResponse);
+    
+          // Check if the query failed with a revert
+          if (!txResponse.success) {
+            // Extract error information from the reverted response and throw exception
+            let errorMessage = 'Contract call would fail';
+            let errorCode: string | null = null;
+    
+            if (txResponse.value?.type === 'FlagReverted') {
+              const revertedValue = txResponse.value.value;
+    
+              // Decode the error message from hex code
+              if (revertedValue.message) {
+                const decodedError = decodeErrorMessage(revertedValue.message, this.contractErrors);
+                console.log('decodedError:', decodedError)
+                errorMessage = decodedError;
+                errorCode = revertedValue.message;
+              }
+            }
+    
+            throw new ContractError(
+              methodName,
+              contractAddress,
+              errorMessage,
+              errorCode,
+            );
           }
 
           console.log(`[callMethod] Preparing to send transaction to contract`)

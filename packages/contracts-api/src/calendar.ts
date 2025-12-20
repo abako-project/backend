@@ -149,6 +149,8 @@ export class CalendarService {
   }
 
   async callMethod(contractAddress: string, methodName: string, data: any = {}) {
+    const communityAddress = "F3opxRaMqPWKwA5yup6vZy2GLA28aJ3XSEX31Uf8qrhmaQt";
+
     if (!this.validateMethod(methodName)) {
       throw new Error(`Method "${methodName}" not found in contract. Available methods: ${this.availableMethods.join(", ")}`)
     }
@@ -159,17 +161,24 @@ export class CalendarService {
 
     try {
       const contract = this.getContract(contractAddress)
-
+      
       const { caller, ...rest } = data;
+      
+      const realSigner = adminPublicAddress;
+      const simulationOrigin = communityAddress || adminPublicAddress;
+  
+      const finalOrigin = methodName === 'set_availability' ? caller : simulationOrigin;
+  
+        console.log(`Simulating call as: ${finalOrigin}`);
 
       console.log("Caller:", caller)
       console.log("Rest:", rest)
 
       console.log("Method name:", methodName)
-
+      
       const txResponse = await contract.query(methodName as any, {
-        origin: caller || adminPublicAddress,
-        data: rest,
+        origin: finalOrigin,
+        data: rest.data,
         gas_limit: {
           ref_time: 10000000000n,
           proof_size: 1000000n

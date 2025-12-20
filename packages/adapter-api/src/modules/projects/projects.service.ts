@@ -427,13 +427,31 @@ export class ProjectsService {
       const craftUrl = `${signingServiceUrl}/projects/call/${contractAddress}/${method}`;
       const address = await this.authService.getAddress(authToken!);
       const requestBody = { data };
+
+      const userId = await this.authService.getUserIdFromToken(authToken);
+
+      const federateServerUrl = this.configService.getFederateServer();
+      const url = `${federateServerUrl}/get-user-address?userId=${encodeURIComponent(userId)}`;
+
+      const callerResponse = await fetch(url, { method: "GET" });
+      if (!callerResponse.ok) {
+        throw new HttpException(
+          `Failed to fetch caller address from FederateServer: ${callerResponse.status} ${callerResponse.statusText}`,
+          HttpStatus.INTERNAL_SERVER_ERROR
+        );
+      }
+
+      const { address: caller } = await callerResponse.json() as { address: string };
+
+      console.log({caller});
+      console.log({craftUrl});
       
       const craftResponse = await fetch(craftUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({...requestBody, caller})
       });
 
       if (!craftResponse.ok) {
