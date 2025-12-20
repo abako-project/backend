@@ -106,7 +106,7 @@ app.get('/projects/query/:contractAddress/:methodName', async (req: Request, res
 app.post('/projects/call/:contractAddress/:methodName', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { contractAddress, methodName } = req.params
-    const data = req.body.data || {}
+    const data = req.body || {}
 
     if (!projectsService.validateMethod(methodName)) {
       return res.status(400).json({
