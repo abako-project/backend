@@ -5,6 +5,8 @@ import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat"
 import { getWsProvider } from "polkadot-api/ws-provider/node"
 import contractMetadata from '../.papi/contracts/calendar_v5.json'
 import { adminPublicAddress, adminPolkadotSigner } from "./util/signer"
+import { ContractError } from "./util/contractError"
+import { errorExtractor, decodeErrorMessage } from "./util/errorExtractor"
 
 export class CalendarService {
   private client: any
@@ -12,10 +14,13 @@ export class CalendarService {
   private calendarSdk: any
   private contracts: Map<string, any> = new Map()
   private availableMethods: string[]
+  private contractErrors: Map<number, string>
 
   constructor() {
     this.availableMethods = contractMetadata.spec.messages.map((message: any) => message.label)
+    this.contractErrors = errorExtractor(contractMetadata)
     console.log("Available methods", this.availableMethods)
+    console.log("Loaded calendar contract errors:", Array.from(this.contractErrors.entries()))
   }
 
   async initialize() {
@@ -95,21 +100,57 @@ export class CalendarService {
 
       console.log(response)
 
-      const serializedResponse = response.success ? this.serializeBigInt(response.value.response) : null
-
-      return {
-        success: response.success,
-        method: methodName,
-        contractAddress: contractAddress,
-        response: serializedResponse,
+      // Handle successful response
+      if (response.success) {
+        const serializedResponse = response.value.response ? this.serializeBigInt(response.value.response) : null;
+        return {
+          success: true,
+          method: methodName,
+          contractAddress: contractAddress,
+          response: serializedResponse ?? null,
+        };
       }
+
+      // Handle Module error (contract not found)
+      if (response.value?.type === 'Module') {
+        throw new Error(`Contract ${contractAddress} not found on chain. Please verify the contract address.`);
+      }
+
+      // Handle FlagReverted error
+      let errorMessage = 'Query failed';
+      let errorCode: string | null = null;
+
+      if (response.value?.type === 'FlagReverted' && response.value.value?.message) {
+        const decodedError = decodeErrorMessage(response.value.value.message, this.contractErrors);
+        errorMessage = decodedError;
+        errorCode = response.value.value.message;
+      }
+
+      throw new ContractError(
+        methodName,
+        contractAddress,
+        errorMessage,
+        errorCode
+      );
     } catch (error) {
+      // Re-throw ContractError as-is
+      if (error instanceof ContractError) {
+        throw error;
+      }
+
+      // Handle contract not found error
+      if (error instanceof Error && error.message.includes('not found')) {
+        throw new Error(`Contract ${contractAddress} not found on chain. Please verify the contract address.`);
+      }
+
       console.error(`Error querying method ${methodName} on contract ${contractAddress}:`, error)
       throw new Error(`Failed to query method ${methodName} on contract ${contractAddress}: ${error}`)
     }
   }
 
   async callMethod(contractAddress: string, methodName: string, data: any = {}) {
+    const communityAddress = "F3opxRaMqPWKwA5yup6vZy2GLA28aJ3XSEX31Uf8qrhmaQt";
+
     if (!this.validateMethod(methodName)) {
       throw new Error(`Method "${methodName}" not found in contract. Available methods: ${this.availableMethods.join(", ")}`)
     }
@@ -120,13 +161,59 @@ export class CalendarService {
 
     try {
       const contract = this.getContract(contractAddress)
-
+      
       const { caller, ...rest } = data;
+      
+      const realSigner = adminPublicAddress;
+      const simulationOrigin = communityAddress || adminPublicAddress;
+  
+      const finalOrigin = methodName === 'set_availability' ? caller : simulationOrigin;
+  
+        console.log(`Simulating call as: ${finalOrigin}`);
 
       console.log("Caller:", caller)
       console.log("Rest:", rest)
 
-      console.log("Method name:", methodName === "set_availability")
+      console.log("Method name:", methodName)
+      
+      const txResponse = await contract.query(methodName as any, {
+        origin: finalOrigin,
+        data: rest.data,
+        gas_limit: {
+          ref_time: 10000000000n,
+          proof_size: 1000000n
+        },
+        storage_deposit_limit: 100000000000n,
+      })
+
+      console.log('txResponse:', txResponse);
+
+      // Check if the query failed with a revert
+      if (!txResponse.success) {
+        // Extract error information from the reverted response and throw exception
+        let errorMessage = 'Contract call would fail';
+        let errorCode: string | null = null;
+
+        if (txResponse.value?.type === 'FlagReverted') {
+          const revertedValue = txResponse.value.value;
+
+          // Decode the error message from hex code
+          if (revertedValue.message) {
+            const decodedError = decodeErrorMessage(revertedValue.message, this.contractErrors);
+            console.log('decodedError:', decodedError)
+            errorMessage = decodedError;
+            errorCode = revertedValue.message;
+          }
+        }
+
+        throw new ContractError(
+          methodName,
+          contractAddress,
+          errorMessage,
+          errorCode,
+        );
+      }
+
 
       const tx = methodName == 'set_availability' ?
         await contract.send("set_availability", {
@@ -204,7 +291,25 @@ export class CalendarService {
         blockNumber: result.blockNumber,
       }
     } catch (error) {
-      console.error(`Error calling method ${methodName} on contract ${contractAddress}:`, error)
+      console.log('error:', error)
+      console.log('error.message:', error instanceof Error ? error.message : 'Unknown error')
+      console.log('error.toJSON():', error instanceof ContractError ? error.toJSON() : 'Unknown error')
+
+       // Re-throw ContractError as-is
+       if (error instanceof ContractError) {
+        console.error(`[callMethod] ========== END ${methodName} CONTRACT ERROR ==========`)
+        throw error;
+      }
+
+      // Handle contract not found error
+      if (error instanceof Error && error.message.includes('not found')) {
+        console.error(`[callMethod] ========== END ${methodName} CONTRACT NOT FOUND ==========`)
+        throw new Error(`Contract ${contractAddress} not found on chain. Please verify the contract address.`);
+      }
+
+      // Log and wrap other errors
+      console.error(`[callMethod] ========== END ${methodName} ERROR ==========`)
+      console.error(`[callMethod] Error:`, error)
       throw new Error(`Failed to call method ${methodName} on contract ${contractAddress}: ${error}`)
     }
   }

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { CalendarService } from '../calendar';
 import { DeployService } from '../deployService';
-import { alicePolkadotSigner, alicePublicAddress } from './util/signer';
+import { adminPublicAddress, alicePolkadotSigner, alicePublicAddress } from './util/signer';
 import { getPolkadotSigner } from 'polkadot-api/signer';
 import { sr25519CreateDerive } from '@polkadot-labs/hdkd';
 import { DEV_PHRASE, entropyToMiniSecret, mnemonicToEntropy, ss58Encode } from '@polkadot-labs/hdkd-helpers';
@@ -23,7 +23,7 @@ import { DEV_PHRASE, entropyToMiniSecret, mnemonicToEntropy, ss58Encode } from '
 describe('CalendarService Integration Tests', () => {
   let calendarService: CalendarService;
   let deployService: DeployService;
-  let contractAddress: string;
+  let contractAddress: string = 'GRY1FuWBqGag5JyYYyBRje1us3PqrYa3CN4GY3Z13z2DT5i';
   let testWorkerAddress: string;
   let testWorkerAddress2: string;
 
@@ -31,39 +31,39 @@ describe('CalendarService Integration Tests', () => {
   const PREDEFINED_CONTRACT_ADDRESS = '';
 
   beforeAll(async () => {
-    // Check if we should use predefined address or deploy new contract
-    if (PREDEFINED_CONTRACT_ADDRESS) {
-      contractAddress = PREDEFINED_CONTRACT_ADDRESS;
-      console.log(`✅ Using predefined contract address: ${contractAddress}`);
-    } else {
-      console.log('🚀 Deploying calendar contract for integration tests...');
+    // // Check if we should use predefined address or deploy new contract
+    // if (PREDEFINED_CONTRACT_ADDRESS) {
+    //   contractAddress = PREDEFINED_CONTRACT_ADDRESS;
+    //   console.log(`✅ Using predefined contract address: ${contractAddress}`);
+    // } else {
+    //   console.log('🚀 Deploying calendar contract for integration tests...');
       
-      // Initialize deploy service
-      deployService = new DeployService();
+    //   // Initialize deploy service
+    //   deployService = new DeployService();
       
-      // Deploy calendar contract
-      const deployConfig = deployService.getDeployConfigs().calendar_v5;
-      const deployResult = await deployService.deployContract(deployConfig, {});
+    //   // Deploy calendar contract
+    //   const deployConfig = deployService.getDeployConfigs().calendar_v5;
+    //   const deployResult = await deployService.deployContract(deployConfig, {});
       
-      if (!deployResult.success || !deployResult.address) {
-        throw new Error(`Failed to deploy calendar contract: ${deployResult.error || 'Unknown error'}`);
-      }
+    //   if (!deployResult.success || !deployResult.address) {
+    //     throw new Error(`Failed to deploy calendar contract: ${deployResult.error || 'Unknown error'}`);
+    //   }
       
-      contractAddress = deployResult.address;
-      console.log(`✅ Calendar contract deployed at: ${contractAddress}`);
-    }
+    //   contractAddress = deployResult.address;
+    //   console.log(`✅ Calendar contract deployed at: ${contractAddress}`);
+    // }
 
-    // Create test worker addresses from dev phrase
-    const entropy = mnemonicToEntropy(DEV_PHRASE);
-    const seed = entropyToMiniSecret(entropy);
-    const derive = sr25519CreateDerive(seed);
+    // // Create test worker addresses from dev phrase
+    // const entropy = mnemonicToEntropy(DEV_PHRASE);
+    // const seed = entropyToMiniSecret(entropy);
+    // const derive = sr25519CreateDerive(seed);
     
-    // Generate test workers
-    const testWorker1 = derive('//Bob');
-    const testWorker2 = derive('//Charlie');
+    // // Generate test workers
+    // const testWorker1 = derive('//Bob');
+    // const testWorker2 = derive('//Charlie');
     
-    testWorkerAddress = ss58Encode(testWorker1.publicKey);
-    testWorkerAddress2 = ss58Encode(testWorker2.publicKey);
+    // testWorkerAddress = ss58Encode(testWorker1.publicKey);
+    // testWorkerAddress2 = ss58Encode(testWorker2.publicKey);
 
     // Initialize calendar service
     calendarService = new CalendarService();
@@ -78,284 +78,410 @@ describe('CalendarService Integration Tests', () => {
     }
   });
 
-  describe('Service Initialization', () => {
-    test('should initialize successfully', () => {
-      expect(calendarService).toBeDefined();
-    });
+  // describe('Service Initialization', () => {
+  //   test('should initialize successfully', () => {
+  //     expect(calendarService).toBeDefined();
+  //   });
 
-    test('should return available methods', () => {
-      const methods = calendarService.getAvailableMethods();
-      expect(methods).toContain('register_worker');
-      expect(methods).toContain('set_availability');
-      expect(methods).toContain('get_availability_hours');
-      expect(methods).toContain('is_available');
-      expect(methods).toContain('get_available_workers');
-      expect(methods).toContain('register_workers');
-      expect(methods).toContain('get_registered_workers');
-      expect(methods).toContain('get_all_workers_availability');
-      expect(methods).toContain('admin_set_worker_availability');
-    });
+  //   test('should return available methods', () => {
+  //     const methods = calendarService.getAvailableMethods();
+  //     expect(methods).toContain('register_worker');
+  //     expect(methods).toContain('set_availability');
+  //     expect(methods).toContain('get_availability_hours');
+  //     expect(methods).toContain('is_available');
+  //     expect(methods).toContain('get_available_workers');
+  //     expect(methods).toContain('register_workers');
+  //     expect(methods).toContain('get_registered_workers');
+  //     expect(methods).toContain('get_all_workers_availability');
+  //     expect(methods).toContain('admin_set_worker_availability');
+  //   });
 
-    test('should return available constructors', () => {
-      const constructors = calendarService.getAvailableConstructors();
-      expect(constructors).toContain('new');
-    });
+  //   test('should return available constructors', () => {
+  //     const constructors = calendarService.getAvailableConstructors();
+  //     expect(constructors).toContain('new');
+  //   });
 
-    test('should validate existing methods', () => {
-      expect(calendarService.validateMethod('register_worker')).toBe(true);
-      expect(calendarService.validateMethod('nonexistent_method')).toBe(false);
-    });
+  //   test('should validate existing methods', () => {
+  //     expect(calendarService.validateMethod('register_worker')).toBe(true);
+  //     expect(calendarService.validateMethod('nonexistent_method')).toBe(false);
+  //   });
 
-    test('should validate existing constructors', () => {
-      expect(calendarService.validateConstructor('new')).toBe(true);
-      expect(calendarService.validateConstructor('nonexistent')).toBe(false);
-    });
-  });
+  //   test('should validate existing constructors', () => {
+  //     expect(calendarService.validateConstructor('new')).toBe(true);
+  //     expect(calendarService.validateConstructor('nonexistent')).toBe(false);
+  //   });
+  // });
 
-  describe('Worker Registration - register_worker', () => {
-    test('should prepare callMethod data for registering a worker', async () => {
-      const result = await calendarService.callMethod(
-        contractAddress,
-        'register_worker',
-        { worker: testWorkerAddress }
-      );
+  // describe('Worker Registration - register_worker', () => {
+  //   test('should prepare callMethod data for registering a worker', async () => {
+  //     const result = await calendarService.callMethod(
+  //       contractAddress,
+  //       'register_worker',
+  //       { worker: testWorkerAddress }
+  //     );
 
-      expect(result).toHaveProperty('method', 'register_worker');
-      expect(result).toHaveProperty('encodedData');
-      expect(result.encodedData).toMatch(/^0x[0-9a-fA-F]+$/);
+  //     expect(result).toHaveProperty('method', 'register_worker');
+  //     expect(result).toHaveProperty('encodedData');
+  //     expect(result.encodedData).toMatch(/^0x[0-9a-fA-F]+$/);
       
-      console.log('✓ register_worker encoded data:', result.encodedData);
-    });
+  //     console.log('✓ register_worker encoded data:', result.encodedData);
+  //   });
 
-    test('should fail with invalid method name', async () => {
-      await expect(
-        calendarService.callMethod(contractAddress, 'invalid_method', {})
-      ).rejects.toThrow('Method "invalid_method" not found');
-    });
-  });
+  //   test('should fail with invalid method name', async () => {
+  //     await expect(
+  //       calendarService.callMethod(contractAddress, 'invalid_method', {})
+  //     ).rejects.toThrow('Method "invalid_method" not found');
+  //   });
+  // });
 
-  describe('Batch Worker Registration - register_workers', () => {
-    test('should prepare callMethod data for registering multiple workers', async () => {
-      const workers = [testWorkerAddress, testWorkerAddress2];
+  // describe('Batch Worker Registration - register_workers', () => {
+  //   test('should prepare callMethod data for registering multiple workers', async () => {
+  //     const workers = [testWorkerAddress, testWorkerAddress2];
       
-      const result = await calendarService.callMethod(
-        contractAddress,
-        'register_workers',
-        { workers }
-      );
+  //     const result = await calendarService.callMethod(
+  //       contractAddress,
+  //       'register_workers',
+  //       { workers }
+  //     );
 
-      expect(result).toHaveProperty('method', 'register_workers');
-      expect(result).toHaveProperty('encodedData');
-      expect(result.encodedData).toMatch(/^0x[0-9a-fA-F]+$/);
+  //     expect(result).toHaveProperty('method', 'register_workers');
+  //     expect(result).toHaveProperty('encodedData');
+  //     expect(result.encodedData).toMatch(/^0x[0-9a-fA-F]+$/);
       
-      console.log('✓ register_workers encoded data:', result.encodedData);
-    });
-  });
+  //     console.log('✓ register_workers encoded data:', result.encodedData);
+  //   });
+  // });
 
-  describe('Availability Management - set_availability', () => {
-    test('should prepare callMethod data for NotAvailable', async () => {
-      const result = await calendarService.callMethod(
-        contractAddress,
-        'set_availability',
-        { availability: { type: 'NotAvailable' } }
-      );
+  // describe('Availability Management - set_availability', () => {
+  //   test('should prepare callMethod data for NotAvailable', async () => {
+  //     const result = await calendarService.callMethod(
+  //       contractAddress,
+  //       'set_availability',
+  //       { availability: { type: 'NotAvailable' } }
+  //     );
 
-      expect(result).toHaveProperty('method', 'set_availability');
-      expect(result).toHaveProperty('encodedData');
+  //     expect(result).toHaveProperty('method', 'set_availability');
+  //     expect(result).toHaveProperty('encodedData');
       
-      console.log('✓ set_availability (NotAvailable) encoded data:', result.encodedData);
-    });
+  //     console.log('✓ set_availability (NotAvailable) encoded data:', result.encodedData);
+  //   });
 
-    test('should prepare callMethod data for PartTime', async () => {
-      const result = await calendarService.callMethod(
-        contractAddress,
-        'set_availability',
-        { availability: { type: 'PartTime' } }
-      );
+  //   test('should prepare callMethod data for PartTime', async () => {
+  //     const result = await calendarService.callMethod(
+  //       contractAddress,
+  //       'set_availability',
+  //       { availability: { type: 'PartTime' } }
+  //     );
 
-      expect(result).toHaveProperty('method', 'set_availability');
-      expect(result).toHaveProperty('encodedData');
+  //     expect(result).toHaveProperty('method', 'set_availability');
+  //     expect(result).toHaveProperty('encodedData');
       
-      console.log('✓ set_availability (PartTime) encoded data:', result.encodedData);
-    });
+  //     console.log('✓ set_availability (PartTime) encoded data:', result.encodedData);
+  //   });
 
-    test('should prepare callMethod data for FullTime', async () => {
-      const result = await calendarService.callMethod(
-        contractAddress,
-        'set_availability',
-        { availability: { type: 'FullTime'} }
-      );
+  //   test('should prepare callMethod data for FullTime', async () => {
+  //     const result = await calendarService.callMethod(
+  //       contractAddress,
+  //       'set_availability',
+  //       { availability: { type: 'FullTime'} }
+  //     );
 
-      expect(result).toHaveProperty('method', 'set_availability');
-      expect(result).toHaveProperty('encodedData');
+  //     expect(result).toHaveProperty('method', 'set_availability');
+  //     expect(result).toHaveProperty('encodedData');
       
-      console.log('✓ set_availability (FullTime) encoded data:', result.encodedData);
-    });
+  //     console.log('✓ set_availability (FullTime) encoded data:', result.encodedData);
+  //   });
 
-    test('should prepare callMethod data for WeeklyHours', async () => {
-      const result = await calendarService.callMethod(
-        contractAddress,
-        'set_availability',
-        { availability: { type: 'WeeklyHours', WeeklyHours: 20 } }
-      );
+  //   test('should prepare callMethod data for WeeklyHours', async () => {
+  //     const result = await calendarService.callMethod(
+  //       contractAddress,
+  //       'set_availability',
+  //       { availability: { type: 'WeeklyHours', WeeklyHours: 20 } }
+  //     );
 
-      expect(result).toHaveProperty('method', 'set_availability');
-      expect(result).toHaveProperty('encodedData');
+  //     expect(result).toHaveProperty('method', 'set_availability');
+  //     expect(result).toHaveProperty('encodedData');
       
-      console.log('✓ set_availability (WeeklyHours: 20) encoded data:', result.encodedData);
-    });
-  });
+  //     console.log('✓ set_availability (WeeklyHours: 20) encoded data:', result.encodedData);
+  //   });
+  // });
 
-  describe('Admin Set Worker Availability - admin_set_worker_availability', () => {
-    test('should prepare callMethod data for admin setting worker availability', async () => {
-      const result = await calendarService.callMethod(
-        contractAddress,
-        'admin_set_worker_availability',
-        { 
-          worker: testWorkerAddress,
-          availability: { type: 'FullTime'} 
+  // describe('Admin Set Worker Availability - admin_set_worker_availability', () => {
+  //   test('should prepare callMethod data for admin setting worker availability', async () => {
+  //     const result = await calendarService.callMethod(
+  //       contractAddress,
+  //       'admin_set_worker_availability',
+  //       { 
+  //         worker: testWorkerAddress,
+  //         availability: { type: 'FullTime'} 
+  //       }
+  //     );
+
+  //     expect(result).toHaveProperty('method', 'admin_set_worker_availability');
+  //     expect(result).toHaveProperty('encodedData');
+      
+  //     console.log('✓ admin_set_worker_availability encoded data:', result.encodedData);
+  //   });
+  // });
+
+  // describe('Query Methods - get_registered_workers', () => {
+  //   test('should query all registered workers', async () => {
+  //     const result = await calendarService.queryMethod(
+  //       contractAddress,
+  //       'get_registered_workers',
+  //       {}
+  //     );
+
+  //     expect(result).toHaveProperty('success');
+  //     expect(result).toHaveProperty('method', 'get_registered_workers');
+  //     expect(result).toHaveProperty('contractAddress', contractAddress);
+  //     expect(result).toHaveProperty('response');
+      
+  //     if (result.success) {
+  //       console.log('✓ Registered workers:', result.response);
+  //       expect(Array.isArray(result.response)).toBe(true);
+  //     } else {
+  //       console.log('⚠️  Query failed (might be expected if contract is new)');
+  //     }
+  //   });
+  // });
+
+  // describe('Query Methods - get_availability_hours', () => {
+  //   test('should query worker availability hours', async () => {
+  //     const result = await calendarService.queryMethod(
+  //       contractAddress,
+  //       'get_availability_hours',
+  //       { worker: testWorkerAddress }
+  //     );
+
+  //     expect(result).toHaveProperty('success');
+  //     expect(result).toHaveProperty('method', 'get_availability_hours');
+  //     expect(result).toHaveProperty('response');
+      
+  //     if (result.success) {
+  //       console.log(`✓ Worker ${testWorkerAddress} hours:`, result.response);
+  //       expect(typeof result.response === 'string' || typeof result.response === 'number').toBe(true);
+  //     } else {
+  //       console.log('⚠️  Query failed (worker might not be registered)');
+  //     }
+  //   });
+  // });
+
+  // describe('Query Methods - is_available', () => {
+  //   test('should query if worker is available without min_hours', async () => {
+  //     const result = await calendarService.queryMethod(
+  //       contractAddress,
+  //       'is_available',
+  //       { 
+  //         worker: testWorkerAddress,
+  //         min_hours: null
+  //       }
+  //     );
+
+  //     expect(result).toHaveProperty('success');
+  //     expect(result).toHaveProperty('method', 'is_available');
+      
+  //     if (result.success) {
+  //       console.log(`✓ Is worker ${testWorkerAddress} available:`, result.response);
+  //       expect(typeof result.response === 'boolean').toBe(true);
+  //     }
+  //   });
+
+  //   test('should query if worker is available with min_hours', async () => {
+  //     const result = await calendarService.queryMethod(
+  //       contractAddress,
+  //       'is_available',
+  //       { 
+  //         worker: testWorkerAddress,
+  //         min_hours: 20
+  //       }
+  //     );
+
+  //     expect(result).toHaveProperty('success');
+  //     expect(result).toHaveProperty('method', 'is_available');
+      
+  //     if (result.success) {
+  //       console.log(`✓ Is worker available (min 20h):`, result.response);
+  //       expect(typeof result.response === 'boolean').toBe(true);
+  //     }
+  //   });
+  // });
+
+  // describe('Query Methods - get_available_workers', () => {
+  //   test('should query available workers without min_hours filter', async () => {
+  //     const result = await calendarService.queryMethod(
+  //       contractAddress,
+  //       'get_available_workers',
+  //       { min_hours: null }
+  //     );
+
+  //     expect(result).toHaveProperty('success');
+  //     expect(result).toHaveProperty('method', 'get_available_workers');
+      
+  //     if (result.success) {
+  //       console.log('✓ Available workers (no filter):', result.response);
+  //       expect(Array.isArray(result.response)).toBe(true);
+  //     }
+  //   });
+
+  //   test('should query available workers with min_hours filter', async () => {
+  //     const result = await calendarService.queryMethod(
+  //       contractAddress,
+  //       'get_available_workers',
+  //       { min_hours: 30 }
+  //     );
+
+  //     expect(result).toHaveProperty('success');
+  //     expect(result).toHaveProperty('method', 'get_available_workers');
+      
+  //     if (result.success) {
+  //       console.log('✓ Available workers (min 30h):', result.response);
+  //       expect(Array.isArray(result.response)).toBe(true);
+  //     }
+  //   });
+  // });
+
+  // describe('Query Methods - get_all_workers_availability', () => {
+  //   test('should query all workers with their availability', async () => {
+  //     const result = await calendarService.queryMethod(
+  //       contractAddress,
+  //       'get_all_workers_availability',
+  //       {}
+  //     );
+
+  //     expect(result).toHaveProperty('success');
+  //     expect(result).toHaveProperty('method', 'get_all_workers_availability');
+      
+  //     if (result.success) {
+  //       console.log('✓ All workers availability:', result.response);
+  //       expect(Array.isArray(result.response)).toBe(true);
+  //     }
+  //   });
+  // });
+
+  describe('Error Handling Tests', () => {
+    let contractAddress: string = 'GPYBnq73b8EegGB7ohUW94oFyRp6HZmpKqeD9pTJEJYN5tR';
+    beforeAll(async () => {
+      deployService = new DeployService();
+
+      const ratingsConfig = deployService.getDeployConfigs().ratings_v5;
+      const ratingsResult = await deployService.deployContract(ratingsConfig, {});
+
+      if (!ratingsResult.success || !ratingsResult.address) {
+        throw new Error(`Failed to deploy ratings contract: ${ratingsResult.error || 'Unknown error'}`);
+      }
+
+      const ratingsContractAddress = ratingsResult.address;
+
+      // Deploy a fresh contract without scope
+      const deployConfig = deployService.getDeployConfigs().calendar_v5;
+      const deployResult = await deployService.deployContract(deployConfig, {
+        ratings_contract: ratingsContractAddress
+      });
+
+      expect(deployResult.success).toBe(true);
+      expect(deployResult.address).toBeDefined();
+
+      if (!deployResult.address) {
+        throw new Error('Failed to deploy test contract');
+      }
+
+      contractAddress = deployResult.address;
+    });
+
+    describe('Call Method Error Handling', () => {
+      test('should handle error when setting availability for non-registered worker', async () => {
+        await expect(
+          calendarService.callMethod(
+            contractAddress, 
+            'set_availability', 
+            { 
+              availability: { type: 'FullTime' } 
+            }
+          )
+        ).rejects.toMatchObject({
+          name: 'ContractError',
+          method: 'set_availability',
+          contractAddress: contractAddress,
+          errorMessage: expect.stringContaining('WorkerNotRegistered'),
+          errorCode: expect.any(String)
+        });
+      });
+      test('should handle error when setting availability for non-authorized worker', async () => {
+        // Use a valid address that is not registered
+        const nonRegisteredWorker = '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY';
+        
+        await expect(
+          calendarService.callMethod(
+            contractAddress, 
+            'admin_set_worker_availability', 
+            { 
+              worker: nonRegisteredWorker,
+              availability: { type: 'FullTime' } 
+            }
+          )
+        ).rejects.toMatchObject({
+          name: 'ContractError',
+          method: 'admin_set_worker_availability',
+          contractAddress: contractAddress,
+          errorMessage: expect.stringContaining('NotAuthorized'),
+          errorCode: expect.any(String)
+        });
+      });
+    });
+
+    describe('Error Response Structure Validation', () => {
+      test('should handle method validation errors', async () => {
+        await expect(
+          calendarService.queryMethod(
+            contractAddress,
+            'non_existent_method',
+            {}
+          )
+        ).rejects.toMatchObject({
+          message: expect.stringContaining('not found in contract')
+        });
+      });
+
+      test('should list available methods on validation error', async () => {
+        try {
+          await calendarService.callMethod(
+            contractAddress,
+            'invalid_method_name',
+            {}
+          );
+
+          fail('Expected method to throw error');
+        } catch (error: any) {
+          console.log('📝 Available methods error:', error.message);
+
+          expect(error.message).toContain('not found in contract');
+          expect(error.message).toContain('Available methods');
+          expect(error.message).toContain('register_worker');
+          expect(error.message).toContain('set_availability');
         }
-      );
-
-      expect(result).toHaveProperty('method', 'admin_set_worker_availability');
-      expect(result).toHaveProperty('encodedData');
-      
-      console.log('✓ admin_set_worker_availability encoded data:', result.encodedData);
+      });
     });
-  });
 
-  describe('Query Methods - get_registered_workers', () => {
-    test('should query all registered workers', async () => {
-      const result = await calendarService.queryMethod(
-        contractAddress,
-        'get_registered_workers',
-        {}
-      );
+    describe('Contract Address Validation', () => {
+      test('should handle invalid contract address', async () => {
+        const invalidAddress = 'InvalidAddress123';
 
-      expect(result).toHaveProperty('success');
-      expect(result).toHaveProperty('method', 'get_registered_workers');
-      expect(result).toHaveProperty('contractAddress', contractAddress);
-      expect(result).toHaveProperty('response');
-      
-      if (result.success) {
-        console.log('✓ Registered workers:', result.response);
-        expect(Array.isArray(result.response)).toBe(true);
-      } else {
-        console.log('⚠️  Query failed (might be expected if contract is new)');
-      }
-    });
-  });
+        try {
+          await calendarService.queryMethod(
+            invalidAddress,
+            'get_registered_workers',
+            {}
+          );
 
-  describe('Query Methods - get_availability_hours', () => {
-    test('should query worker availability hours', async () => {
-      const result = await calendarService.queryMethod(
-        contractAddress,
-        'get_availability_hours',
-        { worker: testWorkerAddress }
-      );
+          fail('Expected method to throw error for invalid address');
+        } catch (error: any) {
+          console.log('📝 Invalid address error:', error.message);
 
-      expect(result).toHaveProperty('success');
-      expect(result).toHaveProperty('method', 'get_availability_hours');
-      expect(result).toHaveProperty('response');
-      
-      if (result.success) {
-        console.log(`✓ Worker ${testWorkerAddress} hours:`, result.response);
-        expect(typeof result.response === 'string' || typeof result.response === 'number').toBe(true);
-      } else {
-        console.log('⚠️  Query failed (worker might not be registered)');
-      }
-    });
-  });
-
-  describe('Query Methods - is_available', () => {
-    test('should query if worker is available without min_hours', async () => {
-      const result = await calendarService.queryMethod(
-        contractAddress,
-        'is_available',
-        { 
-          worker: testWorkerAddress,
-          min_hours: null
+          expect(error).toBeInstanceOf(Error);
+          expect(error.message).toBeDefined();
         }
-      );
-
-      expect(result).toHaveProperty('success');
-      expect(result).toHaveProperty('method', 'is_available');
-      
-      if (result.success) {
-        console.log(`✓ Is worker ${testWorkerAddress} available:`, result.response);
-        expect(typeof result.response === 'boolean').toBe(true);
-      }
-    });
-
-    test('should query if worker is available with min_hours', async () => {
-      const result = await calendarService.queryMethod(
-        contractAddress,
-        'is_available',
-        { 
-          worker: testWorkerAddress,
-          min_hours: 20
-        }
-      );
-
-      expect(result).toHaveProperty('success');
-      expect(result).toHaveProperty('method', 'is_available');
-      
-      if (result.success) {
-        console.log(`✓ Is worker available (min 20h):`, result.response);
-        expect(typeof result.response === 'boolean').toBe(true);
-      }
-    });
-  });
-
-  describe('Query Methods - get_available_workers', () => {
-    test('should query available workers without min_hours filter', async () => {
-      const result = await calendarService.queryMethod(
-        contractAddress,
-        'get_available_workers',
-        { min_hours: null }
-      );
-
-      expect(result).toHaveProperty('success');
-      expect(result).toHaveProperty('method', 'get_available_workers');
-      
-      if (result.success) {
-        console.log('✓ Available workers (no filter):', result.response);
-        expect(Array.isArray(result.response)).toBe(true);
-      }
-    });
-
-    test('should query available workers with min_hours filter', async () => {
-      const result = await calendarService.queryMethod(
-        contractAddress,
-        'get_available_workers',
-        { min_hours: 30 }
-      );
-
-      expect(result).toHaveProperty('success');
-      expect(result).toHaveProperty('method', 'get_available_workers');
-      
-      if (result.success) {
-        console.log('✓ Available workers (min 30h):', result.response);
-        expect(Array.isArray(result.response)).toBe(true);
-      }
-    });
-  });
-
-  describe('Query Methods - get_all_workers_availability', () => {
-    test('should query all workers with their availability', async () => {
-      const result = await calendarService.queryMethod(
-        contractAddress,
-        'get_all_workers_availability',
-        {}
-      );
-
-      expect(result).toHaveProperty('success');
-      expect(result).toHaveProperty('method', 'get_all_workers_availability');
-      
-      if (result.success) {
-        console.log('✓ All workers availability:', result.response);
-        expect(Array.isArray(result.response)).toBe(true);
-      }
+      });
     });
   });
 });

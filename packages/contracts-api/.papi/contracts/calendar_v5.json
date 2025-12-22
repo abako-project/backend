@@ -1,8 +1,8 @@
 {
   "source": {
-    "hash": "0x69d4c283f1ebc65c1289b66dbcd7d6d998a5c6c306d3854a331370f1a6a483b1",
+    "hash": "0xac4ab8907dafbec9bfbab087f53fe22e7a07ccda09af90c9f7b7473253717a9c",
     "language": "ink! 5.1.1",
-    "compiler": "rustc 1.89.0",
+    "compiler": "rustc 1.85.0",
     "build_info": {
       "build_mode": "Release",
       "cargo_contract_version": "5.0.3",
@@ -179,9 +179,7 @@
             }
           }
         ],
-        "docs": [
-          "Debug event for troubleshooting"
-        ],
+        "docs": [],
         "label": "DebugLog",
         "module_path": "calendar::calendar",
         "signature_topic": "0xc866a7e60e28e638cb051bb737f1ea167d8bf5d21eb90b38907fa90f40465176"
@@ -211,9 +209,7 @@
             }
           }
         ],
-        "docs": [
-          "Debug event for listing registered workers"
-        ],
+        "docs": [],
         "label": "DebugRegisteredWorker",
         "module_path": "calendar::calendar",
         "signature_topic": "0x41e8a4196ccaefac42f74e0dfb038630c8c7cfe83f06b6a22a8e8608d2066c8a"
