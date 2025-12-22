@@ -1,12 +1,20 @@
 import 'dotenv/config'
 import express from 'express'
-import type { Request, Response } from 'express'
+import type { Request, Response, NextFunction } from 'express'
 import { ProjectsService } from './projects'
+import { ContractError } from './util/contractError'
 import { CalendarService } from './calendar'
 import { DeployService } from './deployService'
+import { errorHandler } from './middlewares/errorHandler'
 
 const app = express()
 const port = process.env.PORT || 3010
+
+// Handle unhandled promise rejections globally
+process.on('unhandledRejection', (reason: any) => {
+  console.error('Unhandled Promise Rejection:', reason);
+  // Don't exit the process - just log the error
+});
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
@@ -75,11 +83,11 @@ app.get('/calendar/constructors', (req: Request, res: Response) => {
   }
 })
 
-app.get('/projects/query/:contractAddress/:methodName', async (req: Request, res: Response) => {
-  const { contractAddress, methodName } = req.params
-  const data = { ...req.query }
-
+app.get('/projects/query/:contractAddress/:methodName', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { contractAddress, methodName } = req.params
+    const data = { ...req.query }
+
     if (!projectsService.validateMethod(methodName)) {
       return res.status(400).json({
         success: false,
@@ -89,25 +97,17 @@ app.get('/projects/query/:contractAddress/:methodName', async (req: Request, res
     }
 
     const result = await projectsService.queryMethod(contractAddress, methodName, data)
-
     res.json(result)
   } catch (error) {
-    console.error(`Error querying method ${methodName} on contract ${contractAddress}:`, error)
-    res.status(500).json({
-      success: false,
-      error: 'Failed to query contract method',
-      method: methodName,
-      contractAddress: contractAddress,
-      message: error instanceof Error ? error.message : 'Unknown error'
-    })
+    next(error)
   }
 })
 
-app.post('/projects/call/:contractAddress/:methodName', async (req: Request, res: Response) => {
-  const { contractAddress, methodName } = req.params
-  const data = req.body.data || {}
-
+app.post('/projects/call/:contractAddress/:methodName', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { contractAddress, methodName } = req.params
+    const data = req.body || {}
+
     if (!projectsService.validateMethod(methodName)) {
       return res.status(400).json({
         success: false,
@@ -117,17 +117,9 @@ app.post('/projects/call/:contractAddress/:methodName', async (req: Request, res
     }
 
     const result = await projectsService.callMethod(contractAddress, methodName, data)
-
     res.json(result)
   } catch (error) {
-    console.error(`Error calling method ${methodName} on contract ${contractAddress}:`, error)
-    res.status(500).json({
-      success: false,
-      error: 'Failed to call contract method',
-      method: methodName,
-      contractAddress: contractAddress,
-      message: error instanceof Error ? error.message : 'Unknown error'
-    })
+    next(error)
   }
 })
 
@@ -146,7 +138,7 @@ app.post('/projects/deploy/v6', async (req: Request, res: Response) => {
 
     const configs = deployService.getDeployConfigs()
     const result = await deployService.deployContract(configs.v6, params)
-    
+
     if (result.success) {
       res.json(result)
     } else {
@@ -178,7 +170,7 @@ app.post('/projects/deploy/v5', async (req: Request, res: Response) => {
 
     const configs = deployService.getDeployConfigs()
     const result = await deployService.deployContract(configs.v5, params)
-    
+
     if (result.success) {
       res.json(result)
     } else {
@@ -195,14 +187,14 @@ app.post('/projects/deploy/v5', async (req: Request, res: Response) => {
   }
 })
 
-app.get('/calendar/query/:contractAddress/:methodName', async (req: Request, res: Response) => {
-  const { contractAddress, methodName } = req.params
-  const data = { ...req.query }
-
-  console.log("Query params:", req.query)
-  console.log("Data to send:", data)
-
+app.get('/calendar/query/:contractAddress/:methodName', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { contractAddress, methodName } = req.params
+    const data = { ...req.query }
+
+    console.log("Query params:", req.query)
+    console.log("Data to send:", data)
+
     if (!calendarService.validateMethod(methodName)) {
       return res.status(400).json({
         success: false,
@@ -212,25 +204,17 @@ app.get('/calendar/query/:contractAddress/:methodName', async (req: Request, res
     }
 
     const result = await calendarService.queryMethod(contractAddress, methodName, data)
-
     res.json(result)
   } catch (error) {
-    console.error(`Error querying method ${methodName} on contract ${contractAddress}:`, error)
-    res.status(500).json({
-      success: false,
-      error: 'Failed to query contract method',
-      method: methodName,
-      contractAddress: contractAddress,
-      message: error instanceof Error ? error.message : 'Unknown error'
-    })
+    next(error)
   }
 })
 
-app.post('/calendar/call/:contractAddress/:methodName', async (req: Request, res: Response) => {
-  const { contractAddress, methodName } = req.params
-  const data = req.body || {}
-
+app.post('/calendar/call/:contractAddress/:methodName', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { contractAddress, methodName } = req.params
+    const data = req.body || {}
+
     if (!calendarService.validateMethod(methodName)) {
       return res.status(400).json({
         success: false,
@@ -240,17 +224,9 @@ app.post('/calendar/call/:contractAddress/:methodName', async (req: Request, res
     }
 
     const result = await calendarService.callMethod(contractAddress, methodName, data)
-
     res.json(result)
   } catch (error) {
-    console.error(`Error calling method ${methodName} on contract ${contractAddress}:`, error)
-    res.status(500).json({
-      success: false,
-      error: 'Failed to call contract method',
-      method: methodName,
-      contractAddress: contractAddress,
-      message: error instanceof Error ? error.message : 'Unknown error'
-    })
+    next(error)
   }
 })
 
@@ -259,7 +235,7 @@ app.post('/calendar/deploy/v5', async (req: Request, res: Response) => {
     const configs = deployService.getDeployConfigs()
     const params = req.body || {} // Calendar constructor accepts empty params
     const result = await deployService.deployContract(configs.calendar_v5, params)
-    
+
     if (result.success) {
       res.json(result)
     } else {
@@ -283,7 +259,7 @@ app.post('/ratings/deploy/v5', async (req: Request, res: Response) => {
     const configs = deployService.getDeployConfigs()
     const params = req.body || {} // Ratings constructor accepts empty params
     const result = await deployService.deployContract(configs.ratings_v5, params)
-    
+
     if (result.success) {
       res.json(result)
     } else {
@@ -300,6 +276,8 @@ app.post('/ratings/deploy/v5', async (req: Request, res: Response) => {
     })
   }
 })
+
+app.use(errorHandler);
 
 async function startServer() {
   try {

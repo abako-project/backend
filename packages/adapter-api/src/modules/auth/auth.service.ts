@@ -133,6 +133,14 @@ export class AuthService {
     return address;
   }
 
+  async getUserIdFromToken(token: string): Promise<string> {
+    await this.ensureServerSDK();
+    const decodedToken = await this.serverSdk!.auth.decodeToken(token);
+    // @ts-ignore
+    const userId = decodedToken.userId;
+    return userId;
+  }
+
   async sign(token: string, signRequest: SignRequest): Promise<AuthResponse> {
     try {
       await this.ensureServerSDK();
