@@ -33,7 +33,7 @@ describe('ProjectsService Integration Tests', () => {
   let ratingsService: RatingsService;
   let deployService: DeployService;
   let contractAddress: string;
-  let calendarContractAddress: string = 'Cfqrpkb3Fs17DBpQR5UmBq3bDzaDTnFe89RK9EwZvPWtJpr';
+  let calendarContractAddress: string = 'Dd34LSU53MLwJpq4wfHmDFwAifJrcaPbd1qTCGZcR7iXQkd';
   let ratingsContractAddress: string = 'JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY';
 
   beforeAll(async () => {

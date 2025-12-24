@@ -345,7 +345,7 @@ export class ProjectsService {
       
       // Use provided contracts or fallback to defaults
       const defaultRatingsContract = process.env.DEFAULT_RATINGS_CONTRACT || 'JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY';
-      const defaultCalendarContract = process.env.DEFAULT_CALENDAR_CONTRACT || 'Cfqrpkb3Fs17DBpQR5UmBq3bDzaDTnFe89RK9EwZvPWtJpr';
+      const defaultCalendarContract = process.env.DEFAULT_CALENDAR_CONTRACT || 'Dd34LSU53MLwJpq4wfHmDFwAifJrcaPbd1qTCGZcR7iXQkd';
       
       const calendarContract = proposalData.calendarContract || defaultCalendarContract;
       const ratingsContract = proposalData.ratingsContract || defaultRatingsContract;
