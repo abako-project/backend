@@ -92,7 +92,7 @@ services:
       - NODE_NO_WARNINGS=1
       - MONGODB_URI=mongodb://admin:admin123@mongodb:27017/abako?authSource=admin
       - DEFAULT_RATINGS_CONTRACT=JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY
-      - DEFAULT_CALENDAR_CONTRACT=Cfqrpkb3Fs17DBpQR5UmBq3bDzaDTnFe89RK9EwZvPWtJpr
+      - DEFAULT_CALENDAR_CONTRACT=Dd34LSU53MLwJpq4wfHmDFwAifJrcaPbd1qTCGZcR7iXQkd
     networks:
       - abako-network
     depends_on:

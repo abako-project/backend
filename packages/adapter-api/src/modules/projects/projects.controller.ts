@@ -721,7 +721,7 @@ export class ProjectsController {
         calendarContract: {
           type: 'string',
           description: 'Optional: Calendar contract address. If not provided, uses DAO default calendar contract.',
-          example: 'Cfqrpkb3Fs17DBpQR5UmBq3bDzaDTnFe89RK9EwZvPWtJpr'
+          example: 'Dd34LSU53MLwJpq4wfHmDFwAifJrcaPbd1qTCGZcR7iXQkd'
         },
         ratingsContract: {
           type: 'string',
