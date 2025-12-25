@@ -18,17 +18,51 @@ export class ProjectsService {
     @InjectModel(Milestone.name) private milestoneModel: Model<MilestoneDocument>,
   ) {}
 
-  async assignCoordinator(contractAddress: string, authToken: string): Promise<any> {
+  /**
+   * Helper method to get contract address from project ID
+   * Validates that the project exists and has a contract address
+   */
+  private async getContractAddressFromProjectId(projectId: string): Promise<string> {
+    const project = await this.projectModel.findById(projectId).exec();
+    
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
+    }
+
+    if (!project.contractAddress) {
+      if (project.creationStatus === 'creating') {
+        throw new HttpException(
+          `Project is still being created. Current status: ${project.creationStatus}`,
+          HttpStatus.BAD_REQUEST
+        );
+      } else if (project.creationStatus === 'failed') {
+        throw new HttpException(
+          `Project creation failed: ${project.creationError || 'Unknown error'}`,
+          HttpStatus.BAD_REQUEST
+        );
+      } else {
+        throw new HttpException(
+          `Project does not have a contract address yet. Current status: ${project.creationStatus || 'unknown'}`,
+          HttpStatus.BAD_REQUEST
+        );
+      }
+    }
+
+    return project.contractAddress;
+  }
+
+  async assignCoordinator(projectId: string, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const result = await this.callPreSignedWriteMethod(contractAddress, 'assign_coordinator', {});
     
     if (result && result.success && result.coordinator) {
-      const project = await this.projectModel.findOne({ contractAddress }).exec();
+      const project = await this.projectModel.findById(projectId).exec();
       
       if (project) {
         project.consultantId = result.coordinator;
         project.updatedAt = Date.now();
         await project.save();
-        console.log(`Coordinator ${result.coordinator} assigned to project ${contractAddress}`);
+        console.log(`Coordinator ${result.coordinator} assigned to project ${projectId} (${contractAddress})`);
       }
     } else {
       console.error('Error assigning coordinator:', result);
@@ -41,11 +75,13 @@ export class ProjectsService {
     return result;
   }
 
-  async assignTeam(contractAddress: string, body: { _team_size: number }, authToken: string): Promise<any> {
+  async assignTeam(projectId: string, body: { _team_size: number }, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     return this.callWriteMethod(contractAddress, 'assign_team', { _team_size: body._team_size }, authToken);
   }
 
-  async markCompleted(contractAddress: string, body: { ratings: Array<[string, number]> }, authToken: string): Promise<any> {
+  async markCompleted(projectId: string, body: { ratings: Array<[string, number]> }, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'mark_completed', { ratings: body.ratings });
     
     try {
@@ -154,7 +190,8 @@ export class ProjectsService {
     }
   }
 
-  async setCalendarContract(contractAddress: string, body: { calendar_contract: string }, authToken: string): Promise<any> {
+  async setCalendarContract(projectId: string, body: { calendar_contract: string }, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     return this.callWriteMethod(contractAddress, 'set_calendar_contract', { calendar_contract: body.calendar_contract }, authToken);
   }
 
@@ -166,11 +203,12 @@ export class ProjectsService {
     return this.callWriteMethod(contractAddress, 'propose_scope', body, authToken);
   }
 
-  async approveScope(contractAddress: string, body: { approved_task_ids: number[] }, authToken: string): Promise<any> {
+  async approveScope(projectId: string, body: { approved_task_ids: number[] }, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const approveResult = await this.callPreSignedWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids });
     
     try {
-      const teamInfo = await this.getTeam(contractAddress);
+      const teamInfo = await this.getTeam(projectId);
       if (teamInfo.success && teamInfo.response && Array.isArray(teamInfo.response) && teamInfo.response.length > 0) {
         const firstTeamMember = teamInfo.response[0];
         const workerAccountId = firstTeamMember.account_id;
@@ -190,11 +228,11 @@ export class ProjectsService {
     return approveResult;
   }
 
-  async rejectScope(contractAddress: string, body: ScopeRejectRequest, authToken: string): Promise<any> {
-    const project = await this.projectModel.findOne({ contractAddress }).exec();
+  async rejectScope(projectId: string, body: ScopeRejectRequest, authToken: string): Promise<any> {
+    const project = await this.projectModel.findById(projectId).exec();
     
     if (!project) {
-      throw new NotFoundException(`Project with contract address ${contractAddress} not found`);
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
     
     if (body.clientResponse) {
@@ -206,11 +244,11 @@ export class ProjectsService {
     return { success: true };
   }
 
-  async coordinatorRejectProject(contractAddress: string, rejectionReason: string): Promise<any> {
-    const project = await this.projectModel.findOne({ contractAddress }).exec();
+  async coordinatorRejectProject(projectId: string, rejectionReason: string): Promise<any> {
+    const project = await this.projectModel.findById(projectId).exec();
     
     if (!project) {
-      throw new NotFoundException(`Project with contract address ${contractAddress} not found`);
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
 
     project.coordinatorApprovalStatus = 'rejected';
@@ -223,14 +261,15 @@ export class ProjectsService {
   }
 
   async coordinatorApproveProject(
-    contractAddress: string, 
+    projectId: string, 
     approvalData: CoordinatorApprovalRequest,
     authToken: string
   ): Promise<any> {
-    const project = await this.projectModel.findOne({ contractAddress }).exec();
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
+    const project = await this.projectModel.findById(projectId).exec();
     
     if (!project) {
-      throw new NotFoundException(`Project with contract address ${contractAddress} not found`);
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
 
     try {
@@ -284,27 +323,32 @@ export class ProjectsService {
     }
   }
 
-  async completeTask(contractAddress: string, body: { task_id: number }, authToken: string): Promise<any> {
+  async completeTask(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     return this.callPreSignedWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id });
   }
 
-  async getProjectInfo(contractAddress: string): Promise<Project> {
-    const project = await this.projectModel.findOne({ contractAddress }).exec();
+  async getProjectInfo(projectId: string): Promise<Project> {
+    const project = await this.projectModel.findById(projectId).exec();
     if (!project) {
-      throw new NotFoundException(`Project with contract address ${contractAddress} not found`);
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
     return project;
   }
 
-  async getTeam(contractAddress: string): Promise<QueryResponse> {
+
+  async getTeam(projectId: string): Promise<QueryResponse> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     return this.callReadMethod(contractAddress, 'get_team');
   }
 
-  async getScopeInfo(contractAddress: string): Promise<QueryResponse> {
+  async getScopeInfo(projectId: string): Promise<QueryResponse> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     return this.callReadMethod(contractAddress, 'get_scope_info');
   }
 
-  async getTask(contractAddress: string, taskId: number): Promise<QueryResponse & { milestone?: Milestone }> {
+  async getTask(projectId: string, taskId: number): Promise<QueryResponse & { milestone?: Milestone }> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const taskResponse = await this.callReadMethod(contractAddress, 'get_task', { task_id: taskId });
     const milestone = await this.milestoneModel.findOne({ contractAddress, id: taskId }).exec();
     return {
@@ -313,7 +357,8 @@ export class ProjectsService {
     };
   }
 
-  async getTaskCompletionStatus(contractAddress: string, taskId: number): Promise<QueryResponse & { milestoneState?: string }> {
+  async getTaskCompletionStatus(projectId: string, taskId: number): Promise<QueryResponse & { milestoneState?: string }> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const taskStatusResponse = await this.callReadMethod(contractAddress, 'get_task_completion_status', { task_id: taskId });
     const milestone = await this.milestoneModel.findOne({ contractAddress, id: taskId }).exec();
     return {
@@ -322,7 +367,8 @@ export class ProjectsService {
     };
   }
 
-  async getAllTasks(contractAddress: string): Promise<QueryResponse & { milestones: Milestone[] }> {
+  async getAllTasks(projectId: string): Promise<QueryResponse & { milestones: Milestone[] }> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const tasksResponse = await this.callReadMethod(contractAddress, 'get_all_tasks');
     const milestones = await this.milestoneModel.find({ contractAddress }).sort({ displayOrder: 1 }).exec();
     return {
@@ -336,18 +382,88 @@ export class ProjectsService {
     proposalData: CreateProposalRequest,
     clientId: string,
     authToken: string
-  ): Promise<DeployResponse> {
+  ): Promise<{ projectId: string; creationStatus: string; message: string }> {
+    try {
+      // Use provided contracts or fallback to defaults
+      const defaultCalendarContract = process.env.DEFAULT_CALENDAR_CONTRACT || 'Dd34LSU53MLwJpq4wfHmDFwAifJrcaPbd1qTCGZcR7iXQkd';
+      
+      const calendarContract = proposalData.calendarContract || defaultCalendarContract;
+
+      const newProject = new this.projectModel({
+        title: proposalData.title,
+        summary: proposalData.summary,
+        description: proposalData.description,
+        url: proposalData.url,
+        projectType: proposalData.projectType,
+        budget: proposalData.budget,
+        deliveryTime: proposalData.deliveryTime,
+        deliveryDate: new Date(proposalData.deliveryDate).getTime(),
+        clientId: clientId,
+        calendarContract: calendarContract,
+        state: 'draft',
+        creationStatus: 'creating',
+      });
+      
+      const savedProject = await newProject.save();
+      const projectId = savedProject._id.toString();
+
+      this.executeDeploymentInBackground(
+        projectId,
+        version,
+        proposalData,
+        clientId,
+        authToken,
+        calendarContract
+      ).catch((error) => {
+        console.error(`[Fatal] Background deployment error handler caught error for project ${projectId}:`, error);
+        this.projectModel.findByIdAndUpdate(
+          projectId,
+          {
+            creationStatus: 'failed',
+            creationError: `Fatal error: ${error instanceof Error ? error.message : 'Unknown error'}`
+          }
+        ).exec().catch((updateError) => {
+          console.error(`[Fatal] Could not update project ${projectId} status after fatal error:`, updateError);
+        });
+      });
+
+      return {
+        projectId,
+        creationStatus: 'creating',
+        message: 'Project creation started. Use the project ID to check creation status.'
+      };
+    } catch (error) {
+      console.error('Error initiating deploy contract:', error);
+      throw new HttpException(
+        `Error initiating project creation: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  private async executeDeploymentInBackground(
+    projectId: string,
+    version: string,
+    proposalData: CreateProposalRequest,
+    clientId: string,
+    authToken: string,
+    calendarContract: string
+  ): Promise<void> {
+    let project = await this.projectModel.findById(projectId).exec();
+    
+    if (!project) {
+      console.error(`[Background] Project ${projectId} not found`);
+      return;
+    }
+
     try {
       const daoAddress = this.configService.getDaoAddress();
       const signingServiceUrl = this.configService.getSigningServiceUrl();
       const deployerUrl = `${signingServiceUrl}/projects/deploy/${version}`;
       const address = await this.authService.getAddress(authToken!);
       
-      // Use provided contracts or fallback to defaults
       const defaultRatingsContract = process.env.DEFAULT_RATINGS_CONTRACT || 'JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY';
-      const defaultCalendarContract = process.env.DEFAULT_CALENDAR_CONTRACT || 'Dd34LSU53MLwJpq4wfHmDFwAifJrcaPbd1qTCGZcR7iXQkd';
       
-      const calendarContract = proposalData.calendarContract || defaultCalendarContract;
       const ratingsContract = proposalData.ratingsContract || defaultRatingsContract;
       
       const deployBody: any = {
@@ -357,7 +473,7 @@ export class ProjectsService {
         ratings_contract: ratingsContract,
       };
 
-      console.log({deployerUrl, deployBody});
+      console.log(`[Background] Deploying contract for project ${projectId}`, {deployerUrl, deployBody});
       
       const deployerResponse = await fetch(deployerUrl, {
         method: 'POST',
@@ -367,52 +483,48 @@ export class ProjectsService {
         body: JSON.stringify({...deployBody, address})
       });
 
-      console.log(deployerResponse);
-
       if (!deployerResponse.ok) {
-        throw new Error(`Deployer service error: ${deployerResponse.status} ${deployerResponse.statusText}`);
+        const errorText = await deployerResponse.text();
+        throw new Error(`Deployer service error: ${deployerResponse.status} ${deployerResponse.statusText} - ${errorText}`);
       }
 
       const deployerResult = await deployerResponse.json() as DeployResponse;
-      console.log('Deployer result:', deployerResult);
+      console.log(`[Background] Deployer result for project ${projectId}:`, deployerResult);
 
-      if (deployerResult.address) {
-        await this.saveProject(deployerResult.address, {
-          title: proposalData.title,
-          summary: proposalData.summary,
-          description: proposalData.description,
-          url: proposalData.url,
-          projectType: proposalData.projectType,
-          budget: proposalData.budget,
-          deliveryTime: proposalData.deliveryTime,
-          deliveryDate: new Date(proposalData.deliveryDate).getTime(),
-          clientId: clientId,
-          calendarContract: calendarContract,
-          state: 'deployed',
-        });
-
-        // Automatically assign coordinator after deployment
-        try {
-          console.log('Automatically assigning coordinator to project...');
-          await this.assignCoordinator(deployerResult.address, authToken);
-          console.log('Coordinator assigned successfully');
-        } catch (error) {
-          console.error('Error assigning coordinator:', error);
-          throw new HttpException(
-            `Error assigning coordinator: ${error.message}`,
-            HttpStatus.INTERNAL_SERVER_ERROR
-          );
-          // Don't fail the deployment if coordinator assignment fails
-        }
+      if (!deployerResult.address) {
+        throw new Error('Deployer did not return a contract address');
       }
 
-      return deployerResult;
+      // Update project with contract address and success status
+      project.contractAddress = deployerResult.address;
+      project.state = 'deployed';
+      project.creationStatus = 'created';
+      project.creationError = undefined;
+      await project.save();
+      console.log(`[Background] Project ${projectId} successfully created with contract address: ${deployerResult.address}`);
+
+      // Automatically assign coordinator after deployment
+      try {
+        console.log(`[Background] Automatically assigning coordinator to project ${projectId} (${deployerResult.address})...`);
+        await this.assignCoordinator(projectId, authToken);
+        console.log(`[Background] Coordinator assigned successfully to project ${projectId} (${deployerResult.address})`);
+      } catch (error) {
+        console.error(`[Background] Error assigning coordinator to project ${projectId} (${deployerResult.address}):`, error);
+        project.creationError = `Deployment successful but coordinator assignment failed: ${error.message}`;
+        await project.save();
+      }
     } catch (error) {
-      console.error('Error in deploy contract:', error);
-      throw new HttpException(
-        `Error calling deploy service: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
+      console.error(`[Background] Error in deployment for project ${projectId}:`, error);
+      
+      project = await this.projectModel.findById(projectId).exec();
+      if (project) {
+        project.creationStatus = 'failed';
+        project.creationError = error instanceof Error ? error.message : 'Unknown error during deployment';
+        await project.save();
+        console.log(`[Background] Project ${projectId} marked as failed: ${project.creationError}`);
+      } else {
+        console.error(`[Background] Could not update project ${projectId} status - project not found in database`);
+      }
     }
   }
 
@@ -571,10 +683,10 @@ export class ProjectsService {
     return newProject.save();
   }
 
-  async updateProject(contractAddress: string, updateData: UpdateProposalRequest): Promise<Project> {
-    const project = await this.projectModel.findOne({ contractAddress }).exec();
+  async updateProject(projectId: string, updateData: UpdateProposalRequest): Promise<Project> {
+    const project = await this.projectModel.findById(projectId).exec();
     if (!project) {
-      throw new NotFoundException(`Project with contract address ${contractAddress} not found`);
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
 
     if (updateData.title) project.title = updateData.title;
@@ -618,23 +730,26 @@ export class ProjectsService {
     return newMilestone.save();
   }
 
-  async getMilestonesByProject(contractAddress: string): Promise<Milestone[]> {
+  async getMilestonesByProject(projectId: string): Promise<Milestone[]> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     return this.milestoneModel.find({ contractAddress }).sort({ displayOrder: 1 }).exec();
   }
 
-  async getMilestoneById(contractAddress: string, milestoneId: number): Promise<Milestone> {
+  async getMilestoneById(projectId: string, milestoneId: number): Promise<Milestone> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const milestone = await this.milestoneModel.findOne({ contractAddress, id: milestoneId }).exec();
     if (!milestone) {
-      throw new NotFoundException(`Milestone ${milestoneId} not found for contract ${contractAddress}`);
+      throw new NotFoundException(`Milestone ${milestoneId} not found for project ${projectId}`);
     }
     return milestone;
   }
 
-  async updateMilestone(contractAddress: string, milestoneId: number, updateData: UpdateMilestoneRequest): Promise<MilestoneDocument> {
+  async updateMilestone(projectId: string, milestoneId: number, updateData: UpdateMilestoneRequest): Promise<MilestoneDocument> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const milestone = await this.milestoneModel.findOne({ contractAddress, id: milestoneId }).exec();
     
     if (!milestone) {
-      throw new NotFoundException(`Milestone ${milestoneId} not found for contract ${contractAddress}`);
+      throw new NotFoundException(`Milestone ${milestoneId} not found for project ${projectId}`);
     }
 
     milestone.title = updateData.title;
@@ -654,11 +769,12 @@ export class ProjectsService {
     return milestone.save();
   }
 
-  async deleteMilestone(contractAddress: string, milestoneId: number): Promise<void> {
+  async deleteMilestone(projectId: string, milestoneId: number): Promise<void> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const result = await this.milestoneModel.deleteOne({ contractAddress, id: milestoneId }).exec();
     
     if (result.deletedCount === 0) {
-      throw new NotFoundException(`Milestone ${milestoneId} not found for contract ${contractAddress}`);
+      throw new NotFoundException(`Milestone ${milestoneId} not found for project ${projectId}`);
     }
   }
 }
