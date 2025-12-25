@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Headers, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Headers, ParseIntPipe, HttpCode } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -24,14 +24,14 @@ export class ProjectsController {
     return authHeader.split(' ')[1];
   }
 
-  @Post(':contractAddress/assign_coordinator')
+  @Post(':projectId/assign_coordinator')
   @ApiOperation({ 
     summary: 'Assign coordinator to project',
     description: 'Assigns a coordinator to manage the specified project contract'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiBearerAuth()
@@ -53,25 +53,29 @@ export class ProjectsController {
     description: 'Unauthorized - Invalid token'
   })
   @ApiResponse({ 
+    status: 400, 
+    description: 'Bad request - Project not ready or not found'
+  })
+  @ApiResponse({ 
     status: 500, 
     description: 'Internal server error'
   })
   async assignCoordinator(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.assignCoordinator(contractAddress, token);
+    return await this.projectsService.assignCoordinator(projectId, token);
   }
 
-  @Post(':contractAddress/assign_team')
+  @Post(':projectId/assign_team')
   @ApiOperation({ 
     summary: 'Assign team to project',
     description: 'Assigns a team with specified size to the project contract'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiBearerAuth()
@@ -106,26 +110,30 @@ export class ProjectsController {
     description: 'Unauthorized - Invalid token'
   })
   @ApiResponse({ 
+    status: 400, 
+    description: 'Bad request - Project not ready or not found'
+  })
+  @ApiResponse({ 
     status: 500, 
     description: 'Internal server error'
   })
   async assignTeam(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Body() body: { _team_size: number },
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.assignTeam(contractAddress, body, token);
+    return await this.projectsService.assignTeam(projectId, body, token);
   }
 
-  @Post(':contractAddress/mark_completed')
+  @Post(':projectId/mark_completed')
   @ApiOperation({ 
     summary: 'Mark project as completed',
     description: 'Marks the project as completed with team member ratings'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiBearerAuth()
@@ -175,22 +183,22 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async markCompleted(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Body() body: { ratings: Array<[string, number]> },
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.markCompleted(contractAddress, body, token);
+    return await this.projectsService.markCompleted(projectId, body, token);
   }
 
-  @Post(':contractAddress/set_calendar_contract')
+  @Post(':projectId/set_calendar_contract')
   @ApiOperation({ 
     summary: 'Set calendar contract',
     description: 'Associates a calendar contract with the project'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiBearerAuth()
@@ -229,23 +237,23 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async setCalendarContract(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Body() body: { calendar_contract: string },
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.setCalendarContract(contractAddress, body, token);
+    return await this.projectsService.setCalendarContract(projectId, body, token);
   }
 
 
-  @Post(':contractAddress/approve_scope')
+  @Post(':projectId/approve_scope')
   @ApiOperation({ 
     summary: 'Approve project scope',
     description: 'Approves specific tasks from the proposed project scope'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiBearerAuth()
@@ -285,22 +293,22 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async approveScope(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Body() body: { approved_task_ids: number[] },
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.approveScope(contractAddress, body, token);
+    return await this.projectsService.approveScope(projectId, body, token);
   }
 
-  @Post(':contractAddress/reject_scope')
+  @Post(':projectId/reject_scope')
   @ApiOperation({ 
     summary: 'Reject project scope',
     description: 'Rejects the proposed project scope with optional client response'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiBearerAuth()
@@ -338,22 +346,22 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async rejectScope(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Body() body: ScopeRejectRequest,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.rejectScope(contractAddress, body, token);
+    return await this.projectsService.rejectScope(projectId, body, token);
   }
 
-  @Post(':contractAddress/complete_task')
+  @Post(':projectId/complete_task')
   @ApiOperation({ 
     summary: 'Complete a task',
     description: 'Marks a specific task as completed in the project'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiBearerAuth()
@@ -392,22 +400,22 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async completeTask(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Body() body: { task_id: number },
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.completeTask(contractAddress, body, token);
+    return await this.projectsService.completeTask(projectId, body, token);
   }
 
-  @Get(':contractAddress/get_project_info')
+  @Get(':projectId/get_project_info')
   @ApiOperation({ 
     summary: 'Get project information',
     description: 'Retrieves detailed information about a specific project'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiResponse({ 
@@ -422,18 +430,18 @@ export class ProjectsController {
     status: 500, 
     description: 'Internal server error'
   })
-  async getProjectInfo(@Param('contractAddress') contractAddress: string) {
-    return await this.projectsService.getProjectInfo(contractAddress);
+  async getProjectInfo(@Param('projectId') projectId: string) {
+    return await this.projectsService.getProjectInfo(projectId);
   }
 
-  @Get(':contractAddress/get_team')
+  @Get(':projectId/get_team')
   @ApiOperation({ 
     summary: 'Get project team',
     description: 'Retrieves the team members assigned to a specific project'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiResponse({ 
@@ -448,18 +456,18 @@ export class ProjectsController {
     status: 500, 
     description: 'Internal server error'
   })
-  async getTeam(@Param('contractAddress') contractAddress: string) {
-    return await this.projectsService.getTeam(contractAddress);
+  async getTeam(@Param('projectId') projectId: string) {
+    return await this.projectsService.getTeam(projectId);
   }
 
-  @Get(':contractAddress/get_scope_info')
+  @Get(':projectId/get_scope_info')
   @ApiOperation({ 
     summary: 'Get project scope information',
     description: 'Retrieves the scope information for a specific project'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiResponse({ 
@@ -474,18 +482,18 @@ export class ProjectsController {
     status: 500, 
     description: 'Internal server error'
   })
-  async getScopeInfo(@Param('contractAddress') contractAddress: string) {
-    return await this.projectsService.getScopeInfo(contractAddress);
+  async getScopeInfo(@Param('projectId') projectId: string) {
+    return await this.projectsService.getScopeInfo(projectId);
   }
 
-  @Get(':contractAddress/get_task')
+  @Get(':projectId/get_task')
   @ApiOperation({ 
     summary: 'Get specific task information and milestone',
     description: 'Retrieves detailed information about a specific task from the smart contract and its corresponding milestone from MongoDB'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiQuery({ 
@@ -541,20 +549,20 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async getTask(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Query('task_id') taskId: number
   ) {
-    return await this.projectsService.getTask(contractAddress, taskId);
+    return await this.projectsService.getTask(projectId, taskId);
   }
 
-  @Get(':contractAddress/get_task_completion_status')
+  @Get(':projectId/get_task_completion_status')
   @ApiOperation({ 
     summary: 'Get task completion status',
     description: 'Retrieves the completion status of a specific task'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiQuery({ 
@@ -576,20 +584,20 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async getTaskCompletionStatus(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Query('task_id') taskId: number
   ) {
-    return await this.projectsService.getTaskCompletionStatus(contractAddress, taskId);
+    return await this.projectsService.getTaskCompletionStatus(projectId, taskId);
   }
 
-  @Get(':contractAddress/get_all_tasks')
+  @Get(':projectId/get_all_tasks')
   @ApiOperation({ 
     summary: 'Get all project tasks and milestones',
     description: 'Retrieves all tasks from the smart contract and milestones from MongoDB for a specific project'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiResponse({ 
@@ -644,14 +652,14 @@ export class ProjectsController {
     status: 500, 
     description: 'Internal server error'
   })
-  async getAllTasks(@Param('contractAddress') contractAddress: string) {
-    return await this.projectsService.getAllTasks(contractAddress);
+  async getAllTasks(@Param('projectId') projectId: string) {
+    return await this.projectsService.getAllTasks(projectId);
   }
 
   @Post('deploy/:version')
   @ApiOperation({ 
-    summary: 'Deploy project contract',
-    description: 'Deploys a new project contract with the specified version and creates a proposal'
+    summary: 'Initiate project contract deployment (async)',
+    description: 'Initiates the deployment of a new project contract asynchronously. Returns immediately with a project ID. Use the creation status endpoint to check the deployment progress.'
   })
   @ApiParam({ 
     name: 'version', 
@@ -733,9 +741,18 @@ export class ProjectsController {
       description: 'Project will use provided contract addresses or default to DAO shared contracts if not specified'
     }
   })
+  @HttpCode(200)
   @ApiResponse({ 
     status: 200, 
-    description: 'Contract deployed successfully'
+    description: 'Project creation initiated successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'MongoDB ID of the project' },
+        creationStatus: { type: 'string', enum: ['creating'], description: 'Current creation status' },
+        message: { type: 'string', description: 'Informational message' }
+      }
+    }
   })
   @ApiResponse({ 
     status: 401, 
@@ -756,14 +773,14 @@ export class ProjectsController {
     return await this.projectsService.deployContract(version, proposalData, clientId, token);
   }
 
-  @Put(':contractAddress')
+  @Put(':projectId')
   @ApiOperation({ 
     summary: 'Update project',
     description: 'Updates project information in the database'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiBearerAuth()
@@ -841,22 +858,22 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async updateProject(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Body() body: UpdateProposalRequest,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.updateProject(contractAddress, body);
+    return await this.projectsService.updateProject(projectId, body);
   }
 
-  @Post(':contractAddress/propose_scope')
+  @Post(':projectId/propose_scope')
   @ApiOperation({ 
     summary: 'Coordinator approves project and proposes scope',
     description: 'Coordinator approves a project by creating milestones and proposing scope to the smart contract. This is an atomic operation that saves milestones to the database and converts them into tasks for the blockchain contract.'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiBearerAuth()
@@ -925,7 +942,7 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async proposeScope(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Body() body: {
       milestones: CreateMilestoneRequest[];
       advance_payment_percentage: number;
@@ -934,17 +951,17 @@ export class ProjectsController {
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.coordinatorApproveProject(contractAddress, body, token);
+    return await this.projectsService.coordinatorApproveProject(projectId, body, token);
   }
 
-  @Post(':contractAddress/coordinator_reject')
+  @Post(':projectId/coordinator_reject')
   @ApiOperation({ 
     summary: 'Coordinator rejects project',
     description: 'Coordinator rejects a project with a reason. The rejection is stored.'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiBearerAuth()
@@ -987,22 +1004,22 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async coordinatorRejectProject(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Body() body: { rejectionReason: string },
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.coordinatorRejectProject(contractAddress, body.rejectionReason);
+    return await this.projectsService.coordinatorRejectProject(projectId, body.rejectionReason);
   }
 
-  @Put(':contractAddress/milestones/:milestoneId')
+  @Put(':projectId/milestones/:milestoneId')
   @ApiOperation({ 
     summary: 'Update milestone',
     description: 'Updates a specific milestone'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiParam({ 
@@ -1092,23 +1109,23 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async updateMilestone(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Param('milestoneId', ParseIntPipe) milestoneId: number,
     @Body() body: UpdateMilestoneRequest,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.updateMilestone(contractAddress, milestoneId, body);
+    return await this.projectsService.updateMilestone(projectId, milestoneId, body);
   }
 
-  @Delete(':contractAddress/milestones/:milestoneId')
+  @Delete(':projectId/milestones/:milestoneId')
   @ApiOperation({ 
     summary: 'Delete milestone',
     description: 'Deletes a specific milestone'
   })
   @ApiParam({ 
-    name: 'contractAddress', 
-    description: 'The contract address of the project',
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
     type: 'string'
   })
   @ApiParam({ 
@@ -1143,12 +1160,12 @@ export class ProjectsController {
     description: 'Internal server error'
   })
   async deleteMilestone(
-    @Param('contractAddress') contractAddress: string,
+    @Param('projectId') projectId: string,
     @Param('milestoneId', ParseIntPipe) milestoneId: number,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    await this.projectsService.deleteMilestone(contractAddress, milestoneId);
+    await this.projectsService.deleteMilestone(projectId, milestoneId);
     return { success: true, message: 'Milestone deleted successfully' };
   }
 }

@@ -53,6 +53,15 @@ export class Project {
   @Prop()
   coordinatorRejectionReason?: string;
 
+  @Prop({ 
+    enum: ['pending', 'creating', 'created', 'failed'],
+    default: 'created'
+  })
+  creationStatus?: 'pending' | 'creating' | 'created' | 'failed';
+
+  @Prop()
+  creationError?: string;
+
   @Prop({ type: Date, default: Date.now })
   createdAt: number;
 
