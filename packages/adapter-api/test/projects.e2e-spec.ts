@@ -21,7 +21,9 @@ describe('Projects Module E2E Tests', () => {
   let workerOneAccountId: string;
   let workerTwoAccountId: string;
   let workerThreeAccountId: string;
+  let projectId: string;
   let contractAddress: string;
+  let rejectedProjectId: string;
   let rejectedContractAddress: string;
   let coordinatorAccountId: string;
   let coordinatorAuthToken: string;
@@ -520,24 +522,108 @@ describe('Projects Module E2E Tests', () => {
               .post('/projects/deploy/v5')
               .set('Authorization', `Bearer ${authTokenClient}`)
               .send(deployData)
-              .expect(201);
+              .expect(200);
 
             console.log('Deploy response:', JSON.stringify(response.body, null, 2));
 
-            expect(response.body).toHaveProperty('success');
-            expect(response.body).toHaveProperty('address');
+            expect(response.body).toHaveProperty('projectId');
+            expect(response.body).toHaveProperty('creationStatus', 'creating');
+            expect(response.body).toHaveProperty('message');
 
-            contractAddress = response.body.address;
-            console.info(`✅ Deployed project contract "${deployData.title}" at: ${contractAddress.substring(0, 20)}...`);
+            projectId = response.body.projectId;
+            console.info(`✅ Project creation initiated with projectId: ${projectId}`);
+          });
+
+          it('should wait for project creation to complete and coordinator to be assigned', async () => {
+            console.log('Waiting for project creation to complete and coordinator to be assigned...');
+
+            expect(projectId).toBeDefined();
+
+            // Poll for project creation status and coordinator assignment
+            let creationStatus: string = 'creating';
+            let attempts = 0;
+            const maxAttempts = 180; // 180 seconds max wait time (project creation + coordinator assignment)
+
+            while (attempts < maxAttempts) {
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+              
+              const statusResponse = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/get_project_info`)
+                .expect(200);
+
+              creationStatus = statusResponse.body.creationStatus;
+              attempts++;
+
+              console.log(`Attempt ${attempts}/${maxAttempts}: Creation status: ${creationStatus}`);
+
+              if (creationStatus === 'failed') {
+                throw new Error(`Project creation failed: ${statusResponse.body.creationError || 'Unknown error'}`);
+              }
+
+              if (creationStatus === 'created') {
+                contractAddress = statusResponse.body.contractAddress;
+                expect(contractAddress).toBeDefined();
+                expect(contractAddress).toBeDefined();
+                
+                // Verify coordinator was assigned
+                const projectResponse = await request(app.getHttpServer())
+                  .get(`/projects/${projectId}/get_project_info`)
+                  .expect(200);
+
+                if (projectResponse.body.consultantId) {
+                  coordinatorAccountId = projectResponse.body.consultantId;
+                  console.info(`✅ Project created successfully with contractAddress: ${contractAddress.substring(0, 20)}...`);
+                  console.info(`✅ Coordinator assigned: ${coordinatorAccountId.substring(0, 20)}...`);
+                  break;
+                } else {
+                  console.log(`   Project created but coordinator not yet assigned, waiting... (${attempts}/${maxAttempts})`);
+                }
+              }
+            }
+
+            if (creationStatus !== 'created') {
+              throw new Error(`Project creation timed out after 180 seconds. Final status: ${creationStatus}`);
+            }
+
+            if (!coordinatorAccountId) {
+              throw new Error('Project created but coordinator assignment timed out after 180 seconds');
+            }
+
+            expect(creationStatus).toBe('created');
+            expect(contractAddress).toBeDefined();
+            expect(coordinatorAccountId).toBeDefined();
+            
+            // Map coordinator address to the correct auth token
+            const ss58Format = 2;
+            const coordinatorSs58 = encodeAddress(coordinatorAccountId, ss58Format);
+            const workerOneSs58 = encodeAddress(workerOneAccountId, ss58Format);
+            const workerTwoSs58 = encodeAddress(workerTwoAccountId, ss58Format);
+            const workerThreeSs58 = encodeAddress(workerThreeAccountId, ss58Format);
+
+            if (coordinatorSs58 === workerOneSs58) {
+              coordinatorAuthToken = authTokenWorkerOne;
+              console.log('Coordinator is Worker One');
+            } else if (coordinatorSs58 === workerTwoSs58) {
+              coordinatorAuthToken = authTokenWorkerTwo;
+              console.log('Coordinator is Worker Two');
+            } else if (coordinatorSs58 === workerThreeSs58) {
+              coordinatorAuthToken = authTokenWorkerThree;
+              console.log('Coordinator is Worker Three');
+            } else {
+              throw new Error(`Coordinator ${coordinatorAccountId} does not match any registered worker`);
+            }
+
+            expect(coordinatorAuthToken).toBeDefined();
+            console.info(`   Using coordinator token for subsequent operations`);
           });
 
           it('should verify project was saved in MongoDB', async () => {
             console.log('Verifying project was saved in MongoDB...');
 
-            expect(contractAddress).toBeDefined();
+            expect(projectId).toBeDefined();
 
             const response = await request(app.getHttpServer())
-              .get(`/projects/${contractAddress}/get_project_info`)
+              .get(`/projects/${projectId}/get_project_info`)
               .expect(200);
 
             console.log('MongoDB project data:', JSON.stringify(response.body, null, 2));
@@ -554,54 +640,9 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('state', 'deployed');
             expect(response.body).toHaveProperty('clientId', clientAccountId);
 
-            console.info(`✅ Verified project data in MongoDB for contract ${contractAddress.substring(0, 20)}...`);
+            console.info(`✅ Verified project data in MongoDB for project ${projectId}`);
           });
 
-          it('should verify coordinator was assigned automatically', async () => {
-            console.log('Verifying coordinator was assigned automatically...');
-
-            expect(contractAddress).toBeDefined();
-
-            const response = await request(app.getHttpServer())
-              .get(`/projects/${contractAddress}/get_project_info`)
-              .expect(200);
-
-            console.log('Project with coordinator:', JSON.stringify(response.body, null, 2));
-
-            expect(response.body).toHaveProperty('consultantId');
-            expect(response.body.consultantId).toBeTruthy();
-
-            // Save coordinator address and determine which worker token to use
-            coordinatorAccountId = response.body.consultantId;
-
-            
-            const ss58Format = 2;
-            const coordinatorSs58 = encodeAddress(coordinatorAccountId, ss58Format);
-            const workerOneSs58 = encodeAddress(workerOneAccountId, ss58Format);
-            const workerTwoSs58 = encodeAddress(workerTwoAccountId, ss58Format);
-            const workerThreeSs58 = encodeAddress(workerThreeAccountId, ss58Format);
-            console.log('coordinatorSs58', coordinatorSs58);
-            console.log('workerOneSs58', workerOneSs58);
-
-            console.log('coordinatorSs58 === workerOneSs58', coordinatorSs58 === workerOneSs58);
-
-            // Map coordinator address to the correct auth token
-            if (coordinatorSs58 === workerOneSs58) {
-              coordinatorAuthToken = authTokenWorkerOne;
-              console.log('Coordinator is Worker One');
-            } else if (coordinatorSs58 === workerTwoSs58) {
-              coordinatorAuthToken = authTokenWorkerTwo;
-              console.log('Coordinator is Worker Two');
-            } else if (coordinatorSs58 === workerThreeSs58) {
-              coordinatorAuthToken = authTokenWorkerThree;
-              console.log('Coordinator is Worker Three');
-            } else {
-              throw new Error(`Coordinator ${coordinatorAccountId} does not match any registered worker`);
-            }
-
-            console.info(`✅ Coordinator assigned automatically: ${coordinatorAccountId}`);
-            console.info(`   Using coordinator token for subsequent operations`);
-          });
         });
 
         describe('Coordinator Approval Process', () => {
@@ -609,7 +650,7 @@ describe('Projects Module E2E Tests', () => {
             console.log('Coordinator approving project with milestones...');
 
             expect(coordinatorAuthToken).toBeDefined();
-            expect(contractAddress).toBeDefined();
+            expect(projectId).toBeDefined();
             console.log(`Using coordinator: ${coordinatorAccountId}`);
 
             const approvalData = {
@@ -642,7 +683,7 @@ describe('Projects Module E2E Tests', () => {
             };
 
             const response = await request(app.getHttpServer())
-              .post(`/projects/${contractAddress}/propose_scope`)
+              .post(`/projects/${projectId}/propose_scope`)
               .set('Authorization', `Bearer ${coordinatorAuthToken}`)
               .send(approvalData)
               .expect(201);
@@ -661,10 +702,10 @@ describe('Projects Module E2E Tests', () => {
           it('should verify project status was updated to approved', async () => {
             console.log('Verifying project status after approval...');
 
-            expect(contractAddress).toBeDefined();
+            expect(projectId).toBeDefined();
 
             const response = await request(app.getHttpServer())
-              .get(`/projects/${contractAddress}/get_project_info`)
+              .get(`/projects/${projectId}/get_project_info`)
               .expect(200);
 
             console.log('Project status:', JSON.stringify(response.body, null, 2));
@@ -678,11 +719,11 @@ describe('Projects Module E2E Tests', () => {
           it('should verify milestones were created in MongoDB', async () => {
             console.log('Verifying milestones in MongoDB...');
 
-            expect(contractAddress).toBeDefined();
+            expect(projectId).toBeDefined();
             expect(coordinatorAuthToken).toBeDefined();
 
             const response = await request(app.getHttpServer())
-              .get(`/projects/${contractAddress}/get_all_tasks`)
+              .get(`/projects/${projectId}/get_all_tasks`)
               .set('Authorization', `Bearer ${coordinatorAuthToken}`)
               .expect(200);
 
@@ -712,10 +753,10 @@ describe('Projects Module E2E Tests', () => {
           it('should verify scope was proposed to contract', async () => {
             console.log('Verifying scope in contract...');
 
-            expect(contractAddress).toBeDefined();
+            expect(projectId).toBeDefined();
 
             const response = await request(app.getHttpServer())
-              .get(`/projects/${contractAddress}/get_scope_info`)
+              .get(`/projects/${projectId}/get_scope_info`)
               .expect(200);
 
             console.log('Scope info:', JSON.stringify(response.body, null, 2));
@@ -734,11 +775,11 @@ describe('Projects Module E2E Tests', () => {
           console.log('Approving scope tasks...');
 
           expect(authTokenClient).toBeDefined();
-          expect(contractAddress).toBeDefined();
+          expect(projectId).toBeDefined();
 
           console.log('Querying all tasks from contract...');
           const tasksResponse = await request(app.getHttpServer())
-            .get(`/projects/${contractAddress}/get_all_tasks`)
+            .get(`/projects/${projectId}/get_all_tasks`)
             .expect(200);
 
           console.log('All tasks:', JSON.stringify(tasksResponse.body, null, 2));
@@ -754,7 +795,7 @@ describe('Projects Module E2E Tests', () => {
           const approvedTaskIds = taskIds;
 
           const response = await request(app.getHttpServer())
-            .post(`/projects/${contractAddress}/approve_scope`)
+            .post(`/projects/${projectId}/approve_scope`)
             .set('Authorization', `Bearer ${authTokenClient}`)
             .send({ approved_task_ids: approvedTaskIds })
             .expect(201);
@@ -773,28 +814,28 @@ describe('Projects Module E2E Tests', () => {
           console.log('Assigning team to project...');
 
           expect(coordinatorAuthToken).toBeDefined();
-          expect(contractAddress).toBeDefined();
+          expect(projectId).toBeDefined();
 
           const response = await request(app.getHttpServer())
-            .post(`/projects/${contractAddress}/assign_team`)
+            .post(`/projects/${projectId}/assign_team`)
             .set('Authorization', `Bearer ${coordinatorAuthToken}`)
-            .send({ ideal_team_size: 2 })
+            .send({ _team_size: 2 })
             .expect(201);
 
           console.log('Response:', JSON.stringify(response.body, null, 2));
 
           expect(response.body).toHaveProperty('success');
           expect(response.body.success).toBe(true);
-          console.info(`✅ Assigned team (ideal size: 1) to project ${contractAddress.substring(0, 20)}...`);
+          console.info(`✅ Assigned team (size: 2) to project ${projectId}`);
         });
 
         it('should get team information', async () => {
           console.log('Getting team information...');
 
-          expect(contractAddress).toBeDefined();
+          expect(projectId).toBeDefined();
 
           const response = await request(app.getHttpServer())
-            .get(`/projects/${contractAddress}/get_team`)
+            .get(`/projects/${projectId}/get_team`)
             .expect(200);
 
           console.log('Response:', JSON.stringify(response.body, null, 2));
@@ -811,10 +852,10 @@ describe('Projects Module E2E Tests', () => {
         it('should get project information', async () => {
           console.log('Getting project information...');
 
-          expect(contractAddress).toBeDefined();
+          expect(projectId).toBeDefined();
 
           const response = await request(app.getHttpServer())
-            .get(`/projects/${contractAddress}/get_project_info`)
+            .get(`/projects/${projectId}/get_project_info`)
             .expect(200);
 
           console.log('Response:', JSON.stringify(response.body, null, 2));
@@ -837,10 +878,10 @@ describe('Projects Module E2E Tests', () => {
         it('should get all tasks and milestones', async () => {
           console.log('Getting all tasks and milestones...');
 
-          expect(contractAddress).toBeDefined();
+          expect(projectId).toBeDefined();
 
           const response = await request(app.getHttpServer())
-            .get(`/projects/${contractAddress}/get_all_tasks`)
+            .get(`/projects/${projectId}/get_all_tasks`)
             .expect(200);
 
           console.log('Response:', JSON.stringify(response.body, null, 2));
@@ -875,10 +916,10 @@ describe('Projects Module E2E Tests', () => {
         it('should get specific task information and milestone', async () => {
           console.log('Getting specific task information...');
 
-          expect(contractAddress).toBeDefined();
+          expect(projectId).toBeDefined();
 
           const allTasksResponse = await request(app.getHttpServer())
-            .get(`/projects/${contractAddress}/get_all_tasks`)
+            .get(`/projects/${projectId}/get_all_tasks`)
             .expect(200);
 
           expect(allTasksResponse.body).toHaveProperty('response');
@@ -889,7 +930,7 @@ describe('Projects Module E2E Tests', () => {
           console.log(`Querying task with ID: ${firstTaskId}`);
 
           const response = await request(app.getHttpServer())
-            .get(`/projects/${contractAddress}/get_task?task_id=${firstTaskId}`)
+            .get(`/projects/${projectId}/get_task?task_id=${firstTaskId}`)
             .expect(200);
 
           console.log('Response:', JSON.stringify(response.body, null, 2));
@@ -921,10 +962,10 @@ describe('Projects Module E2E Tests', () => {
         it('should get task completion status before approval', async () => {
           console.log('Getting task completion status before approval...');
 
-          expect(contractAddress).toBeDefined();
+          expect(projectId).toBeDefined();
 
           const allTasksResponse = await request(app.getHttpServer())
-            .get(`/projects/${contractAddress}/get_all_tasks`)
+            .get(`/projects/${projectId}/get_all_tasks`)
             .expect(200);
 
           expect(allTasksResponse.body).toHaveProperty('response');
@@ -935,7 +976,7 @@ describe('Projects Module E2E Tests', () => {
           console.log(`Querying task completion status for task ID: ${firstTaskId}`);
 
           const response = await request(app.getHttpServer())
-            .get(`/projects/${contractAddress}/get_task_completion_status?task_id=${firstTaskId}`)
+            .get(`/projects/${projectId}/get_task_completion_status?task_id=${firstTaskId}`)
             .expect(200);
 
           console.log('Response:', JSON.stringify(response.body, null, 2));
