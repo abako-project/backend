@@ -863,7 +863,7 @@ export class ProjectsController {
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.updateProject(projectId, body);
+    return await this.projectsService.updateProject(projectId, body, token);
   }
 
   @Post(':projectId/propose_scope')
