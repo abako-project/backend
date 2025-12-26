@@ -26,6 +26,9 @@ export class Client {
   @Prop({ required: true })
   location: string;
 
+  @Prop({ type: [String], required: true, default: [] })
+  languages: string[];
+
   @Prop({ type: Date, default: Date.now })
   createdAt: number;
 
