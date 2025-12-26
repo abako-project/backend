@@ -683,7 +683,7 @@ export class ProjectsService {
     return newProject.save();
   }
 
-  async updateProject(projectId: string, updateData: UpdateProposalRequest): Promise<Project> {
+  async updateProject(projectId: string, updateData: UpdateProposalRequest, authToken?: string): Promise<Project> {
     const project = await this.projectModel.findById(projectId).exec();
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
@@ -699,7 +699,26 @@ export class ProjectsService {
     if (updateData.deliveryDate) project.deliveryDate = new Date(updateData.deliveryDate).getTime();
 
     project.updatedAt = Date.now();
-    return project.save();
+    const savedProject = await project.save();
+
+    // If project has contractAddress but no consultantId, try to assign coordinator in background
+    if (savedProject.contractAddress && !savedProject.consultantId && authToken) {
+      this.assignCoordinatorInBackground(projectId, authToken).catch((error) => {
+        console.error(`[Background] Error assigning coordinator to project ${projectId} during update:`, error);
+      });
+    }
+
+    return savedProject;
+  }
+
+  private async assignCoordinatorInBackground(projectId: string, authToken: string): Promise<void> {
+    try {
+      console.log(`[Background] Attempting to assign coordinator to project ${projectId}...`);
+      await this.assignCoordinator(projectId, authToken);
+      console.log(`[Background] Coordinator assigned successfully to project ${projectId}`);
+    } catch (error) {
+      console.error(`[Background] Failed to assign coordinator to project ${projectId}:`, error);
+    }
   }
 
   async createMilestone(contractAddress: string, milestoneData: CreateMilestoneRequest): Promise<Milestone> {
