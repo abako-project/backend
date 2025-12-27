@@ -7,6 +7,7 @@ export interface Client {
     website: string;
     description: string;
     location: string;
+    languages: string[];
     createdAt: number;
     updatedAt: number;
   }
@@ -19,6 +20,7 @@ export interface CreateClientRequest {
     website: string;
     description: string;
     location: string;
+    languages?: string[];
     image?: File; // multipart/form-data
   }
   
@@ -29,5 +31,6 @@ export interface CreateClientRequest {
     website?: string;
     description?: string;
     location?: string;
+    languages?: string[];
     image?: File; // multipart/form-data
   }

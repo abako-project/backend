@@ -38,6 +38,7 @@ export class ClientsService {
         website: data.website,
         description: data.description,
         location: data.location,
+        languages: data.languages || [],
       });
       return await newClient.save();
     } catch (error: any) {
@@ -66,6 +67,7 @@ export class ClientsService {
       if (updateData.website !== undefined) client.website = updateData.website;
       if (updateData.description !== undefined) client.description = updateData.description;
       if (updateData.location !== undefined) client.location = updateData.location;
+      if (updateData.languages !== undefined) client.languages = updateData.languages;
 
       return await client.save();
     } catch (error: any) {
