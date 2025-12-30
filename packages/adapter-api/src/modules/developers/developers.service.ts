@@ -113,7 +113,7 @@ export class DevelopersService {
   }
 
   async getProjects(developerId: number): Promise<Project[]> {
-    return this.projectModel.find({ consultantId: developerId.toString() }).exec();
+    return this.projectModel.find({ consultantId: developerId }).exec();
   }
 
   async getMilestones(developerId: number): Promise<any[]> {
