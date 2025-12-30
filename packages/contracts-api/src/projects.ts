@@ -484,9 +484,10 @@ export class ProjectsService {
                   hexWithout0x.match(/.{1,2}/g)?.map((byte: string) => parseInt(byte, 16)) || []
                 );
                 
-                // Encode to SS58 address (Kreivo network uses prefix 2 for Substrate)
-                coordinator = ss58Encode(coordinatorBytes, 2);
-                console.log('Coordinator SS58 address:', coordinator);
+                // Encode to SS58 address with prefix 42 (Substrate standard)
+                // virto-api stores addresses with prefix 42, so we convert from prefix 2 to 42
+                coordinator = ss58Encode(coordinatorBytes, 42);
+                console.log('Coordinator SS58 address (prefix 42):', coordinator);
               }
               
               // Log all topics for debugging

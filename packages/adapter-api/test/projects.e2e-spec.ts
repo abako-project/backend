@@ -156,6 +156,35 @@ describe('Projects Module E2E Tests', () => {
         console.info(`✅ Registered new user: ${clientUserId.substring(0, 20)}...`);
       });
 
+      it('should register the new user as a client', async () => {
+        console.log('Registering user as client...');
+        console.log(`Client email: ${clientUserId}`);
+        console.log(`Client account ID: ${clientAccountId}`);
+
+        const clientData = {
+          email: clientUserId,
+          name: 'Projects Test Client User',
+          company: 'Test Company',
+          department: 'Engineering',
+          website: 'https://testcompany.com',
+          description: 'Test company for projects E2E tests',
+          location: 'Test Location',
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/clients')
+          .send(clientData)
+          .expect(201);
+
+        console.log('Client registration response:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('message');
+        expect(response.body).toHaveProperty('clientId');
+        expect(response.body.message).toBe('Client profile created successfully');
+
+        console.info(`✅ Registered user as client with ID: ${response.body.clientId}`);
+      });
+
       it('should register worker one', async () => {
         console.log('Registering worker one...');
 
@@ -180,6 +209,32 @@ describe('Projects Module E2E Tests', () => {
         expect(response.body).toHaveProperty('success', true);
 
         console.info(`✅ Registered worker one: ${workerOneUserId.substring(0, 20)}...`);
+      });
+
+      it('should register the worker as a developer', async () => {
+        console.log('Registering worker as developer...');
+        console.log(`Developer email: ${workerOneUserId}`);
+        console.log(`Worker account ID: ${workerOneAccountId}`);
+
+        const developerData = {
+          email: workerOneUserId,
+          name: 'Projects Test Worker One',
+          githubUsername: 'testworkerone',
+          portfolioUrl: 'https://testworkerone.dev',
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/developers')
+          .send(developerData)
+          .expect(201);
+
+        console.log('Developer registration response:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('message');
+        expect(response.body).toHaveProperty('developerId');
+        expect(response.body.message).toBe('Developer profile created successfully');
+
+        console.info(`✅ Registered worker as developer with ID: ${response.body.developerId}`);
       });
 
       it('should register worker two', async () => {

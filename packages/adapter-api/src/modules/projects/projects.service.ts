@@ -3,6 +3,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ConfigService } from '../../config/config.service';
 import { AuthService } from '../auth/auth.service';
+import { DevelopersService } from '../developers/developers.service';
+import { ClientsService } from '../clients/clients.service';
 import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneRequest, UpdateMilestoneRequest, CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CoordinatorApprovalRequest } from './types';
 import { Project, ProjectDocument } from '../../database/schemas/project.schema';
 import { Milestone, MilestoneDocument } from '../../database/schemas/milestone.schema';
@@ -14,6 +16,8 @@ export class ProjectsService {
   constructor(
     private readonly configService: ConfigService,
     private readonly authService: AuthService,
+    private readonly developersService: DevelopersService,
+    private readonly clientsService: ClientsService,
     @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
     @InjectModel(Milestone.name) private milestoneModel: Model<MilestoneDocument>,
   ) {}
@@ -51,6 +55,49 @@ export class ProjectsService {
     return project.contractAddress;
   }
 
+  private async getUserIdFromAddress(
+    address: string,
+    findByEmailFn: (email: string) => Promise<{ id?: number } | null>,
+    entityType: string
+  ): Promise<number | null> {
+    try {
+      const federateServerUrl = this.configService.getFederateServer();
+      const url = `${federateServerUrl}/get-user-id-by-address?address=${encodeURIComponent(address)}`;
+      
+      const response = await fetch(url, { method: "GET" });
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.warn(`Could not find user for ${entityType} address: ${address}`);
+          return null;
+        }
+        throw new Error(`Failed to get user ID: ${response.status} ${response.statusText}`);
+      }
+
+      const responseData = await response.json() as { userId?: string };
+      
+      const { userId } = responseData;
+      
+      if (!userId) {
+        console.warn(`No userId returned for ${entityType} address: ${address}`);
+        return null;
+      }
+
+      // Find entity by email (userId is the email)
+      const entity = await findByEmailFn(userId);
+      
+      if (!entity) {
+        console.warn(`Could not find ${entityType} for user email: ${userId}`);
+        return null;
+      }
+
+      return entity.id!;
+    } catch (error) {
+      console.error(`Error getting ${entityType} ID from address ${address}:`, error);
+      return null;
+    }
+  }
+
   async assignCoordinator(projectId: string, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const result = await this.callPreSignedWriteMethod(contractAddress, 'assign_coordinator', {});
@@ -59,10 +106,20 @@ export class ProjectsService {
       const project = await this.projectModel.findById(projectId).exec();
       
       if (project) {
-        project.consultantId = result.coordinator;
-        project.updatedAt = Date.now();
-        await project.save();
-        console.log(`Coordinator ${result.coordinator} assigned to project ${projectId} (${contractAddress})`);
+        const developerId = await this.getUserIdFromAddress(
+          result.coordinator,
+          (email) => this.developersService.findByEmail(email),
+          'developer'
+        );
+        
+        if (developerId) {
+          project.consultantId = developerId.toString();
+          project.updatedAt = Date.now();
+          await project.save();
+          console.log(`Coordinator ${result.coordinator} (developer ID: ${developerId}) assigned to project ${projectId} (${contractAddress})`);
+        } else {
+          console.warn(`Could not find developer ID for coordinator address ${result.coordinator}. Project ${projectId} will not have consultantId set.`);
+        }
       }
     } else {
       console.error('Error assigning coordinator:', result);
@@ -389,6 +446,19 @@ export class ProjectsService {
       
       const calendarContract = proposalData.calendarContract || defaultCalendarContract;
 
+      const clientMongoId = await this.getUserIdFromAddress(
+        clientId,
+        (email) => this.clientsService.findByEmail(email),
+        'client'
+      );
+      
+      if (!clientMongoId) {
+        throw new HttpException(
+          `Could not find client ID for address ${clientId}. Please ensure the client is registered.`,
+          HttpStatus.BAD_REQUEST
+        );
+      }
+
       const newProject = new this.projectModel({
         title: proposalData.title,
         summary: proposalData.summary,
@@ -398,7 +468,7 @@ export class ProjectsService {
         budget: proposalData.budget,
         deliveryTime: proposalData.deliveryTime,
         deliveryDate: new Date(proposalData.deliveryDate).getTime(),
-        clientId: clientId,
+        clientId: clientMongoId.toString(),
         calendarContract: calendarContract,
         state: 'draft',
         creationStatus: 'creating',
