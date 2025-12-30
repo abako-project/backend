@@ -77,6 +77,11 @@ export class SQLiteSessionStorage {
           ON user_data(credential_id)
         `);
 
+        this.db.run(`
+          CREATE INDEX IF NOT EXISTS idx_user_data_address 
+          ON user_data(address)
+        `);
+
         this.isInitialized = true;
       });
 
@@ -147,6 +152,30 @@ export class SQLiteSessionStorage {
               credentialId: row.credential_id || undefined,
               address: row.address || undefined
             });
+          } else {
+            resolve(undefined);
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Get userId by address (reverse lookup)
+   */
+  public async getUserIdByAddress(address: string): Promise<string | undefined> {
+    await this.waitForInit();
+    
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        'SELECT user_id FROM user_data WHERE address = ?',
+        [address],
+        (err, row: any) => {
+          if (err) {
+            console.error('Error retrieving user ID by address:', err);
+            reject(err);
+          } else if (row) {
+            resolve(row.user_id);
           } else {
             resolve(undefined);
           }

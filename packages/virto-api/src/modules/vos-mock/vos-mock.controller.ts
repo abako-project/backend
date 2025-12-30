@@ -349,6 +349,53 @@ export class VosMockController {
       );
     }
   }
+
+  @ApiOperation({ summary: 'Get user ID by address' })
+  @ApiQuery({ name: 'address', required: true, type: String, description: 'Address to get user ID for', example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'User ID retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        userId: { type: 'string', description: 'User ID (email)', example: 'user@example.com' }
+      }
+    }
+  })
+  @ApiResponse({ status: 400, description: 'Bad request - Missing required parameters' })
+  @ApiResponse({ status: 404, description: 'User not found or not registered' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
+  @Get('get-user-id-by-address')
+  async getUserIdByAddress(@Query('address') address: string, @Req() req: Request) {
+    if (!address) {
+      throw new HttpException('Address is required', HttpStatus.BAD_REQUEST);
+    }
+
+    console.log("getUserIdByAddress", address);
+
+    try {
+      const storage = req.storage as SQLiteSessionStorage;
+      const userId = await storage.getUserIdByAddress(address);
+      
+      if (!userId) {
+        throw new HttpException('User not found or not registered for this address', HttpStatus.NOT_FOUND);
+      }
+
+      return { userId };
+    } catch (error) {
+      console.error('Get user ID by address error:', error);
+      
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      
+      throw new HttpException(
+        'Failed to get user ID by address',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
   @Post('add-member')
   async addMember(@Body() body: { userId: string }, @Req() req: Request) {
     const { userId } = body;

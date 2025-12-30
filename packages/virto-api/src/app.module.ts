@@ -37,6 +37,7 @@ export class AppModule implements NestModule {
         'api/connect',
         'api/check-user-registered',
         'api/get-user-address',
+        'api/get-user-id-by-address',
         'api/add-member',
       );
   }
