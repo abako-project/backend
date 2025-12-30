@@ -158,6 +158,8 @@ describe('Projects Module E2E Tests', () => {
 
       it('should register the new user as a client', async () => {
         console.log('Registering user as client...');
+        console.log(`Client email: ${clientUserId}`);
+        console.log(`Client account ID: ${clientAccountId}`);
 
         const clientData = {
           email: clientUserId,
@@ -173,6 +175,8 @@ describe('Projects Module E2E Tests', () => {
           .post('/clients')
           .send(clientData)
           .expect(201);
+
+        console.log('Client registration response:', JSON.stringify(response.body, null, 2));
 
         expect(response.body).toHaveProperty('message');
         expect(response.body).toHaveProperty('clientId');
@@ -209,6 +213,8 @@ describe('Projects Module E2E Tests', () => {
 
       it('should register the worker as a developer', async () => {
         console.log('Registering worker as developer...');
+        console.log(`Developer email: ${workerOneUserId}`);
+        console.log(`Worker account ID: ${workerOneAccountId}`);
 
         const developerData = {
           email: workerOneUserId,
@@ -221,6 +227,8 @@ describe('Projects Module E2E Tests', () => {
           .post('/developers')
           .send(developerData)
           .expect(201);
+
+        console.log('Developer registration response:', JSON.stringify(response.body, null, 2));
 
         expect(response.body).toHaveProperty('message');
         expect(response.body).toHaveProperty('developerId');

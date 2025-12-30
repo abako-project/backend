@@ -74,7 +74,9 @@ export class ProjectsService {
         throw new Error(`Failed to get user ID: ${response.status} ${response.statusText}`);
       }
 
-      const { userId } = await response.json() as { userId: string };
+      const responseData = await response.json() as { userId?: string };
+      
+      const { userId } = responseData;
       
       if (!userId) {
         console.warn(`No userId returned for ${entityType} address: ${address}`);
