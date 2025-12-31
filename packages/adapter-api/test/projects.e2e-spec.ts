@@ -19,7 +19,7 @@ describe('Projects Module E2E Tests', () => {
   let workerTwoUserId: string;
   let workerThreeUserId: string;
   let clientAccountId: string;
-  let clientMongoId: number;
+  let clientId: number;
   let workerOneAccountId: string;
   let workerTwoAccountId: string;
   let workerThreeAccountId: string;
@@ -184,8 +184,8 @@ describe('Projects Module E2E Tests', () => {
         expect(response.body).toHaveProperty('clientId');
         expect(response.body.message).toBe('Client profile created successfully');
 
-        clientMongoId = response.body.clientId;
-        console.info(`✅ Registered user as client with ID: ${clientMongoId}`);
+        clientId = response.body.clientId;
+        console.info(`✅ Registered user as client with ID: ${clientId}`);
       });
 
       it('should register worker one', async () => {
@@ -708,7 +708,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('budget', 5000);
             expect(response.body).toHaveProperty('deliveryTime', 30);
             expect(response.body).toHaveProperty('state', 'deployed');
-            expect(response.body).toHaveProperty('clientId', clientMongoId.toString());
+            expect(response.body).toHaveProperty('clientId', clientId.toString());
 
             console.info(`✅ Verified project data in MongoDB for project ${projectId}`);
           });
