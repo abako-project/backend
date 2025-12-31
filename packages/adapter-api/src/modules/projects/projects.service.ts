@@ -437,7 +437,6 @@ export class ProjectsService {
   async deployContract(
     version: string,
     proposalData: CreateProposalRequest,
-    clientId: string,
     authToken: string
   ): Promise<{ projectId: string; creationStatus: string; message: string }> {
     try {
@@ -446,15 +445,12 @@ export class ProjectsService {
       
       const calendarContract = proposalData.calendarContract || defaultCalendarContract;
 
-      const clientMongoId = await this.getUserIdFromAddress(
-        clientId,
-        (email) => this.clientsService.findByEmail(email),
-        'client'
-      );
+      const userId = await this.authService.getUserIdFromToken(authToken);
+      const client = await this.clientsService.findByEmail(userId);
       
-      if (!clientMongoId) {
+      if (!client || !client.id) {
         throw new HttpException(
-          `Could not find client ID for address ${clientId}. Please ensure the client is registered.`,
+          `Could not find client ID for user ${userId}. Please ensure the client is registered.`,
           HttpStatus.BAD_REQUEST
         );
       }
@@ -468,7 +464,7 @@ export class ProjectsService {
         budget: proposalData.budget,
         deliveryTime: proposalData.deliveryTime,
         deliveryDate: new Date(proposalData.deliveryDate).getTime(),
-        clientId: clientMongoId.toString(),
+        clientId: client.id.toString(),
         calendarContract: calendarContract,
         state: 'draft',
         creationStatus: 'creating',
@@ -481,7 +477,6 @@ export class ProjectsService {
         projectId,
         version,
         proposalData,
-        clientId,
         authToken,
         calendarContract
       ).catch((error) => {
@@ -515,7 +510,6 @@ export class ProjectsService {
     projectId: string,
     version: string,
     proposalData: CreateProposalRequest,
-    clientId: string,
     authToken: string,
     calendarContract: string
   ): Promise<void> {

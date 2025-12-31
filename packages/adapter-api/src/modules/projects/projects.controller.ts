@@ -764,13 +764,13 @@ export class ProjectsController {
   })
   async deployContract(
     @Param('version') version: string,
-    @Body() body: CreateProposalRequest & { clientId: string },
+    @Body() body: CreateProposalRequest,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    const { clientId, ...proposalData } = body;
+    const { ...proposalData } = body;
     
-    return await this.projectsService.deployContract(version, proposalData, clientId, token);
+    return await this.projectsService.deployContract(version, proposalData, token);
   }
 
   @Put(':projectId')
