@@ -4,6 +4,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { SDK } from '@virtonetwork/sdk';
 import { encodeAddress } from '@polkadot/util-crypto';
+import { CreateProposalRequest } from '../src/modules/projects/types';
 
 
 describe('Projects Module E2E Tests', () => {
@@ -18,6 +19,7 @@ describe('Projects Module E2E Tests', () => {
   let workerTwoUserId: string;
   let workerThreeUserId: string;
   let clientAccountId: string;
+  let clientMongoId: number;
   let workerOneAccountId: string;
   let workerTwoAccountId: string;
   let workerThreeAccountId: string;
@@ -182,7 +184,8 @@ describe('Projects Module E2E Tests', () => {
         expect(response.body).toHaveProperty('clientId');
         expect(response.body.message).toBe('Client profile created successfully');
 
-        console.info(`✅ Registered user as client with ID: ${response.body.clientId}`);
+        clientMongoId = response.body.clientId;
+        console.info(`✅ Registered user as client with ID: ${clientMongoId}`);
       });
 
       it('should register worker one', async () => {
@@ -554,7 +557,7 @@ describe('Projects Module E2E Tests', () => {
             console.log(`  - Ratings: ${ratingsContractAddress}`);
             console.log(`  - Calendar: ${calendarContractAddress}`);
 
-            const deployData = {
+            const deployData: CreateProposalRequest = {
               title: 'Test Project',
               summary: 'A test project summary',
               description: 'A test project description',
@@ -563,7 +566,6 @@ describe('Projects Module E2E Tests', () => {
               budget: 5000,
               deliveryTime: 30,
               deliveryDate: '2024-12-31',
-              clientId: clientAccountId,
               calendarContract: calendarContractAddress,
               ratingsContract: ratingsContractAddress,
             };
@@ -596,6 +598,7 @@ describe('Projects Module E2E Tests', () => {
 
             // Poll for project creation status and coordinator assignment
             let creationStatus: string = 'creating';
+            let coordinatorId: string | undefined;
             let attempts = 0;
             const maxAttempts = 180; // 180 seconds max wait time (project creation + coordinator assignment)
 
@@ -618,17 +621,12 @@ describe('Projects Module E2E Tests', () => {
               if (creationStatus === 'created') {
                 contractAddress = statusResponse.body.contractAddress;
                 expect(contractAddress).toBeDefined();
-                expect(contractAddress).toBeDefined();
                 
                 // Verify coordinator was assigned
-                const projectResponse = await request(app.getHttpServer())
-                  .get(`/projects/${projectId}/get_project_info`)
-                  .expect(200);
-
-                if (projectResponse.body.consultantId) {
-                  coordinatorAccountId = projectResponse.body.consultantId;
+                if (statusResponse.body.consultantId) {
+                  coordinatorId = statusResponse.body.consultantId;
                   console.info(`✅ Project created successfully with contractAddress: ${contractAddress.substring(0, 20)}...`);
-                  console.info(`✅ Coordinator assigned: ${coordinatorAccountId.substring(0, 20)}...`);
+                  console.info(`✅ Coordinator assigned with ID: ${coordinatorId}`);
                   break;
                 } else {
                   console.log(`   Project created but coordinator not yet assigned, waiting... (${attempts}/${maxAttempts})`);
@@ -640,12 +638,29 @@ describe('Projects Module E2E Tests', () => {
               throw new Error(`Project creation timed out after 180 seconds. Final status: ${creationStatus}`);
             }
 
-            if (!coordinatorAccountId) {
+            if (!coordinatorId) {
               throw new Error('Project created but coordinator assignment timed out after 180 seconds');
             }
-
             expect(creationStatus).toBe('created');
             expect(contractAddress).toBeDefined();
+            expect(coordinatorId).toBeDefined();
+            
+            const developerResponse = await request(app.getHttpServer())
+              .get(`/developers/${coordinatorId}`)
+              .expect(200);
+
+            const coordinatorEmail = developerResponse.body.developer.email;
+            expect(coordinatorEmail).toBeDefined();
+
+            const federateServerUrl = 'http://localhost:3000/api';
+            const addressResponse = await fetch(`${federateServerUrl}/get-user-address?userId=${encodeURIComponent(coordinatorEmail)}`);
+            
+            if (!addressResponse.ok) {
+              throw new Error(`Failed to get coordinator address: ${addressResponse.status} ${addressResponse.statusText}`);
+            }
+
+            const addressData = await addressResponse.json() as { address: string };
+            coordinatorAccountId = addressData.address;
             expect(coordinatorAccountId).toBeDefined();
             
             // Map coordinator address to the correct auth token
@@ -693,7 +708,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('budget', 5000);
             expect(response.body).toHaveProperty('deliveryTime', 30);
             expect(response.body).toHaveProperty('state', 'deployed');
-            expect(response.body).toHaveProperty('clientId', clientAccountId);
+            expect(response.body).toHaveProperty('clientId', clientMongoId.toString());
 
             console.info(`✅ Verified project data in MongoDB for project ${projectId}`);
           });
