@@ -9,9 +9,9 @@
       "codeHash": "0x7fb1a967a98f40aa39622e3e3fa39f9325c10940cd6767ef3f1250463cb76264"
     },
     "kreivo": {
-      "wsUrl": "ws://testnet.kreivo.kippu.rocks",
+      "wsUrl": "ws://localhost:21000",
       "metadata": ".papi/metadata/kreivo.scale",
-      "genesis": "0xe33bccc461942d5a21d568ff0499215b6292afddf2c89b185b3f7b3b363d063c",
+      "genesis": "0xb123a8ea2228062c68f560087b3ee007b58fd01d7c156aaecd8879ab490ee004",
       "codeHash": "0xc7b9b8918d8aa4a5a827b609c6352b49541d908f688f845f46d6698b1cff43b1"
     }
   },
