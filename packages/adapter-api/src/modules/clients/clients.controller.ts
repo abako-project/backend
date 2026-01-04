@@ -40,6 +40,12 @@ export class ClientsController {
         website: { type: 'string', example: 'https://acme.com' },
         description: { type: 'string', example: 'Leading tech company' },
         location: { type: 'string', example: 'New York, USA' },
+        languages: { 
+          type: 'array', 
+          items: { type: 'string' },
+          example: ['English', 'Spanish', 'French'],
+          description: 'List of languages spoken by the client'
+        },
         image: { type: 'string', format: 'binary', description: 'Profile image' }
       },
       required: ['email', 'name', 'company', 'department', 'website', 'description', 'location']
@@ -101,6 +107,12 @@ export class ClientsController {
         website: { type: 'string', example: 'https://acme.com' },
         description: { type: 'string', example: 'Leading tech company' },
         location: { type: 'string', example: 'New York, USA' },
+        languages: { 
+          type: 'array', 
+          items: { type: 'string' },
+          example: ['English', 'Spanish', 'French'],
+          description: 'List of languages spoken by the client'
+        },
         image: { type: 'string', format: 'binary', description: 'Profile image' }
       }
     }

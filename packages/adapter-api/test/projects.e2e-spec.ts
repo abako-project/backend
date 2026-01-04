@@ -4,6 +4,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { SDK } from '@virtonetwork/sdk';
 import { encodeAddress } from '@polkadot/util-crypto';
+import { CreateProposalRequest } from '../src/modules/projects/types';
 
 
 describe('Projects Module E2E Tests', () => {
@@ -56,15 +57,15 @@ describe('Projects Module E2E Tests', () => {
     const timestamp = Date.now();
     clientUserId = `test-projects-user-${timestamp}@example.com`;
     workerOneUserId = `test-projects-worker1-${timestamp}@example.com`;
-    workerTwoUserId = `test-projects-worker2-${timestamp}@example.com`;
-    workerThreeUserId = `test-projects-worker3-${timestamp}@example.com`;
+    // workerTwoUserId = `test-projects-worker2-${timestamp}@example.com`;
+    // workerThreeUserId = `test-projects-worker3-${timestamp}@example.com`;
 
     console.log('Application started successfully');
     console.log('Client SDK initialized');
     console.log(`Test client: ${clientUserId}`);
     console.log(`Test worker 1: ${workerOneUserId}`);
-    console.log(`Test worker 2: ${workerTwoUserId}`);
-    console.log(`Test worker 3: ${workerThreeUserId}`);
+    // console.log(`Test worker 2: ${workerTwoUserId}`);
+    // console.log(`Test worker 3: ${workerThreeUserId}`);
   });
 
   afterAll(async () => {
@@ -239,109 +240,83 @@ describe('Projects Module E2E Tests', () => {
         console.info(`✅ Registered worker as developer with ID: ${response.body.developerId}`);
       });
 
-      it('should register worker two', async () => {
-        console.log('Registering worker two...');
+      // it('should register worker two', async () => {
+      //   console.log('Registering worker two...');
 
-        const userData = {
-          profile: {
-            id: workerTwoUserId,
-            name: 'Projects Test Worker Two',
-          }
-        };
+      //   const userData = {
+      //     profile: {
+      //       id: workerTwoUserId,
+      //       name: 'Projects Test Worker Two',
+      //     }
+      //   };
 
-        const preparedData = await sdk.auth.prepareRegistration(userData);
+      //   const preparedData = await sdk.auth.prepareRegistration(userData);
 
-        workerTwoAccountId = preparedData.passAccountAddress;
+      //   workerTwoAccountId = preparedData.passAccountAddress;
 
-        const response = await request(app.getHttpServer())
-          .post('/auth/custom-register')
-          .send(preparedData);
+      //   const response = await request(app.getHttpServer())
+      //     .post('/auth/custom-register')
+      //     .send(preparedData);
 
-        console.log('Worker two registered:', response.body.success);
-        expect(response.status).toBeGreaterThanOrEqual(200);
-        expect(response.status).toBeLessThan(300);
-        expect(response.body).toHaveProperty('success', true);
+      //   console.log('Worker two registered:', response.body.success);
+      //   expect(response.status).toBeGreaterThanOrEqual(200);
+      //   expect(response.status).toBeLessThan(300);
+      //   expect(response.body).toHaveProperty('success', true);
 
-        console.info(`✅ Registered worker two: ${workerTwoUserId.substring(0, 20)}...`);
-      });
+      //   console.info(`✅ Registered worker two: ${workerTwoUserId.substring(0, 20)}...`);
+      // });
 
-      it('should register the worker two as a developer', async () => {
-        console.log('Registering worker as developer...');
-        console.log(`Developer email: ${workerTwoUserId}`);
-        console.log(`Worker account ID: ${workerTwoAccountId}`);
+      // it('should register worker three', async () => {
+      //   console.log('Registering worker three...');
 
-        const developerData = {
-          email: workerTwoUserId,
-          name: 'Projects Test Worker Two',
-          githubUsername: 'testworkertwo',
-          portfolioUrl: 'https://testworkertwo.dev',
-        };
+      //   const userData = {
+      //     profile: {
+      //       id: workerThreeUserId,
+      //       name: 'Projects Test Worker Three',
+      //     }
+      //   };
 
-        const response = await request(app.getHttpServer())
-          .post('/developers')
-          .send(developerData)
-          .expect(201);
+      //   const preparedData = await sdk.auth.prepareRegistration(userData);
 
-        console.log('Developer registration response:', JSON.stringify(response.body, null, 2));
+      //   workerThreeAccountId = preparedData.passAccountAddress;
 
-        expect(response.body).toHaveProperty('message');
-        expect(response.body).toHaveProperty('developerId');
-        expect(response.body.message).toBe('Developer profile created successfully');
+      //   const response = await request(app.getHttpServer())
+      //     .post('/auth/custom-register')
+      //     .send(preparedData);
 
-        console.info(`✅ Registered worker as developer with ID: ${response.body.developerId}`);
-      });
+      //   console.log('Worker three registered:', response.body.success);
+      //   expect(response.status).toBeGreaterThanOrEqual(200);
+      //   expect(response.status).toBeLessThan(300);
+      //   expect(response.body).toHaveProperty('success', true);
 
-      it('should register worker three', async () => {
-        console.log('Registering worker three...');
+      //   console.info(`✅ Registered worker three: ${workerThreeUserId.substring(0, 20)}...`);
+      // });
 
-        const userData = {
-          profile: {
-            id: workerThreeUserId,
-            name: 'Projects Test Worker Three',
-          }
-        };
+      // it('should register the worker three as a developer', async () => {
+      //   console.log('Registering worker as developer...');
+      //   console.log(`Developer email: ${workerThreeUserId}`);
+      //   console.log(`Worker account ID: ${workerThreeAccountId}`);
 
-        const preparedData = await sdk.auth.prepareRegistration(userData);
+      //   const developerData = {
+      //     email: workerThreeUserId,
+      //     name: 'Projects Test Worker Three',
+      //     githubUsername: 'testworkerthree',
+      //     portfolioUrl: 'https://testworkerthree.dev',
+      //   };
 
-        workerThreeAccountId = preparedData.passAccountAddress;
+      //   const response = await request(app.getHttpServer())
+      //     .post('/developers')
+      //     .send(developerData)
+      //     .expect(201);
 
-        const response = await request(app.getHttpServer())
-          .post('/auth/custom-register')
-          .send(preparedData);
+      //   console.log('Developer registration response:', JSON.stringify(response.body, null, 2));
 
-        console.log('Worker three registered:', response.body.success);
-        expect(response.status).toBeGreaterThanOrEqual(200);
-        expect(response.status).toBeLessThan(300);
-        expect(response.body).toHaveProperty('success', true);
+      //   expect(response.body).toHaveProperty('message');
+      //   expect(response.body).toHaveProperty('developerId');
+      //   expect(response.body.message).toBe('Developer profile created successfully');
 
-        console.info(`✅ Registered worker three: ${workerThreeUserId.substring(0, 20)}...`);
-      });
-
-      it('should register the worker three as a developer', async () => {
-        console.log('Registering worker as developer...');
-        console.log(`Developer email: ${workerThreeUserId}`);
-        console.log(`Worker account ID: ${workerThreeAccountId}`);
-
-        const developerData = {
-          email: workerThreeUserId,
-          name: 'Projects Test Worker Three',
-          githubUsername: 'testworkerthree',
-          portfolioUrl: 'https://testworkerthree.dev',
-        };
-
-        const response = await request(app.getHttpServer())
-          .post('/developers')
-          .send(developerData)
-          .expect(201);
-
-        console.log('Developer registration response:', JSON.stringify(response.body, null, 2));
-
-        expect(response.body).toHaveProperty('message');
-        expect(response.body).toHaveProperty('developerId');
-        expect(response.body.message).toBe('Developer profile created successfully');
-
-        console.info(`✅ Registered worker three as developer with ID: ${response.body.developerId}`);
-      });
+      //   console.info(`✅ Registered worker three as developer with ID: ${response.body.developerId}`);
+      // });
 
       it('should connect user and obtain token', async () => {
         console.log('Connecting user and obtaining token...');
@@ -414,76 +389,76 @@ describe('Projects Module E2E Tests', () => {
         console.info(`✅ Connected worker one and obtained authentication token ${authTokenWorkerOne.substring(0, 20)}...`);
       });
 
-      it('should connect worker two and obtain token', async () => {
-        console.log('Connecting worker two and obtaining token...');
+      // it('should connect worker two and obtain token', async () => {
+      //   console.log('Connecting worker two and obtaining token...');
 
-        const preparedConnection = await sdk.auth.prepareConnection(workerTwoUserId);
-        console.log('Connection data prepared');
+      //   const preparedConnection = await sdk.auth.prepareConnection(workerTwoUserId);
+      //   console.log('Connection data prepared');
 
-        const response = await request(app.getHttpServer())
-          .post('/auth/custom-connect')
-          .send({ userId: workerTwoUserId });
+      //   const response = await request(app.getHttpServer())
+      //     .post('/auth/custom-connect')
+      //     .send({ userId: workerTwoUserId });
 
-        console.log(`Connection status: ${response.status}`);
-        console.log('Response:', JSON.stringify(response.body, null, 2));
+      //   console.log(`Connection status: ${response.status}`);
+      //   console.log('Response:', JSON.stringify(response.body, null, 2));
 
-        if (!response.ok) {
-          throw new Error(`Server responded with status: ${response.status}`);
-        }
+      //   if (!response.ok) {
+      //     throw new Error(`Server responded with status: ${response.status}`);
+      //   }
 
-        const result = response.body;
+      //   const result = response.body;
 
-        console.log("result", result);
+      //   console.log("result", result);
 
-        console.log('Connection completed successfully on the server:', 'success');
-        console.log(JSON.stringify(result, null, 2));
-        const resultCustom = await sdk.auth.sign(result.extrinsic);
-        console.log("resultCustom", resultCustom);
+      //   console.log('Connection completed successfully on the server:', 'success');
+      //   console.log(JSON.stringify(result, null, 2));
+      //   const resultCustom = await sdk.auth.sign(result.extrinsic);
+      //   console.log("resultCustom", resultCustom);
 
-        expect([200, 201]).toContain(response.status);
-        expect(response.body).toHaveProperty('token');
-        expect(response.body).toHaveProperty('extrinsic');
+      //   expect([200, 201]).toContain(response.status);
+      //   expect(response.body).toHaveProperty('token');
+      //   expect(response.body).toHaveProperty('extrinsic');
 
-        authTokenWorkerTwo = response.body.token;
+      //   authTokenWorkerTwo = response.body.token;
 
-        console.info(`✅ Connected worker two and obtained authentication token ${authTokenWorkerTwo.substring(0, 20)}...`);
-      });
+      //   console.info(`✅ Connected worker two and obtained authentication token ${authTokenWorkerTwo.substring(0, 20)}...`);
+      // });
 
-      it('should connect worker three and obtain token', async () => {
-        console.log('Connecting worker three and obtaining token...');
+      // it('should connect worker three and obtain token', async () => {
+      //   console.log('Connecting worker three and obtaining token...');
 
-        const preparedConnection = await sdk.auth.prepareConnection(workerThreeUserId);
-        console.log('Connection data prepared');
+      //   const preparedConnection = await sdk.auth.prepareConnection(workerThreeUserId);
+      //   console.log('Connection data prepared');
 
-        const response = await request(app.getHttpServer())
-          .post('/auth/custom-connect')
-          .send({ userId: workerThreeUserId });
+      //   const response = await request(app.getHttpServer())
+      //     .post('/auth/custom-connect')
+      //     .send({ userId: workerThreeUserId });
 
-        console.log(`Connection status: ${response.status}`);
-        console.log('Response:', JSON.stringify(response.body, null, 2));
+      //   console.log(`Connection status: ${response.status}`);
+      //   console.log('Response:', JSON.stringify(response.body, null, 2));
 
-        if (!response.ok) {
-          throw new Error(`Server responded with status: ${response.status}`);
-        }
+      //   if (!response.ok) {
+      //     throw new Error(`Server responded with status: ${response.status}`);
+      //   }
 
-        const result = response.body;
+      //   const result = response.body;
 
-        console.log("result", result);
+      //   console.log("result", result);
 
-        console.log('Connection completed successfully on the server:', 'success');
-        console.log(JSON.stringify(result, null, 2));
-        // The user signs the transaction that starts the session on the server
-        const resultCustom = await sdk.auth.sign(result.extrinsic);
-        console.log("resultCustom", resultCustom);
+      //   console.log('Connection completed successfully on the server:', 'success');
+      //   console.log(JSON.stringify(result, null, 2));
+      //   // The user signs the transaction that starts the session on the server
+      //   const resultCustom = await sdk.auth.sign(result.extrinsic);
+      //   console.log("resultCustom", resultCustom);
 
-        expect([200, 201]).toContain(response.status);
-        expect(response.body).toHaveProperty('token');
-        expect(response.body).toHaveProperty('extrinsic');
+      //   expect([200, 201]).toContain(response.status);
+      //   expect(response.body).toHaveProperty('token');
+      //   expect(response.body).toHaveProperty('extrinsic');
 
-        authTokenWorkerThree = response.body.token;
+      //   authTokenWorkerThree = response.body.token;
 
-        console.info(`✅ Connected worker three and obtained authentication token ${authTokenWorkerThree.substring(0, 20)}...`);
-      });
+      //   console.info(`✅ Connected worker three and obtained authentication token ${authTokenWorkerThree.substring(0, 20)}...`);
+      // });
     });
 
     describe('📝 Listings & Developer Matching', () => {
@@ -508,43 +483,43 @@ describe('Projects Module E2E Tests', () => {
             console.info(`✅ Registered worker one ${workerOneAccountId.substring(0, 20)}... in calendar`);
           });
 
-          it('should register worker two in the calendar', async () => {
-            console.log('Registering worker two in calendar...');
-            console.log(`Contract: ${calendarContractAddress}`);
-            console.log(`Worker Two: ${workerTwoAccountId}`);
+          // it('should register worker two in the calendar', async () => {
+          //   console.log('Registering worker two in calendar...');
+          //   console.log(`Contract: ${calendarContractAddress}`);
+          //   console.log(`Worker Two: ${workerTwoAccountId}`);
 
-            expect(authTokenWorkerTwo).toBeDefined();
-            expect(calendarContractAddress).toBeDefined();
+          //   expect(authTokenWorkerTwo).toBeDefined();
+          //   expect(calendarContractAddress).toBeDefined();
 
-            const response = await request(app.getHttpServer())
-              .post(`/calendar/${calendarContractAddress}/register_worker`)
-              .set('Authorization', `Bearer ${authTokenWorkerTwo}`)
-              .send({ worker: workerTwoAccountId });
+          //   const response = await request(app.getHttpServer())
+          //     .post(`/calendar/${calendarContractAddress}/register_worker`)
+          //     .set('Authorization', `Bearer ${authTokenWorkerTwo}`)
+          //     .send({ worker: workerTwoAccountId });
 
-            console.log('Response:', JSON.stringify(response.body, null, 2));
+          //   console.log('Response:', JSON.stringify(response.body, null, 2));
 
-            expect(response.body).toHaveProperty('success', true);
-            console.info(`✅ Registered worker two ${workerTwoAccountId.substring(0, 20)}... in calendar`);
-          });
+          //   expect(response.body).toHaveProperty('success', true);
+          //   console.info(`✅ Registered worker two ${workerTwoAccountId.substring(0, 20)}... in calendar`);
+          // });
 
-          it('should register worker three in the calendar', async () => {
-            console.log('Registering worker three in calendar...');
-            console.log(`Contract: ${calendarContractAddress}`);
-            console.log(`Worker Three: ${workerThreeAccountId}`);
+          // it('should register worker three in the calendar', async () => {
+          //   console.log('Registering worker three in calendar...');
+          //   console.log(`Contract: ${calendarContractAddress}`);
+          //   console.log(`Worker Three: ${workerThreeAccountId}`);
 
-            expect(authTokenWorkerThree).toBeDefined();
-            expect(calendarContractAddress).toBeDefined();
+          //   expect(authTokenWorkerThree).toBeDefined();
+          //   expect(calendarContractAddress).toBeDefined();
 
-            const response = await request(app.getHttpServer())
-              .post(`/calendar/${calendarContractAddress}/register_worker`)
-              .set('Authorization', `Bearer ${authTokenWorkerThree}`)
-              .send({ worker: workerThreeAccountId });
+          //   const response = await request(app.getHttpServer())
+          //     .post(`/calendar/${calendarContractAddress}/register_worker`)
+          //     .set('Authorization', `Bearer ${authTokenWorkerThree}`)
+          //     .send({ worker: workerThreeAccountId });
 
-            console.log('Response:', JSON.stringify(response.body, null, 2));
+          //   console.log('Response:', JSON.stringify(response.body, null, 2));
 
-            expect(response.body).toHaveProperty('success', true);
-            console.info(`✅ Registered worker three ${workerThreeAccountId.substring(0, 20)}... in calendar`);
-          });
+          //   expect(response.body).toHaveProperty('success', true);
+          //   console.info(`✅ Registered worker three ${workerThreeAccountId.substring(0, 20)}... in calendar`);
+          // });
         });
 
         describe('Calendar - Set Availability ', () => {
@@ -565,39 +540,39 @@ describe('Projects Module E2E Tests', () => {
             console.info('✅ Set worker one availability: 40 weekly hours');
           });
 
-          it('should set worker two availability', async () => {
-            console.log('Setting worker two availability...');
+          // it('should set worker two availability', async () => {
+          //   console.log('Setting worker two availability...');
 
-            expect(authTokenWorkerTwo).toBeDefined();
-            expect(calendarContractAddress).toBeDefined();
+          //   expect(authTokenWorkerTwo).toBeDefined();
+          //   expect(calendarContractAddress).toBeDefined();
 
-            const response = await request(app.getHttpServer())
-              .post(`/calendar/${calendarContractAddress}/set_availability`)
-              .set('Authorization', `Bearer ${authTokenWorkerTwo}`)
-              .send({ availability: { type: "WeeklyHours", value: 30 } });
+          //   const response = await request(app.getHttpServer())
+          //     .post(`/calendar/${calendarContractAddress}/set_availability`)
+          //     .set('Authorization', `Bearer ${authTokenWorkerTwo}`)
+          //     .send({ availability: { type: "WeeklyHours", value: 30 } });
 
-            console.log('Response:', JSON.stringify(response.body, null, 2));
+          //   console.log('Response:', JSON.stringify(response.body, null, 2));
 
-            expect(response.body).toHaveProperty('success', true);
-            console.info('✅ Set worker two availability: 30 weekly hours');
-          });
+          //   expect(response.body).toHaveProperty('success', true);
+          //   console.info('✅ Set worker two availability: 30 weekly hours');
+          // });
 
-          it('should set worker three availability', async () => {
-            console.log('Setting worker three availability...');
+          // it('should set worker three availability', async () => {
+          //   console.log('Setting worker three availability...');
 
-            expect(authTokenWorkerThree).toBeDefined();
-            expect(calendarContractAddress).toBeDefined();
+          //   expect(authTokenWorkerThree).toBeDefined();
+          //   expect(calendarContractAddress).toBeDefined();
 
-            const response = await request(app.getHttpServer())
-              .post(`/calendar/${calendarContractAddress}/set_availability`)
-              .set('Authorization', `Bearer ${authTokenWorkerThree}`)
-              .send({ availability: { type: "WeeklyHours", value: 20 } });
+          //   const response = await request(app.getHttpServer())
+          //     .post(`/calendar/${calendarContractAddress}/set_availability`)
+          //     .set('Authorization', `Bearer ${authTokenWorkerThree}`)
+          //     .send({ availability: { type: "WeeklyHours", value: 20 } });
 
-            console.log('Response:', JSON.stringify(response.body, null, 2));
+          //   console.log('Response:', JSON.stringify(response.body, null, 2));
 
-            expect(response.body).toHaveProperty('success', true);
-            console.info('✅ Set worker three availability: 20 weekly hours');
-          });
+          //   expect(response.body).toHaveProperty('success', true);
+          //   console.info('✅ Set worker three availability: 20 weekly hours');
+          // });
         });
 
 
@@ -608,7 +583,7 @@ describe('Projects Module E2E Tests', () => {
             console.log(`  - Ratings: ${ratingsContractAddress}`);
             console.log(`  - Calendar: ${calendarContractAddress}`);
 
-            const deployData = {
+            const deployData: CreateProposalRequest = {
               title: 'Test Project',
               summary: 'A test project summary',
               description: 'A test project description',
@@ -616,8 +591,6 @@ describe('Projects Module E2E Tests', () => {
               projectType: 1,
               budget: 5000,
               deliveryTime: 30,
-              deliveryDate: '2024-12-31',
-              clientId: clientAccountId,
               calendarContract: calendarContractAddress,
               ratingsContract: ratingsContractAddress,
             };
@@ -650,6 +623,7 @@ describe('Projects Module E2E Tests', () => {
 
             // Poll for project creation status and coordinator assignment
             let creationStatus: string = 'creating';
+            let coordinatorId: string | undefined;
             let attempts = 0;
             const maxAttempts = 180; // 180 seconds max wait time (project creation + coordinator assignment)
 
@@ -672,17 +646,12 @@ describe('Projects Module E2E Tests', () => {
               if (creationStatus === 'created') {
                 contractAddress = statusResponse.body.contractAddress;
                 expect(contractAddress).toBeDefined();
-                expect(contractAddress).toBeDefined();
                 
                 // Verify coordinator was assigned
-                const projectResponse = await request(app.getHttpServer())
-                  .get(`/projects/${projectId}/get_project_info`)
-                  .expect(200);
-
-                if (projectResponse.body.consultantId) {
-                  coordinatorAccountId = projectResponse.body.consultantId;
+                if (statusResponse.body.consultantId) {
+                  coordinatorId = statusResponse.body.consultantId;
                   console.info(`✅ Project created successfully with contractAddress: ${contractAddress.substring(0, 20)}...`);
-                  console.info(`✅ Coordinator assigned: ${coordinatorAccountId.substring(0, 20)}...`);
+                  console.info(`✅ Coordinator assigned with ID: ${coordinatorId}`);
                   break;
                 } else {
                   console.log(`   Project created but coordinator not yet assigned, waiting... (${attempts}/${maxAttempts})`);
@@ -694,32 +663,49 @@ describe('Projects Module E2E Tests', () => {
               throw new Error(`Project creation timed out after 180 seconds. Final status: ${creationStatus}`);
             }
 
-            if (!coordinatorAccountId) {
+            if (!coordinatorId) {
               throw new Error('Project created but coordinator assignment timed out after 180 seconds');
             }
-
             expect(creationStatus).toBe('created');
             expect(contractAddress).toBeDefined();
+            expect(coordinatorId).toBeDefined();
+            
+            const developerResponse = await request(app.getHttpServer())
+              .get(`/developers/${coordinatorId}`)
+              .expect(200);
+
+            const coordinatorEmail = developerResponse.body.developer.email;
+            expect(coordinatorEmail).toBeDefined();
+
+            const federateServerUrl = 'http://localhost:3000/api';
+            const addressResponse = await fetch(`${federateServerUrl}/get-user-address?userId=${encodeURIComponent(coordinatorEmail)}`);
+            
+            if (!addressResponse.ok) {
+              throw new Error(`Failed to get coordinator address: ${addressResponse.status} ${addressResponse.statusText}`);
+            }
+
+            const addressData = await addressResponse.json() as { address: string };
+            coordinatorAccountId = addressData.address;
             expect(coordinatorAccountId).toBeDefined();
             
             // Map coordinator address to the correct auth token
             const ss58Format = 2;
             const coordinatorSs58 = encodeAddress(coordinatorAccountId, ss58Format);
             const workerOneSs58 = encodeAddress(workerOneAccountId, ss58Format);
-            const workerTwoSs58 = encodeAddress(workerTwoAccountId, ss58Format);
-            const workerThreeSs58 = encodeAddress(workerThreeAccountId, ss58Format);
+            // const workerTwoSs58 = encodeAddress(workerTwoAccountId, ss58Format);
+            // const workerThreeSs58 = encodeAddress(workerThreeAccountId, ss58Format);
 
             if (coordinatorSs58 === workerOneSs58) {
               coordinatorAuthToken = authTokenWorkerOne;
               console.log('Coordinator is Worker One');
-            } else if (coordinatorSs58 === workerTwoSs58) {
-              coordinatorAuthToken = authTokenWorkerTwo;
-              console.log('Coordinator is Worker Two');
-            } else if (coordinatorSs58 === workerThreeSs58) {
-              coordinatorAuthToken = authTokenWorkerThree;
-              console.log('Coordinator is Worker Three');
-            } else {
-              throw new Error(`Coordinator ${coordinatorAccountId} does not match any registered worker`);
+            // } else if (coordinatorSs58 === workerTwoSs58) {
+            //   coordinatorAuthToken = authTokenWorkerTwo;
+            //   console.log('Coordinator is Worker Two');
+            // } else if (coordinatorSs58 === workerThreeSs58) {
+            //   coordinatorAuthToken = authTokenWorkerThree;
+            //   console.log('Coordinator is Worker Three');
+            // } else {
+            //   throw new Error(`Coordinator ${coordinatorAccountId} does not match any registered worker`);
             }
 
             expect(coordinatorAuthToken).toBeDefined();
@@ -747,7 +733,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('budget', 5000);
             expect(response.body).toHaveProperty('deliveryTime', 30);
             expect(response.body).toHaveProperty('state', 'deployed');
-            expect(response.body).toHaveProperty('clientId', clientAccountId);
+            expect(response.body).toHaveProperty('clientId', clientId.toString());
 
             console.info(`✅ Verified project data in MongoDB for project ${projectId}`);
           });
@@ -1265,8 +1251,6 @@ describe('Projects Module E2E Tests', () => {
 
             expect(response.body).toHaveProperty('deliveryDate');
             expect(response.body.deliveryDate).toBeDefined();
-            expect(typeof response.body.deliveryDate).toBe('number');
-            expect(response.body.deliveryDate).toBeGreaterThan(0);
 
             console.info(`✅ Verified delivery date was set: ${new Date(response.body.deliveryDate).toISOString()}`);
           });

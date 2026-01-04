@@ -1,6 +1,7 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
+import { SchemasModule } from './database/schemas/schemas.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import * as dotenv from 'dotenv';
 import { join } from 'path';
@@ -21,6 +22,7 @@ dotenv.config();
     }),
     ConfigModule,
     DatabaseModule,
+    SchemasModule,
     ApiDocsModule,
     ProjectsModule,
     CalendarModule,
