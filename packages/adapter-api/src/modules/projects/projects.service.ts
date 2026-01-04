@@ -134,12 +134,84 @@ export class ProjectsService {
 
   async assignTeam(projectId: string, body: { _team_size: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    return this.callWriteMethod(contractAddress, 'assign_team', { _team_size: body._team_size }, authToken);
+    const assignResult = await this.callWriteMethod(contractAddress, 'assign_team', { _team_size: body._team_size }, authToken);
+    
+    // Create advance payment in background after team is assigned
+    this.createAdvancePaymentInBackground(projectId, contractAddress).catch((error) => {
+      console.error(`[Background] Error creating advance payment for project ${projectId}:`, error);
+    });
+    
+    return assignResult;
+  }
+
+  /**
+   * Creates advance payment automatically in background after team is assigned.
+   * Waits for team assignment to complete before creating the payment.
+   */
+  private async createAdvancePaymentInBackground(projectId: string, contractAddress: string): Promise<void> {
+    try {
+      console.log(`[Background] Waiting for team assignment to complete before creating advance payment for project ${projectId}...`);
+      
+      // Wait for team to be assigned with polling mechanism
+      let teamAssigned = false;
+      let attempts = 0;
+      const maxAttempts = 60; // 60 seconds max wait time
+      
+      while (attempts < maxAttempts && !teamAssigned) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        
+        try {
+          const teamInfo = await this.getTeam(projectId);
+          if (teamInfo.success && teamInfo.response && Array.isArray(teamInfo.response) && teamInfo.response.length > 0) {
+            teamAssigned = true;
+            console.log(`[Background] Team assigned, proceeding with advance payment creation for project ${projectId}`);
+            
+            const firstTeamMember = teamInfo.response[0];
+            const workerAccountId = firstTeamMember.account_id;
+            
+            const paymentResult = await this.createAdvancePayment(projectId, workerAccountId);
+            if (paymentResult.paymentId) {
+              this.paymentIds.set(contractAddress, paymentResult.paymentId);
+              console.log(`[Background] Advance payment created automatically after scope approval for worker ${workerAccountId}, paymentId: ${paymentResult.paymentId}`);
+            } else {
+              console.warn(`[Background] Advance payment creation did not return paymentId for project ${projectId}`);
+            }
+            return;
+          }
+        } catch (error) {
+          // Team might not be assigned yet, continue polling
+          console.log(`[Background] Team not yet assigned (attempt ${attempts + 1}/${maxAttempts}), waiting...`);
+        }
+        
+        attempts++;
+      }
+      
+      if (!teamAssigned) {
+        console.warn(`[Background] Team assignment timed out after ${maxAttempts} seconds for project ${projectId}, skipping advance payment creation`);
+      }
+    } catch (error) {
+      console.error(`[Background] Error creating advance payment for project ${projectId}:`, error);
+      // Don't throw - this is a background operation
+    }
   }
 
   async markCompleted(projectId: string, body: { ratings: Array<[string, number]> }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'mark_completed', { ratings: body.ratings });
+    
+    // Set deliveryDate automatically when project is marked as completed
+    try {
+      const project = await this.projectModel.findById(projectId).exec();
+      if (project) {
+        project.deliveryDate = Date.now();
+        await project.save();
+        console.log(`Delivery date set automatically for project ${projectId}: ${project.deliveryDate}`);
+      } else {
+        console.warn(`Project ${projectId} not found when trying to set delivery date`);
+      }
+    } catch (error) {
+      console.error(`Error setting delivery date for project ${projectId}:`, error);
+    }
     
     try {
       console.log({paymentIds: this.paymentIds});
@@ -159,9 +231,10 @@ export class ProjectsService {
     return completeResult;
   }
 
-  private async createAdvancePayment(contractAddress: string, workerAccountId: string): Promise<{ success: boolean; paymentId?: string }> {
+  private async createAdvancePayment(projectId: string, workerAccountId: string): Promise<{ success: boolean; paymentId?: string }> {
     try {
-      const scopeInfo = await this.getScopeInfo(contractAddress);
+      const contractAddress = await this.getContractAddressFromProjectId(projectId);
+      const scopeInfo = await this.getScopeInfo(projectId);
       if (!scopeInfo.success || !scopeInfo.response || !Array.isArray(scopeInfo.response)) {
         throw new Error('Scope info not available or invalid format');
       }
@@ -178,7 +251,7 @@ export class ProjectsService {
       const federateServer = this.configService.getFederateServer();
       const paymentsUrl = `${federateServer.replace('/api', '')}/api/payments/create`;
 
-      console.log(`Creating advance payment of ${advanceAmount} for worker ${workerAccountId}`);
+      console.log(`Creating advance payment of ${advanceAmount} for worker ${workerAccountId} (project ${projectId})`);
 
       const createResponse = await fetch(paymentsUrl, {
         method: 'POST',
@@ -263,24 +336,6 @@ export class ProjectsService {
   async approveScope(projectId: string, body: { approved_task_ids: number[] }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const approveResult = await this.callPreSignedWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids });
-    
-    try {
-      const teamInfo = await this.getTeam(projectId);
-      if (teamInfo.success && teamInfo.response && Array.isArray(teamInfo.response) && teamInfo.response.length > 0) {
-        const firstTeamMember = teamInfo.response[0];
-        const workerAccountId = firstTeamMember.account_id;
-        
-        const paymentResult = await this.createAdvancePayment(contractAddress, workerAccountId);
-        if (paymentResult.paymentId) {
-          this.paymentIds.set(contractAddress, paymentResult.paymentId);
-          console.log(`Advance payment created automatically after scope approval for worker ${workerAccountId}, paymentId: ${paymentResult.paymentId}`);
-        }
-      } else {
-        console.warn('Team info not available or empty, skipping advance payment creation');
-      }
-    } catch (error) {
-      console.error('Error creating advance payment after scope approval:', error);
-    }
     
     return approveResult;
   }
@@ -380,12 +435,52 @@ export class ProjectsService {
     }
   }
 
-  async completeTask(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {
+  async submitTaskForReview(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    return this.callPreSignedWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id });
+    return this.callWriteMethod(contractAddress, 'submit_task_for_review', { task_id: body.task_id }, authToken);
   }
 
-  async getProjectInfo(projectId: string): Promise<Project> {
+  async completeTask(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
+    const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id });
+    
+    // Update milestone state in MongoDB to 'completed'
+    try {
+      const milestone = await this.milestoneModel.findOne({ contractAddress, id: body.task_id }).exec();
+      if (milestone) {
+        milestone.state = 'completed';
+        milestone.updatedAt = Date.now();
+        await milestone.save();
+        console.log(`Milestone ${body.task_id} marked as completed for project ${projectId}`);
+      } else {
+        console.warn(`Milestone ${body.task_id} not found in MongoDB for project ${projectId}, contract address ${contractAddress}`);
+      }
+    } catch (error) {
+      console.error(`Error updating milestone state for task ${body.task_id} in project ${projectId}:`, error);
+      // Don't throw - the contract call succeeded, MongoDB update is secondary
+    }
+    
+    return completeResult;
+  }
+
+  async rejectMilestone(projectId: string, milestoneId: number, body: { rejectionReason?: string }, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
+    const milestone = await this.milestoneModel.findOne({ contractAddress, id: milestoneId }).exec();
+    
+    if (!milestone) {
+      throw new NotFoundException(`Milestone ${milestoneId} not found for project ${projectId}`);
+    }
+
+    // Update milestone in MongoDB with rejection information
+    milestone.state = 'rejected';
+    milestone.rejectionReason = body.rejectionReason || 'No reason provided';
+    milestone.updatedAt = Date.now();
+    await milestone.save();
+
+    return { success: true, status: 'rejected', milestone: milestone.toObject() };
+  }
+
+  async getProjectInfo(projectId: string): Promise<ProjectDocument> {
     const project = await this.projectModel.findById(projectId).exec();
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
@@ -463,7 +558,6 @@ export class ProjectsService {
         projectType: proposalData.projectType,
         budget: proposalData.budget,
         deliveryTime: proposalData.deliveryTime,
-        deliveryDate: new Date(proposalData.deliveryDate).getTime(),
         clientId: client.id.toString(),
         calendarContract: calendarContract,
         state: 'draft',
@@ -760,7 +854,6 @@ export class ProjectsService {
     if (updateData.projectType !== undefined) project.projectType = updateData.projectType;
     if (updateData.budget !== undefined) project.budget = updateData.budget;
     if (updateData.deliveryTime !== undefined) project.deliveryTime = updateData.deliveryTime;
-    if (updateData.deliveryDate) project.deliveryDate = new Date(updateData.deliveryDate).getTime();
 
     project.updatedAt = Date.now();
     const savedProject = await project.save();
@@ -799,7 +892,6 @@ export class ProjectsService {
       description: milestoneData.description,
       budget: milestoneData.budget,
       deliveryTime: milestoneData.deliveryTime,
-      deliveryDate: new Date(milestoneData.deliveryDate).getTime(),
       role: milestoneData.role,
       proficiency: milestoneData.proficiency,
       skills: milestoneData.skills || [],
@@ -839,7 +931,6 @@ export class ProjectsService {
     if (updateData.description !== undefined) milestone.description = updateData.description;
     milestone.budget = updateData.budget;
     milestone.deliveryTime = updateData.deliveryTime;
-    milestone.deliveryDate = new Date(updateData.deliveryDate).getTime();
     if (updateData.role !== undefined) milestone.role = updateData.role;
     if (updateData.proficiency !== undefined) milestone.proficiency = updateData.proficiency;
     if (updateData.skills !== undefined) milestone.skills = updateData.skills;

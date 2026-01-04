@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0x690d82f0ce35431c8e6dc244ba6928974765ae60a7be67c58625c4bb19b22a13",
+    "hash": "0xe0a7286a22efc4f5a337112c1edf44b2c425a43a794413ab620a9cd24c045845",
     "language": "ink! 5.1.1",
     "compiler": "rustc 1.85.0",
     "build_info": {
@@ -101,9 +101,9 @@
       " ## Project Lifecycle",
       " 1. **Created** - Initial state when project is instantiated by the client",
       " 2. **CoordinatorAssigned** - DAO assigns a coordinator to manage the project",
-      " 3. **TeamAssigned** - Coordinator selects and assigns team members",
-      " 4. **ScopeDefinedPendingApproval** - Coordinator defines project scope with tasks",
-      " 5. **ScopeAccepted** - Client approves scope and makes advance payment",
+      " 3. **ScopeDefinedPendingApproval** - Coordinator defines project scope with tasks",
+      " 4. **ScopeAccepted** - Client approves scope and makes advance payment",
+      " 5. **TeamAssigned** - Coordinator selects and assigns team members",
       " 6. **Completed** - All tasks finished, team rated, final payment processed",
       "",
       " ## Key Components",
@@ -339,6 +339,51 @@
           },
           {
             "docs": [
+              "ID of the task submitted for review"
+            ],
+            "indexed": false,
+            "label": "task_id",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "docs": [
+          "Event emitted when coordinator submits a completed task for client review"
+        ],
+        "label": "TaskSubmittedForReview",
+        "module_path": "projects::projects",
+        "signature_topic": "0x9efbe7655df52d2cde6838ef5d81c9a9728fd482ac7039ce8175f5246ba325ac"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "project",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "coordinator",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [
               "Version/revision number of this proposal"
             ],
             "indexed": false,
@@ -516,6 +561,7 @@
           "",
           " Only the assigned coordinator can call this function. Team members",
           " are selected automatically from available workers in the calendar contract.",
+          " Requires that the project scope has been accepted by the client.",
           "",
           " # Parameters",
           " - `_team_size`: Requested team size (currently unused, auto-determined)",
@@ -526,6 +572,7 @@
           " # Errors",
           " - `NotAuthorized`: Caller is not the assigned coordinator",
           " - `CoordinatorNotAssigned`: No coordinator assigned to project",
+          " - `InvalidProjectState`: Project not in ScopeAccepted state",
           " - `CalendarContractNotSet`: No calendar contract configured",
           " - `NoAvailableTeamMembers`: No team members available",
           "",
@@ -572,7 +619,7 @@
           " # Errors",
           " - `NotAuthorized`: Caller is not the client",
           " - `ProjectAlreadyCompleted`: Project already completed",
-          " - `InvalidProjectState`: Project not in ScopeAccepted state",
+          " - `InvalidProjectState`: Project not in TeamAssigned state",
           " - `TasksNotCompleted`: Not all tasks are completed",
           " - `RatingsCountMismatch`: Number of ratings doesn't match team size",
           " - `InvalidRatingValue`: Rating value not between 0-10",
@@ -1006,21 +1053,70 @@
         ],
         "default": false,
         "docs": [
+          " Coordinator submits a completed task for client review",
+          "",
+          " Only the assigned coordinator can call this function. The task must be",
+          " approved and all its dependencies must be completed before it can be",
+          " submitted for review.",
+          "",
+          " # Parameters",
+          " - `task_id`: ID of the task to submit for review",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the assigned coordinator",
+          " - `CoordinatorNotAssigned`: No coordinator assigned to project",
+          " - `InvalidProjectState`: Project not in TeamAssigned state",
+          " - `ScopeNotDefined`: Project scope not defined",
+          " - `TaskNotFound`: Task with specified ID not found",
+          " - `TaskAlreadyCompleted`: Task already marked as completed",
+          " - `DependenciesNotCompleted`: Task dependencies not completed yet",
+          " - `TaskNotApproved`: Task must be approved before submission",
+          "",
+          " # State Changes",
+          " - Sets task status to PendingReview",
+          " - Emits TaskSubmittedForReview event"
+        ],
+        "label": "submit_task_for_review",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 35
+        },
+        "selector": "0x8189c695"
+      },
+      {
+        "args": [
+          {
+            "label": "task_id",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
           " Marks a specific task as completed",
           "",
-          " Only the client can call this function. All task dependencies",
-          " must be completed before the task can be marked as completed.",
+          " Only the client can call this function. The task must be in",
+          " PendingReview status (submitted by coordinator for review).",
           "",
           " # Parameters",
           " - `task_id`: ID of the task to mark as completed",
           "",
           " # Errors",
           " - `NotAuthorized`: Caller is not the client",
-          " - `InvalidProjectState`: Project not in ScopeAccepted state",
+          " - `InvalidProjectState`: Project not in TeamAssigned state",
           " - `ScopeNotDefined`: Project scope not defined",
           " - `TaskNotFound`: Task with specified ID not found",
           " - `TaskAlreadyCompleted`: Task already marked as completed",
-          " - `DependenciesNotCompleted`: Task dependencies not completed yet",
+          " - `InvalidRevisionState`: Task is not in PendingReview status",
           "",
           " # State Changes",
           " - Marks the specified task as completed",
@@ -1586,6 +1682,16 @@
                 ],
                 "index": 2,
                 "name": "Rejected"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 14,
+                    "typeName": "u32"
+                  }
+                ],
+                "index": 3,
+                "name": "PendingReview"
               }
             ]
           }
@@ -2183,6 +2289,10 @@
               {
                 "index": 28,
                 "name": "TaskIdAlreadyExists"
+              },
+              {
+                "index": 29,
+                "name": "TaskNotApproved"
               }
             ]
           }
