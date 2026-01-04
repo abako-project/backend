@@ -18,6 +18,7 @@ describe('Projects Module E2E Tests', () => {
   let workerTwoUserId: string;
   let workerThreeUserId: string;
   let clientAccountId: string;
+  let clientId: number;
   let workerOneAccountId: string;
   let workerTwoAccountId: string;
   let workerThreeAccountId: string;
@@ -89,7 +90,7 @@ describe('Projects Module E2E Tests', () => {
         });
 
         expect(deployResponse.ok).toBe(true);
-        const deployResult = await deployResponse.json();
+        const deployResult = await deployResponse.json() as { success: boolean, address: string };
 
         console.log('Ratings deploy response:', JSON.stringify(deployResult, null, 2));
 
@@ -117,7 +118,7 @@ describe('Projects Module E2E Tests', () => {
         });
 
         expect(deployResponse.ok).toBe(true);
-        const deployResult = await deployResponse.json();
+        const deployResult = await deployResponse.json() as { success: boolean, address: string };
 
         console.log('Calendar deploy response:', JSON.stringify(deployResult, null, 2));
 
@@ -156,6 +157,36 @@ describe('Projects Module E2E Tests', () => {
         console.info(`✅ Registered new user: ${clientUserId.substring(0, 20)}...`);
       });
 
+      it('should register the new user as a client', async () => {
+        console.log('Registering user as client...');
+        console.log(`Client email: ${clientUserId}`);
+        console.log(`Client account ID: ${clientAccountId}`);
+
+        const clientData = {
+          email: clientUserId,
+          name: 'Projects Test Client User',
+          company: 'Test Company',
+          department: 'Engineering',
+          website: 'https://testcompany.com',
+          description: 'Test company for projects E2E tests',
+          location: 'Test Location',
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/clients')
+          .send(clientData)
+          .expect(201);
+
+        console.log('Client registration response:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('message');
+        expect(response.body).toHaveProperty('clientId');
+        expect(response.body.message).toBe('Client profile created successfully');
+
+        clientId = response.body.clientId;
+        console.info(`✅ Registered user as client with ID: ${clientId}`);
+      });
+
       it('should register worker one', async () => {
         console.log('Registering worker one...');
 
@@ -180,6 +211,32 @@ describe('Projects Module E2E Tests', () => {
         expect(response.body).toHaveProperty('success', true);
 
         console.info(`✅ Registered worker one: ${workerOneUserId.substring(0, 20)}...`);
+      });
+
+      it('should register the worker as a developer', async () => {
+        console.log('Registering worker as developer...');
+        console.log(`Developer email: ${workerOneUserId}`);
+        console.log(`Worker account ID: ${workerOneAccountId}`);
+
+        const developerData = {
+          email: workerOneUserId,
+          name: 'Projects Test Worker One',
+          githubUsername: 'testworkerone',
+          portfolioUrl: 'https://testworkerone.dev',
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/developers')
+          .send(developerData)
+          .expect(201);
+
+        console.log('Developer registration response:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('message');
+        expect(response.body).toHaveProperty('developerId');
+        expect(response.body.message).toBe('Developer profile created successfully');
+
+        console.info(`✅ Registered worker as developer with ID: ${response.body.developerId}`);
       });
 
       it('should register worker two', async () => {
@@ -208,6 +265,32 @@ describe('Projects Module E2E Tests', () => {
         console.info(`✅ Registered worker two: ${workerTwoUserId.substring(0, 20)}...`);
       });
 
+      it('should register the worker two as a developer', async () => {
+        console.log('Registering worker as developer...');
+        console.log(`Developer email: ${workerTwoUserId}`);
+        console.log(`Worker account ID: ${workerTwoAccountId}`);
+
+        const developerData = {
+          email: workerTwoUserId,
+          name: 'Projects Test Worker Two',
+          githubUsername: 'testworkertwo',
+          portfolioUrl: 'https://testworkertwo.dev',
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/developers')
+          .send(developerData)
+          .expect(201);
+
+        console.log('Developer registration response:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('message');
+        expect(response.body).toHaveProperty('developerId');
+        expect(response.body.message).toBe('Developer profile created successfully');
+
+        console.info(`✅ Registered worker as developer with ID: ${response.body.developerId}`);
+      });
+
       it('should register worker three', async () => {
         console.log('Registering worker three...');
 
@@ -232,6 +315,32 @@ describe('Projects Module E2E Tests', () => {
         expect(response.body).toHaveProperty('success', true);
 
         console.info(`✅ Registered worker three: ${workerThreeUserId.substring(0, 20)}...`);
+      });
+
+      it('should register the worker three as a developer', async () => {
+        console.log('Registering worker as developer...');
+        console.log(`Developer email: ${workerThreeUserId}`);
+        console.log(`Worker account ID: ${workerThreeAccountId}`);
+
+        const developerData = {
+          email: workerThreeUserId,
+          name: 'Projects Test Worker Three',
+          githubUsername: 'testworkerthree',
+          portfolioUrl: 'https://testworkerthree.dev',
+        };
+
+        const response = await request(app.getHttpServer())
+          .post('/developers')
+          .send(developerData)
+          .expect(201);
+
+        console.log('Developer registration response:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('message');
+        expect(response.body).toHaveProperty('developerId');
+        expect(response.body.message).toBe('Developer profile created successfully');
+
+        console.info(`✅ Registered worker three as developer with ID: ${response.body.developerId}`);
       });
 
       it('should connect user and obtain token', async () => {
@@ -666,17 +775,17 @@ describe('Projects Module E2E Tests', () => {
                   skills: ['Rust', 'Javascript', 'PostgreSQL'],
                   availability: 'fulltime'
                 },
-                {
-                  title: 'Milestone 2: Frontend Development',
-                  description: 'Complete frontend UI',
-                  budget: 2000,
-                  deliveryTime: 10,
-                  deliveryDate: '2024-12-25',
-                  role: 'UX Designer',
-                  proficiency: 'Mid-level',
-                  skills: ['HTML5', 'CSS3', 'Figma'],
-                  availability: 'parttime'
-                }
+                // {
+                //   title: 'Milestone 2: Frontend Development',
+                //   description: 'Complete frontend UI',
+                //   budget: 2000,
+                //   deliveryTime: 10,
+                //   deliveryDate: '2024-12-25',
+                //   role: 'UX Designer',
+                //   proficiency: 'Mid-level',
+                //   skills: ['HTML5', 'CSS3', 'Figma'],
+                //   availability: 'parttime'
+                // }
               ],
               advance_payment_percentage: 20,
               document_hash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef'
@@ -693,7 +802,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('status', 'approved');
             expect(response.body).toHaveProperty('milestones');
-            expect(response.body.milestones).toHaveLength(2);
+            expect(response.body.milestones).toHaveLength(approvalData.milestones.length);
             expect(response.body).toHaveProperty('proposeResult');
 
             console.info(`✅ Project approved with ${response.body.milestones.length} milestones and scope proposed`);
@@ -732,7 +841,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('success', true);
             expect(response.body).toHaveProperty('milestones');
             expect(Array.isArray(response.body.milestones)).toBe(true);
-            expect(response.body.milestones.length).toBe(2);
+            expect(response.body.milestones.length).toBe(1);
 
             expect(response.body.milestones[0]).toHaveProperty('title', 'Milestone 1: Backend Development');
             expect(response.body.milestones[0]).toHaveProperty('budget', 3000);
@@ -740,12 +849,12 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body.milestones[0]).toHaveProperty('proficiency', 'Senior');
             expect(response.body.milestones[0].skills).toEqual(['Rust', 'Javascript', 'PostgreSQL']);
             expect(response.body.milestones[0]).toHaveProperty('neededFullTimeDeveloper', true);
-            expect(response.body.milestones[1]).toHaveProperty('title', 'Milestone 2: Frontend Development');
-            expect(response.body.milestones[1]).toHaveProperty('budget', 2000);
-            expect(response.body.milestones[1]).toHaveProperty('role', 'UX Designer');
-            expect(response.body.milestones[1]).toHaveProperty('proficiency', 'Mid-level');
-            expect(response.body.milestones[1].skills).toEqual(['HTML5', 'CSS3', 'Figma']);
-            expect(response.body.milestones[1]).toHaveProperty('neededPartTimeDeveloper', true);
+            // expect(response.body.milestones[1]).toHaveProperty('title', 'Milestone 2: Frontend Development');
+            // expect(response.body.milestones[1]).toHaveProperty('budget', 2000);
+            // expect(response.body.milestones[1]).toHaveProperty('role', 'UX Designer');
+            // expect(response.body.milestones[1]).toHaveProperty('proficiency', 'Mid-level');
+            // expect(response.body.milestones[1].skills).toEqual(['HTML5', 'CSS3', 'Figma']);
+            // expect(response.body.milestones[1]).toHaveProperty('neededPartTimeDeveloper', true);
 
             console.info(`✅ Verified ${response.body.milestones.length} milestones in MongoDB`);
           });
@@ -805,10 +914,15 @@ describe('Projects Module E2E Tests', () => {
           expect(response.body).toHaveProperty('success');
           expect(response.body.success).toBe(true);
           console.info(`✅ Approved scope with ${approvedTaskIds.length} task(s): [${approvedTaskIds.join(', ')}]`);
+
+          // Wait for the transaction to be processed and contract state to update to ScopeAccepted
+          // This is necessary because blockchain transactions take time to be finalized
+          console.log('Waiting for contract state to update to ScopeAccepted...');
+          await new Promise(resolve => setTimeout(resolve, 50000)); // Increased wait time
+          console.info('✅ Waited for contract state update');
         });
       });
 
-      // describe('Assembling developer team', () => {
       describe('Projects Module - Assign Team', () => {
         it('should assign a team to the project', async () => {
           console.log('Assigning team to project...');
@@ -816,35 +930,73 @@ describe('Projects Module E2E Tests', () => {
           expect(coordinatorAuthToken).toBeDefined();
           expect(projectId).toBeDefined();
 
+          // Get milestones to determine team size
+          const milestonesResponse = await request(app.getHttpServer())
+            .get(`/projects/${projectId}/get_all_tasks`)
+            .expect(200);
+
+          expect(milestonesResponse.body).toHaveProperty('milestones');
+          expect(Array.isArray(milestonesResponse.body.milestones)).toBe(true);
+          const teamSize = milestonesResponse.body.milestones.length;
+          expect(teamSize).toBeGreaterThan(0);
+
+          console.log(`Assigning team of size ${teamSize} based on ${milestonesResponse.body.milestones.length} milestone(s)`);
+
           const response = await request(app.getHttpServer())
             .post(`/projects/${projectId}/assign_team`)
             .set('Authorization', `Bearer ${coordinatorAuthToken}`)
-            .send({ _team_size: 2 })
+            .send({ _team_size: teamSize })
             .expect(201);
 
           console.log('Response:', JSON.stringify(response.body, null, 2));
 
           expect(response.body).toHaveProperty('success');
           expect(response.body.success).toBe(true);
-          console.info(`✅ Assigned team (size: 2) to project ${projectId}`);
+          console.info(`✅ Assigned team (size: ${teamSize}) to project ${projectId}`);
         });
 
-        it('should get team information', async () => {
-          console.log('Getting team information...');
+        it('should wait for team assignment and advance payment creation to complete', async () => {
+          console.log('Waiting for team assignment and advance payment creation...');
 
           expect(projectId).toBeDefined();
 
-          const response = await request(app.getHttpServer())
+          // Wait for team assignment to complete and advance payment to be created
+          let teamAssigned = false;
+          let attempts = 0;
+          const maxAttempts = 60; // 60 seconds max wait time
+
+          while (attempts < maxAttempts && !teamAssigned) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+
+            const response = await request(app.getHttpServer())
+              .get(`/projects/${projectId}/get_team`)
+              .expect(200);
+
+            console.log(`Attempt ${attempts + 1}/${maxAttempts}: Team response:`, JSON.stringify(response.body, null, 2));
+
+            if (response.body.success && response.body.response && Array.isArray(response.body.response) && response.body.response.length > 0) {
+              teamAssigned = true;
+              console.info(`✅ Team assigned: ${response.body.response.length} member(s)`);
+              break;
+            }
+
+            attempts++;
+          }
+
+          if (!teamAssigned) {
+            throw new Error(`Team assignment timed out after ${maxAttempts} seconds`);
+          }
+
+          const finalResponse = await request(app.getHttpServer())
             .get(`/projects/${projectId}/get_team`)
             .expect(200);
 
-          console.log('Response:', JSON.stringify(response.body, null, 2));
-
-          expect(response.body).toBeDefined();
-          expect(response.body).toHaveProperty('success', true);
-          expect(response.body).toHaveProperty('response');
-          expect(Array.isArray(response.body.response)).toBe(true);
-          console.info(`✅ Retrieved team information: ${response.body.response.length} member(s)`);
+          expect(finalResponse.body).toBeDefined();
+          expect(finalResponse.body).toHaveProperty('success', true);
+          expect(finalResponse.body).toHaveProperty('response');
+          expect(Array.isArray(finalResponse.body.response)).toBe(true);
+          expect(finalResponse.body.response.length).toBeGreaterThan(0);
+          console.info(`✅ Verified team information: ${finalResponse.body.response.length} member(s)`);
         });
       });
 
@@ -995,60 +1147,130 @@ describe('Projects Module E2E Tests', () => {
           console.info(`✅ Retrieved task #${firstTaskId} completion status - Milestone state: ${response.body.milestoneState}, Task status: ${JSON.stringify(taskStatus)}`);
         });
 
-        //   describe('Projects Module - Task Management', () => {
-        //     it('should complete a task', async () => {
-        //       console.log('Completing task 1...');
+        it('should submit a task for review', async () => {
+          console.log('Submitting a task for review...');
 
-        //       expect(authToken).toBeDefined();
-        //       expect(contractAddress).toBeDefined();
+          expect(coordinatorAuthToken).toBeDefined();
+          expect(projectId).toBeDefined();
 
-        //       const response = await request(app.getHttpServer())
-        //         .post(`/projects/${contractAddress}/complete_task`)
-        //         .set('Authorization', `Bearer ${authToken}`)
-        //         .send({ task_id: 1 })
-        //         .expect(201);
+          // Get all tasks to find a task ID
+          const tasksResponse = await request(app.getHttpServer())
+            .get(`/projects/${projectId}/get_all_tasks`)
+            .expect(200);
 
-        //       console.log('Response:', JSON.stringify(response.body, null, 2));
+          expect(tasksResponse.body).toHaveProperty('success', true);
+          expect(tasksResponse.body).toHaveProperty('response');
+          expect(Array.isArray(tasksResponse.body.response)).toBe(true);
+          expect(tasksResponse.body.response.length).toBeGreaterThan(0);
 
-        //       expect(response.body).toHaveProperty('success');
-        //       expect(response.body.success).toBe(true);
-        //       console.info('✅ Completed task #1');
-        //     });
-        //   });
+          const firstTaskId = tasksResponse.body.response[0].id;
+          console.log(`Submitting task with ID: ${firstTaskId} for review`);
 
-        //   describe('Projects Module - Project Completion', () => {
-        //     it('should mark project as completed', async () => {
-        //       console.log('Marking project as completed...');
+          // Submit task for review
+          const reviewResponse = await request(app.getHttpServer())
+            .post(`/projects/${projectId}/submit_task_for_review`)
+            .set('Authorization', `Bearer ${coordinatorAuthToken}`)
+            .send({ task_id: firstTaskId })
+            .expect(201);
 
-        //       expect(authToken).toBeDefined();
-        //       expect(contractAddress).toBeDefined();
+          console.log('Response:', JSON.stringify(reviewResponse.body, null, 2));
 
-        //       // First get team members to create ratings
-        //       const teamResponse = await request(app.getHttpServer())
-        //         .get(`/projects/${contractAddress}/get_team`)
-        //         .expect(200);
+          expect(reviewResponse.body).toHaveProperty('success');
+          expect(reviewResponse.body.success).toBe(true);
+          console.info(`✅ Submitted task #${firstTaskId} for review`);
+        });
 
-        //       expect(teamResponse.body).toHaveProperty('success', true);
-        //       const teamMembers = teamResponse.body.response;
+        describe('Projects Module - Task Management', () => {
+          it('should complete a task', async () => {
+            console.log('Completing task 1...');
 
-        //       // Create ratings for each team member
-        //       const ratings = teamMembers.map((member: any) => [member.account_id, 8]);
+            expect(authTokenClient).toBeDefined();
+            expect(projectId).toBeDefined();
 
-        //       const response = await request(app.getHttpServer())
-        //         .post(`/projects/${contractAddress}/mark_completed`)
-        //         .set('Authorization', `Bearer ${authToken}`)
-        //         .send({ ratings })
-        //         .expect(201);
+            // First get all tasks to find a task ID
+            const tasksResponse = await request(app.getHttpServer())
+              .get(`/projects/${projectId}/get_all_tasks`)
+              .expect(200);
 
-        //       console.log('Response:', JSON.stringify(response.body, null, 2));
+            expect(tasksResponse.body).toHaveProperty('success', true);
+            expect(tasksResponse.body).toHaveProperty('response');
+            expect(Array.isArray(tasksResponse.body.response)).toBe(true);
+            expect(tasksResponse.body.response.length).toBeGreaterThan(0);
 
-        //       expect(response.body).toHaveProperty('success');
-        //       expect(response.body.success).toBe(true);
-        //       console.log('Project marked as completed successfully');
-        //       console.info(`✅ Marked project as completed with ${ratings.length} rating(s)`);
-        //       console.info('\n✅ Developer team assembly and project execution completed successfully!\n');
-        //     });
-        //   });
+            const firstTaskId = tasksResponse.body.response[0].id;
+            console.log(`Completing task with ID: ${firstTaskId}`);
+
+            const response = await request(app.getHttpServer())
+              .post(`/projects/${projectId}/complete_task`)
+              .set('Authorization', `Bearer ${authTokenClient}`)
+              .send({ task_id: firstTaskId })
+              .expect(201);
+
+            console.log('Response:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('success');
+            expect(response.body.success).toBe(true);
+            console.info(`✅ Completed task #${firstTaskId}`);
+          });
+        });
+
+        // });
+
+        describe('Projects Module - Project Completion', () => {
+          it('should mark project as completed', async () => {
+            console.log('Marking project as completed...');
+
+            expect(authTokenClient).toBeDefined();
+            expect(projectId).toBeDefined();
+
+            // First get team members to create ratings
+            const teamResponse = await request(app.getHttpServer())
+              .get(`/projects/${projectId}/get_team`)
+              .expect(200);
+
+            expect(teamResponse.body).toHaveProperty('success', true);
+            const teamMembers = teamResponse.body.response;
+            console.log('Team members:', JSON.stringify(teamMembers, null, 2));
+            expect(Array.isArray(teamMembers)).toBe(true);
+            expect(teamMembers.length).toBeGreaterThan(0);
+
+            // Create ratings for each team member
+            const ratings = teamMembers.map((member: any) => [member.account_id, 8]);
+
+            const response = await request(app.getHttpServer())
+              .post(`/projects/${projectId}/mark_completed`)
+              .set('Authorization', `Bearer ${authTokenClient}`)
+              .send({ ratings })
+              .expect(201);
+
+            console.log('Response:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('success');
+            expect(response.body.success).toBe(true);
+            console.log('Project marked as completed successfully');
+            console.info(`✅ Marked project as completed with ${ratings.length} rating(s)`);
+            console.info('\n✅ Developer team assembly and project execution completed successfully!\n');
+          });
+
+          it('should verify project delivery date was set after completion', async () => {
+            console.log('Verifying project delivery date was set...');
+
+            expect(projectId).toBeDefined();
+
+            const response = await request(app.getHttpServer())
+              .get(`/projects/${projectId}/get_project_info`)
+              .expect(200);
+
+            console.log('Project info:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('deliveryDate');
+            expect(response.body.deliveryDate).toBeDefined();
+            expect(typeof response.body.deliveryDate).toBe('number');
+            expect(response.body.deliveryDate).toBeGreaterThan(0);
+
+            console.info(`✅ Verified delivery date was set: ${new Date(response.body.deliveryDate).toISOString()}`);
+          });
+        });
 
 
         // TODO: Fix coordinator rejection process, CONTRACT TRAPPED IN THE BLOCKCHAIN

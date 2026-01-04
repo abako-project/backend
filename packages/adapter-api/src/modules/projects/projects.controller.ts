@@ -10,7 +10,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
-import { CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CreateMilestoneRequest, UpdateMilestoneRequest } from './types';
+import { CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CreateMilestoneRequest, UpdateMilestoneRequest, MilestoneRejectRequest } from './types';
 
 @ApiTags('Projects')
 @Controller({ path: 'projects', version: '1' })
@@ -354,6 +354,68 @@ export class ProjectsController {
     return await this.projectsService.rejectScope(projectId, body, token);
   }
 
+  @Post(':projectId/submit_task_for_review')
+  @ApiOperation({ 
+    summary: 'Submit task for review',
+    description: 'Submits a specific task for review. This method returns encoded data that needs to be signed by the coordinator.'
+  })
+  @ApiParam({ 
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
+    type: 'string'
+  })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'authorization',
+    description: 'Bearer token for authentication (coordinator)',
+    required: true,
+    schema: {
+      type: 'string',
+      example: 'Bearer <your-jwt-token>'
+    }
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        task_id: { 
+          type: 'number',
+          description: 'ID of the task to submit for review',
+          example: 1
+        }
+      },
+      required: ['task_id']
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Task submitted for review successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'boolean' },
+        method: { type: 'string', example: 'submit_task_for_review' },
+        encodedData: { type: 'string', description: 'Encoded transaction data to be signed' }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Unauthorized - Invalid token'
+  })
+  @ApiResponse({ 
+    status: 500, 
+    description: 'Internal server error'
+  })
+  async submitTaskForReview(
+    @Param('projectId') projectId: string,
+    @Body() body: { task_id: number },
+    @Headers('authorization') authHeader: string
+  ) {
+    const token = this.extractToken(authHeader);
+    return await this.projectsService.submitTaskForReview(projectId, body, token);
+  }
+
   @Post(':projectId/complete_task')
   @ApiOperation({ 
     summary: 'Complete a task',
@@ -406,6 +468,69 @@ export class ProjectsController {
   ) {
     const token = this.extractToken(authHeader);
     return await this.projectsService.completeTask(projectId, body, token);
+  }
+
+  @Post(':projectId/milestones/:milestoneId/reject')
+  @ApiOperation({ 
+    summary: 'Reject a milestone',
+    description: 'Rejects a specific milestone with an optional reason. The rejection is stored in MongoDB.'
+  })
+  @ApiParam({ 
+    name: 'projectId', 
+    description: 'MongoDB ID of the project',
+    type: 'string'
+  })
+  @ApiParam({ 
+    name: 'milestoneId', 
+    description: 'ID of the milestone to reject',
+    type: 'number'
+  })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'authorization',
+    description: 'Bearer token for authentication (client)',
+    required: true,
+    schema: {
+      type: 'string',
+      example: 'Bearer <your-jwt-token>'
+    }
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        rejectionReason: { 
+          type: 'string',
+          description: 'Optional reason explaining why the milestone is rejected',
+          example: 'The milestone does not meet the requirements'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Milestone rejected successfully'
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Unauthorized - Invalid token'
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Milestone not found'
+  })
+  @ApiResponse({ 
+    status: 500, 
+    description: 'Internal server error'
+  })
+  async rejectMilestone(
+    @Param('projectId') projectId: string,
+    @Param('milestoneId', ParseIntPipe) milestoneId: number,
+    @Body() body: { rejectionReason?: string },
+    @Headers('authorization') authHeader: string
+  ) {
+    const token = this.extractToken(authHeader);
+    return await this.projectsService.rejectMilestone(projectId, milestoneId, body, token);
   }
 
   @Get(':projectId/get_project_info')
@@ -716,11 +841,6 @@ export class ProjectsController {
           description: 'Expected delivery time',
           example: 30
         },
-        deliveryDate: { 
-          type: 'string',
-          description: 'Expected delivery date (ISO format)',
-          example: '2024-12-31'
-        },
         clientId: { 
           type: 'string',
           description: 'Client AccountId',
@@ -737,7 +857,7 @@ export class ProjectsController {
           example: 'JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY'
         }
       },
-      required: ['title', 'budget', 'deliveryTime', 'deliveryDate', 'clientId'],
+      required: ['title', 'budget', 'deliveryTime', 'clientId'],
       description: 'Project will use provided contract addresses or default to DAO shared contracts if not specified'
     }
   })
@@ -831,14 +951,9 @@ export class ProjectsController {
           type: 'number',
           description: 'Expected delivery time',
           example: 30
-        },
-        deliveryDate: { 
-          type: 'string',
-          description: 'Expected delivery date (ISO format)',
-          example: '2024-12-31'
         }
       },
-      required: ['title', 'budget', 'deliveryTime', 'deliveryDate']
+      required: ['title', 'budget', 'deliveryTime']
     }
   })
   @ApiResponse({ 
@@ -900,7 +1015,6 @@ export class ProjectsController {
               description: { type: 'string', example: 'Complete UI/UX design' },
               budget: { type: 'number', example: 5000 },
               deliveryTime: { type: 'number', example: 15 },
-              deliveryDate: { type: 'string', example: '2024-12-31' },
               role: { type: 'string', example: 'Frontend Developer' },
               proficiency: { type: 'string', example: 'Senior' },
               skills: { 
@@ -1061,11 +1175,6 @@ export class ProjectsController {
           description: 'Delivery time in days',
           example: 15
         },
-        deliveryDate: { 
-          type: 'string',
-          description: 'Expected delivery date (ISO format)',
-          example: '2024-12-31'
-        },
         role: { 
           type: 'string',
           description: 'Required role for the milestone',
@@ -1089,7 +1198,7 @@ export class ProjectsController {
           example: 'fulltime'
         }
       },
-      required: ['title', 'budget', 'deliveryTime', 'deliveryDate', 'availability']
+      required: ['title', 'budget', 'deliveryTime', 'availability']
     }
   })
   @ApiResponse({ 
