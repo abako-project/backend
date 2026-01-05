@@ -115,7 +115,6 @@ export interface CreateMilestoneRequest {
   description?: string;
   budget: number;
   deliveryTime: number;
-  deliveryDate: string;
   role?: string;
   proficiency?: string;
   skills?: string[];
@@ -127,7 +126,6 @@ export interface UpdateMilestoneRequest {
   description?: string;
   budget: number;
   deliveryTime: number;
-  deliveryDate: string;
   role?: string;
   proficiency?: string;
   skills?: string[];
@@ -142,7 +140,6 @@ export interface CreateProposalRequest {
   projectType?: number;
   budget: number;
   deliveryTime: number;
-  deliveryDate: string;
   calendarContract?: string;
   ratingsContract?: string;
 }
@@ -155,11 +152,14 @@ export interface UpdateProposalRequest {
   projectType?: number;
   budget: number;
   deliveryTime: number;
-  deliveryDate: string;
 }
 
 export interface ScopeRejectRequest {
   clientResponse?: string;
+}
+
+export interface MilestoneRejectRequest {
+  rejectionReason?: string;
 }
 
 export interface CoordinatorApprovalRequest {

@@ -17,8 +17,8 @@ export class Milestone {
   @Prop({ required: true })
   deliveryTime: number;
 
-  @Prop({ type: Date, required: true })
-  deliveryDate: number;
+  @Prop({ type: Date })
+  deliveryDate?: number;
 
   @Prop()
   role?: string;
@@ -46,6 +46,9 @@ export class Milestone {
 
   @Prop({ required: true, default: 'pending' })
   state: string;
+
+  @Prop()
+  rejectionReason?: string;
 
   @Prop({ type: [String], default: [] })
   skills: string[];
