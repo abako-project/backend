@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0xe0a7286a22efc4f5a337112c1edf44b2c425a43a794413ab620a9cd24c045845",
+    "hash": "0x53f93d8cee3c72070519f90a918eacacd54871b17abec089198339be1c9331a1",
     "language": "ink! 5.1.1",
     "compiler": "rustc 1.85.0",
     "build_info": {
@@ -49,7 +49,7 @@
               "displayName": [
                 "Option"
               ],
-              "type": 21
+              "type": 15
             }
           },
           {
@@ -58,7 +58,7 @@
               "displayName": [
                 "Option"
               ],
-              "type": 21
+              "type": 15
             }
           }
         ],
@@ -145,7 +145,7 @@
         "displayName": [
           "Hash"
         ],
-        "type": 19
+        "type": 20
       },
       "maxEventTopics": 4,
       "staticBufferSize": 16384,
@@ -888,7 +888,7 @@
               "displayName": [
                 "Hash"
               ],
-              "type": 19
+              "type": 20
             }
           }
         ],
@@ -1341,7 +1341,7 @@
                                   "layout": {
                                     "leaf": {
                                       "key": "0x00000000",
-                                      "ty": 17
+                                      "ty": 18
                                     }
                                   },
                                   "name": "revisions"
@@ -1383,7 +1383,7 @@
         }
       },
       "root_key": "0x00000000",
-      "ty": 20
+      "ty": 21
     }
   },
   "types": [
@@ -1515,7 +1515,7 @@
           "composite": {
             "fields": [
               {
-                "type": 15
+                "type": 16
               }
             ]
           }
@@ -1570,6 +1570,11 @@
                 "name": "status",
                 "type": 13,
                 "typeName": "TaskStatus"
+              },
+              {
+                "name": "assigned_to",
+                "type": 15,
+                "typeName": "Option<AccountId>"
               }
             ]
           }
@@ -1715,169 +1720,6 @@
       "id": 15,
       "type": {
         "def": {
-          "sequence": {
-            "type": 16
-          }
-        }
-      }
-    },
-    {
-      "id": 16,
-      "type": {
-        "def": {
-          "tuple": [
-            3,
-            8
-          ]
-        }
-      }
-    },
-    {
-      "id": 17,
-      "type": {
-        "def": {
-          "sequence": {
-            "type": 18
-          }
-        }
-      }
-    },
-    {
-      "id": 18,
-      "type": {
-        "def": {
-          "composite": {
-            "fields": [
-              {
-                "name": "version",
-                "type": 14,
-                "typeName": "u32"
-              },
-              {
-                "name": "proposed_at",
-                "type": 14,
-                "typeName": "u32"
-              },
-              {
-                "name": "proposed_task_ids",
-                "type": 11,
-                "typeName": "Vec<u8>"
-              },
-              {
-                "name": "approved_task_ids",
-                "type": 11,
-                "typeName": "Vec<u8>"
-              },
-              {
-                "name": "document_hash",
-                "type": 19,
-                "typeName": "Hash"
-              }
-            ]
-          }
-        },
-        "path": [
-          "projects",
-          "projects",
-          "ScopeRevision"
-        ]
-      }
-    },
-    {
-      "id": 19,
-      "type": {
-        "def": {
-          "composite": {
-            "fields": [
-              {
-                "type": 2,
-                "typeName": "[u8; 32]"
-              }
-            ]
-          }
-        },
-        "path": [
-          "ink_primitives",
-          "types",
-          "Hash"
-        ]
-      }
-    },
-    {
-      "id": 20,
-      "type": {
-        "def": {
-          "composite": {
-            "fields": [
-              {
-                "name": "name",
-                "type": 0,
-                "typeName": "<String as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<3360027120u32, ()>,>>::Type"
-              },
-              {
-                "name": "client",
-                "type": 1,
-                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<902317776u32, ()>,>>::Type"
-              },
-              {
-                "name": "dao_address",
-                "type": 1,
-                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1637603441u32, ()>,>>::Type"
-              },
-              {
-                "name": "coordinator",
-                "type": 21,
-                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<2857809233u32, ()>,>>::Type"
-              },
-              {
-                "name": "team_members",
-                "type": 4,
-                "typeName": "<Vec<TeamMember> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<483837118u32, ()>,>>::Type"
-              },
-              {
-                "name": "status",
-                "type": 22,
-                "typeName": "<ProjectStatus as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1168527133u32, ()>,>>::Type"
-              },
-              {
-                "name": "calendar_contract",
-                "type": 21,
-                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<1903087310u32, ()>,>>::Type"
-              },
-              {
-                "name": "ratings_contract",
-                "type": 21,
-                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<3648927803u32, ()>,>>::Type"
-              },
-              {
-                "name": "scope",
-                "type": 23,
-                "typeName": "<Option<ProjectScope> as::ink::storage::traits::AutoStorableHint<\n::ink::storage::traits::ManualKey<2521983880u32, ()>,>>::Type"
-              },
-              {
-                "name": "total_cost",
-                "type": 10,
-                "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<2710418601u32, ()>,>>::Type"
-              },
-              {
-                "name": "paid_amount",
-                "type": 10,
-                "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<972696643u32, ()>,>>::Type"
-              }
-            ]
-          }
-        },
-        "path": [
-          "projects",
-          "projects",
-          "Project"
-        ]
-      }
-    },
-    {
-      "id": 21,
-      "type": {
-        "def": {
           "variant": {
             "variants": [
               {
@@ -1904,6 +1746,169 @@
         ],
         "path": [
           "Option"
+        ]
+      }
+    },
+    {
+      "id": 16,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 17
+          }
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": {
+        "def": {
+          "tuple": [
+            3,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 19
+          }
+        }
+      }
+    },
+    {
+      "id": 19,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "version",
+                "type": 14,
+                "typeName": "u32"
+              },
+              {
+                "name": "proposed_at",
+                "type": 14,
+                "typeName": "u32"
+              },
+              {
+                "name": "proposed_task_ids",
+                "type": 11,
+                "typeName": "Vec<u8>"
+              },
+              {
+                "name": "approved_task_ids",
+                "type": 11,
+                "typeName": "Vec<u8>"
+              },
+              {
+                "name": "document_hash",
+                "type": 20,
+                "typeName": "Hash"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "ScopeRevision"
+        ]
+      }
+    },
+    {
+      "id": 20,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 2,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        },
+        "path": [
+          "ink_primitives",
+          "types",
+          "Hash"
+        ]
+      }
+    },
+    {
+      "id": 21,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "name",
+                "type": 0,
+                "typeName": "<String as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<3360027120u32, ()>,>>::Type"
+              },
+              {
+                "name": "client",
+                "type": 1,
+                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<902317776u32, ()>,>>::Type"
+              },
+              {
+                "name": "dao_address",
+                "type": 1,
+                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1637603441u32, ()>,>>::Type"
+              },
+              {
+                "name": "coordinator",
+                "type": 15,
+                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<2857809233u32, ()>,>>::Type"
+              },
+              {
+                "name": "team_members",
+                "type": 4,
+                "typeName": "<Vec<TeamMember> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<483837118u32, ()>,>>::Type"
+              },
+              {
+                "name": "status",
+                "type": 22,
+                "typeName": "<ProjectStatus as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1168527133u32, ()>,>>::Type"
+              },
+              {
+                "name": "calendar_contract",
+                "type": 15,
+                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<1903087310u32, ()>,>>::Type"
+              },
+              {
+                "name": "ratings_contract",
+                "type": 15,
+                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<3648927803u32, ()>,>>::Type"
+              },
+              {
+                "name": "scope",
+                "type": 23,
+                "typeName": "<Option<ProjectScope> as::ink::storage::traits::AutoStorableHint<\n::ink::storage::traits::ManualKey<2521983880u32, ()>,>>::Type"
+              },
+              {
+                "name": "total_cost",
+                "type": 10,
+                "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<2710418601u32, ()>,>>::Type"
+              },
+              {
+                "name": "paid_amount",
+                "type": 10,
+                "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<972696643u32, ()>,>>::Type"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "Project"
         ]
       }
     },
@@ -2002,7 +2007,7 @@
               },
               {
                 "name": "revisions",
-                "type": 17,
+                "type": 18,
                 "typeName": "Vec<ScopeRevision>"
               }
             ]
@@ -2543,7 +2548,7 @@
             0,
             1,
             1,
-            21,
+            15,
             22,
             10,
             10

@@ -491,7 +491,49 @@ export class ProjectsService {
 
   async getTeam(projectId: string): Promise<QueryResponse> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    return this.callReadMethod(contractAddress, 'get_team');
+
+    const teamResponse = await this.callReadMethod(contractAddress, 'get_team');
+    
+    if (teamResponse.success && Array.isArray(teamResponse.response)) {
+      // Get all milestones for this project and group by developerId
+      const milestones = await this.milestoneModel.find({ contractAddress }).exec();
+      const milestonesByDeveloperId = new Map<number, number[]>();
+      
+      milestones.forEach(milestone => {
+        if (milestone.developerId !== undefined && milestone.developerId !== null) {
+          const existing = milestonesByDeveloperId.get(milestone.developerId) || [];
+          existing.push(milestone.id!);
+          milestonesByDeveloperId.set(milestone.developerId, existing);
+        }
+      });
+      
+      const enrichedTeam = await Promise.all(
+        teamResponse.response.map(async (member: any) => {
+          const developerId = await this.getDeveloperIdFromAddress(member.account_id);
+          const milestoneIds = developerId ? (milestonesByDeveloperId.get(developerId) || []) : [];
+          
+          return {
+            ...member,
+            developerId: developerId || null,
+          };
+        })
+      );
+      
+      return {
+        ...teamResponse,
+        response: enrichedTeam,
+      };
+    }
+    
+    return teamResponse;
+  }
+
+  private async getDeveloperIdFromAddress(address: string): Promise<number | null> {
+    return this.getUserIdFromAddress(
+      address,
+      (email: string) => this.developersService.findByEmail(email),
+      'developer'
+    );
   }
 
   async getScopeInfo(projectId: string): Promise<QueryResponse> {
