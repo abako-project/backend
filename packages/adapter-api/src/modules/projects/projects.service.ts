@@ -420,7 +420,6 @@ export class ProjectsService {
           return {
             ...member,
             developerId: developerId || null,
-            milestoneIds: milestoneIds,
           };
         })
       );

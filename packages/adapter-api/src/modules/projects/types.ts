@@ -2,6 +2,7 @@ export interface TeamMember {
   account_id: string;
   role: string;
   rating?: number;
+  task_id?: number;
 }
 
 export interface TaskComplexity {

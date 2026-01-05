@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0x690d82f0ce35431c8e6dc244ba6928974765ae60a7be67c58625c4bb19b22a13",
+    "hash": "0x53f93d8cee3c72070519f90a918eacacd54871b17abec089198339be1c9331a1",
     "language": "ink! 5.1.1",
     "compiler": "rustc 1.85.0",
     "build_info": {
@@ -49,7 +49,7 @@
               "displayName": [
                 "Option"
               ],
-              "type": 21
+              "type": 15
             }
           },
           {
@@ -58,7 +58,7 @@
               "displayName": [
                 "Option"
               ],
-              "type": 21
+              "type": 15
             }
           }
         ],
@@ -101,9 +101,9 @@
       " ## Project Lifecycle",
       " 1. **Created** - Initial state when project is instantiated by the client",
       " 2. **CoordinatorAssigned** - DAO assigns a coordinator to manage the project",
-      " 3. **TeamAssigned** - Coordinator selects and assigns team members",
-      " 4. **ScopeDefinedPendingApproval** - Coordinator defines project scope with tasks",
-      " 5. **ScopeAccepted** - Client approves scope and makes advance payment",
+      " 3. **ScopeDefinedPendingApproval** - Coordinator defines project scope with tasks",
+      " 4. **ScopeAccepted** - Client approves scope and makes advance payment",
+      " 5. **TeamAssigned** - Coordinator selects and assigns team members",
       " 6. **Completed** - All tasks finished, team rated, final payment processed",
       "",
       " ## Key Components",
@@ -145,7 +145,7 @@
         "displayName": [
           "Hash"
         ],
-        "type": 19
+        "type": 20
       },
       "maxEventTopics": 4,
       "staticBufferSize": 16384,
@@ -312,6 +312,51 @@
         "label": "TaskCompleted",
         "module_path": "projects::projects",
         "signature_topic": "0xe705487445190f4ddeb22d5d5f8fa05214b0a04704144b1f7cc6d3c8a8ce404a"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "project",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [],
+            "indexed": true,
+            "label": "coordinator",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
+            }
+          },
+          {
+            "docs": [
+              "ID of the task submitted for review"
+            ],
+            "indexed": false,
+            "label": "task_id",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "docs": [
+          "Event emitted when coordinator submits a completed task for client review"
+        ],
+        "label": "TaskSubmittedForReview",
+        "module_path": "projects::projects",
+        "signature_topic": "0x9efbe7655df52d2cde6838ef5d81c9a9728fd482ac7039ce8175f5246ba325ac"
       },
       {
         "args": [
@@ -516,6 +561,7 @@
           "",
           " Only the assigned coordinator can call this function. Team members",
           " are selected automatically from available workers in the calendar contract.",
+          " Requires that the project scope has been accepted by the client.",
           "",
           " # Parameters",
           " - `_team_size`: Requested team size (currently unused, auto-determined)",
@@ -526,6 +572,7 @@
           " # Errors",
           " - `NotAuthorized`: Caller is not the assigned coordinator",
           " - `CoordinatorNotAssigned`: No coordinator assigned to project",
+          " - `InvalidProjectState`: Project not in ScopeAccepted state",
           " - `CalendarContractNotSet`: No calendar contract configured",
           " - `NoAvailableTeamMembers`: No team members available",
           "",
@@ -572,7 +619,7 @@
           " # Errors",
           " - `NotAuthorized`: Caller is not the client",
           " - `ProjectAlreadyCompleted`: Project already completed",
-          " - `InvalidProjectState`: Project not in ScopeAccepted state",
+          " - `InvalidProjectState`: Project not in TeamAssigned state",
           " - `TasksNotCompleted`: Not all tasks are completed",
           " - `RatingsCountMismatch`: Number of ratings doesn't match team size",
           " - `InvalidRatingValue`: Rating value not between 0-10",
@@ -841,7 +888,7 @@
               "displayName": [
                 "Hash"
               ],
-              "type": 19
+              "type": 20
             }
           }
         ],
@@ -1006,21 +1053,70 @@
         ],
         "default": false,
         "docs": [
+          " Coordinator submits a completed task for client review",
+          "",
+          " Only the assigned coordinator can call this function. The task must be",
+          " approved and all its dependencies must be completed before it can be",
+          " submitted for review.",
+          "",
+          " # Parameters",
+          " - `task_id`: ID of the task to submit for review",
+          "",
+          " # Errors",
+          " - `NotAuthorized`: Caller is not the assigned coordinator",
+          " - `CoordinatorNotAssigned`: No coordinator assigned to project",
+          " - `InvalidProjectState`: Project not in TeamAssigned state",
+          " - `ScopeNotDefined`: Project scope not defined",
+          " - `TaskNotFound`: Task with specified ID not found",
+          " - `TaskAlreadyCompleted`: Task already marked as completed",
+          " - `DependenciesNotCompleted`: Task dependencies not completed yet",
+          " - `TaskNotApproved`: Task must be approved before submission",
+          "",
+          " # State Changes",
+          " - Sets task status to PendingReview",
+          " - Emits TaskSubmittedForReview event"
+        ],
+        "label": "submit_task_for_review",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 35
+        },
+        "selector": "0x8189c695"
+      },
+      {
+        "args": [
+          {
+            "label": "task_id",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
           " Marks a specific task as completed",
           "",
-          " Only the client can call this function. All task dependencies",
-          " must be completed before the task can be marked as completed.",
+          " Only the client can call this function. The task must be in",
+          " PendingReview status (submitted by coordinator for review).",
           "",
           " # Parameters",
           " - `task_id`: ID of the task to mark as completed",
           "",
           " # Errors",
           " - `NotAuthorized`: Caller is not the client",
-          " - `InvalidProjectState`: Project not in ScopeAccepted state",
+          " - `InvalidProjectState`: Project not in TeamAssigned state",
           " - `ScopeNotDefined`: Project scope not defined",
           " - `TaskNotFound`: Task with specified ID not found",
           " - `TaskAlreadyCompleted`: Task already marked as completed",
-          " - `DependenciesNotCompleted`: Task dependencies not completed yet",
+          " - `InvalidRevisionState`: Task is not in PendingReview status",
           "",
           " # State Changes",
           " - Marks the specified task as completed",
@@ -1245,7 +1341,7 @@
                                   "layout": {
                                     "leaf": {
                                       "key": "0x00000000",
-                                      "ty": 17
+                                      "ty": 18
                                     }
                                   },
                                   "name": "revisions"
@@ -1287,7 +1383,7 @@
         }
       },
       "root_key": "0x00000000",
-      "ty": 20
+      "ty": 21
     }
   },
   "types": [
@@ -1419,7 +1515,7 @@
           "composite": {
             "fields": [
               {
-                "type": 15
+                "type": 16
               }
             ]
           }
@@ -1474,6 +1570,11 @@
                 "name": "status",
                 "type": 13,
                 "typeName": "TaskStatus"
+              },
+              {
+                "name": "assigned_to",
+                "type": 15,
+                "typeName": "Option<AccountId>"
               }
             ]
           }
@@ -1586,6 +1687,16 @@
                 ],
                 "index": 2,
                 "name": "Rejected"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 14,
+                    "typeName": "u32"
+                  }
+                ],
+                "index": 3,
+                "name": "PendingReview"
               }
             ]
           }
@@ -1607,169 +1718,6 @@
     },
     {
       "id": 15,
-      "type": {
-        "def": {
-          "sequence": {
-            "type": 16
-          }
-        }
-      }
-    },
-    {
-      "id": 16,
-      "type": {
-        "def": {
-          "tuple": [
-            3,
-            8
-          ]
-        }
-      }
-    },
-    {
-      "id": 17,
-      "type": {
-        "def": {
-          "sequence": {
-            "type": 18
-          }
-        }
-      }
-    },
-    {
-      "id": 18,
-      "type": {
-        "def": {
-          "composite": {
-            "fields": [
-              {
-                "name": "version",
-                "type": 14,
-                "typeName": "u32"
-              },
-              {
-                "name": "proposed_at",
-                "type": 14,
-                "typeName": "u32"
-              },
-              {
-                "name": "proposed_task_ids",
-                "type": 11,
-                "typeName": "Vec<u8>"
-              },
-              {
-                "name": "approved_task_ids",
-                "type": 11,
-                "typeName": "Vec<u8>"
-              },
-              {
-                "name": "document_hash",
-                "type": 19,
-                "typeName": "Hash"
-              }
-            ]
-          }
-        },
-        "path": [
-          "projects",
-          "projects",
-          "ScopeRevision"
-        ]
-      }
-    },
-    {
-      "id": 19,
-      "type": {
-        "def": {
-          "composite": {
-            "fields": [
-              {
-                "type": 2,
-                "typeName": "[u8; 32]"
-              }
-            ]
-          }
-        },
-        "path": [
-          "ink_primitives",
-          "types",
-          "Hash"
-        ]
-      }
-    },
-    {
-      "id": 20,
-      "type": {
-        "def": {
-          "composite": {
-            "fields": [
-              {
-                "name": "name",
-                "type": 0,
-                "typeName": "<String as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<3360027120u32, ()>,>>::Type"
-              },
-              {
-                "name": "client",
-                "type": 1,
-                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<902317776u32, ()>,>>::Type"
-              },
-              {
-                "name": "dao_address",
-                "type": 1,
-                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1637603441u32, ()>,>>::Type"
-              },
-              {
-                "name": "coordinator",
-                "type": 21,
-                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<2857809233u32, ()>,>>::Type"
-              },
-              {
-                "name": "team_members",
-                "type": 4,
-                "typeName": "<Vec<TeamMember> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<483837118u32, ()>,>>::Type"
-              },
-              {
-                "name": "status",
-                "type": 22,
-                "typeName": "<ProjectStatus as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1168527133u32, ()>,>>::Type"
-              },
-              {
-                "name": "calendar_contract",
-                "type": 21,
-                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<1903087310u32, ()>,>>::Type"
-              },
-              {
-                "name": "ratings_contract",
-                "type": 21,
-                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<3648927803u32, ()>,>>::Type"
-              },
-              {
-                "name": "scope",
-                "type": 23,
-                "typeName": "<Option<ProjectScope> as::ink::storage::traits::AutoStorableHint<\n::ink::storage::traits::ManualKey<2521983880u32, ()>,>>::Type"
-              },
-              {
-                "name": "total_cost",
-                "type": 10,
-                "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<2710418601u32, ()>,>>::Type"
-              },
-              {
-                "name": "paid_amount",
-                "type": 10,
-                "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<972696643u32, ()>,>>::Type"
-              }
-            ]
-          }
-        },
-        "path": [
-          "projects",
-          "projects",
-          "Project"
-        ]
-      }
-    },
-    {
-      "id": 21,
       "type": {
         "def": {
           "variant": {
@@ -1798,6 +1746,169 @@
         ],
         "path": [
           "Option"
+        ]
+      }
+    },
+    {
+      "id": 16,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 17
+          }
+        }
+      }
+    },
+    {
+      "id": 17,
+      "type": {
+        "def": {
+          "tuple": [
+            3,
+            8
+          ]
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 19
+          }
+        }
+      }
+    },
+    {
+      "id": 19,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "version",
+                "type": 14,
+                "typeName": "u32"
+              },
+              {
+                "name": "proposed_at",
+                "type": 14,
+                "typeName": "u32"
+              },
+              {
+                "name": "proposed_task_ids",
+                "type": 11,
+                "typeName": "Vec<u8>"
+              },
+              {
+                "name": "approved_task_ids",
+                "type": 11,
+                "typeName": "Vec<u8>"
+              },
+              {
+                "name": "document_hash",
+                "type": 20,
+                "typeName": "Hash"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "ScopeRevision"
+        ]
+      }
+    },
+    {
+      "id": 20,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "type": 2,
+                "typeName": "[u8; 32]"
+              }
+            ]
+          }
+        },
+        "path": [
+          "ink_primitives",
+          "types",
+          "Hash"
+        ]
+      }
+    },
+    {
+      "id": 21,
+      "type": {
+        "def": {
+          "composite": {
+            "fields": [
+              {
+                "name": "name",
+                "type": 0,
+                "typeName": "<String as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<3360027120u32, ()>,>>::Type"
+              },
+              {
+                "name": "client",
+                "type": 1,
+                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<902317776u32, ()>,>>::Type"
+              },
+              {
+                "name": "dao_address",
+                "type": 1,
+                "typeName": "<AccountId as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1637603441u32, ()>,>>::Type"
+              },
+              {
+                "name": "coordinator",
+                "type": 15,
+                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<2857809233u32, ()>,>>::Type"
+              },
+              {
+                "name": "team_members",
+                "type": 4,
+                "typeName": "<Vec<TeamMember> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<483837118u32, ()>,>>::Type"
+              },
+              {
+                "name": "status",
+                "type": 22,
+                "typeName": "<ProjectStatus as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1168527133u32, ()>,>>::Type"
+              },
+              {
+                "name": "calendar_contract",
+                "type": 15,
+                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<1903087310u32, ()>,>>::Type"
+              },
+              {
+                "name": "ratings_contract",
+                "type": 15,
+                "typeName": "<Option<AccountId> as::ink::storage::traits::AutoStorableHint<::\nink::storage::traits::ManualKey<3648927803u32, ()>,>>::Type"
+              },
+              {
+                "name": "scope",
+                "type": 23,
+                "typeName": "<Option<ProjectScope> as::ink::storage::traits::AutoStorableHint<\n::ink::storage::traits::ManualKey<2521983880u32, ()>,>>::Type"
+              },
+              {
+                "name": "total_cost",
+                "type": 10,
+                "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<2710418601u32, ()>,>>::Type"
+              },
+              {
+                "name": "paid_amount",
+                "type": 10,
+                "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<972696643u32, ()>,>>::Type"
+              }
+            ]
+          }
+        },
+        "path": [
+          "projects",
+          "projects",
+          "Project"
         ]
       }
     },
@@ -1896,7 +2007,7 @@
               },
               {
                 "name": "revisions",
-                "type": 17,
+                "type": 18,
                 "typeName": "Vec<ScopeRevision>"
               }
             ]
@@ -2183,6 +2294,10 @@
               {
                 "index": 28,
                 "name": "TaskIdAlreadyExists"
+              },
+              {
+                "index": 29,
+                "name": "TaskNotApproved"
               }
             ]
           }
@@ -2433,7 +2548,7 @@
             0,
             1,
             1,
-            21,
+            15,
             22,
             10,
             10
