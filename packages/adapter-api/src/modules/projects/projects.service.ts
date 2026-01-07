@@ -134,7 +134,35 @@ export class ProjectsService {
 
   async assignTeam(projectId: string, body: { _team_size: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    return this.callWriteMethod(contractAddress, 'assign_team', { _team_size: body._team_size }, authToken);
+    const assignResult = await this.callWriteMethod(contractAddress, 'assign_team', { _team_size: body._team_size }, authToken);
+    
+    // Update project state to 'team_assigned' and milestones to 'task_in_progress' when team is assigned
+    if (assignResult && assignResult.success) {
+      try {
+        const project = await this.projectModel.findById(projectId).exec();
+        if (project && project.state === 'scope_accepted') {
+          project.state = 'team_assigned';
+          project.updatedAt = Date.now();
+          await project.save();
+          console.log(`Project ${projectId} state updated from 'scope_accepted' to 'team_assigned' after team assignment`);
+        }
+        
+        // Update all milestones to 'task_in_progress' when team is assigned
+        const milestones = await this.milestoneModel.find({ contractAddress }).exec();
+        for (const milestone of milestones) {
+          if (milestone.state === 'pending' || milestone.state === 'in_review') {
+            milestone.state = 'task_in_progress';
+            milestone.updatedAt = Date.now();
+            await milestone.save();
+            console.log(`Milestone ${milestone.id} state updated to 'task_in_progress' for project ${projectId}`);
+          }
+        }
+      } catch (error) {
+        console.error(`Error updating project and milestones state for ${projectId} after team assignment:`, error);
+      }
+    }
+    
+    return assignResult;
   }
 
   /**

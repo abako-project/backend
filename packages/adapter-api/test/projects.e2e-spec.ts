@@ -984,6 +984,44 @@ describe('Projects Module E2E Tests', () => {
           expect(finalResponse.body.response.length).toBeGreaterThan(0);
           console.info(`✅ Verified team information: ${finalResponse.body.response.length} member(s)`);
         });
+
+        it('should verify project state was updated to team_assigned after team assignment', async () => {
+          console.log('Verifying project state after team assignment...');
+
+          expect(projectId).toBeDefined();
+
+          const response = await request(app.getHttpServer())
+            .get(`/projects/${projectId}/get_project_info`)
+            .expect(200);
+
+          console.log('Project state after team assignment:', JSON.stringify(response.body, null, 2));
+
+          expect(response.body).toHaveProperty('state', 'team_assigned');
+          console.info(`✅ Project state updated to: ${response.body.state}`);
+        });
+
+        it('should verify milestones state was updated to task_in_progress after team assignment', async () => {
+          console.log('Verifying milestones state after team assignment...');
+
+          expect(projectId).toBeDefined();
+
+          const response = await request(app.getHttpServer())
+            .get(`/projects/${projectId}/get_all_tasks`)
+            .expect(200);
+
+          console.log('Milestones after team assignment:', JSON.stringify(response.body.milestones, null, 2));
+
+          expect(response.body).toHaveProperty('milestones');
+          expect(Array.isArray(response.body.milestones)).toBe(true);
+          expect(response.body.milestones.length).toBeGreaterThan(0);
+
+          // Verify all milestones are in 'task_in_progress' state
+          for (const milestone of response.body.milestones) {
+            expect(milestone).toHaveProperty('state', 'task_in_progress');
+          }
+
+          console.info(`✅ All ${response.body.milestones.length} milestone(s) updated to 'task_in_progress'`);
+        });
       });
 
       describe('Projects Module - Queries', () => {
