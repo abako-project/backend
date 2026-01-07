@@ -449,7 +449,25 @@ export class ProjectsService {
 
   async submitTaskForReview(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    return this.callWriteMethod(contractAddress, 'submit_task_for_review', { task_id: body.task_id }, authToken);
+    const submitResult = await this.callWriteMethod(contractAddress, 'submit_task_for_review', { task_id: body.task_id }, authToken);
+    
+    if (submitResult && submitResult.success) {
+      try {
+        const milestone = await this.milestoneModel.findOne({ contractAddress, id: body.task_id }).exec();
+        if (milestone) {
+          milestone.state = 'in_review';
+          milestone.updatedAt = Date.now();
+          await milestone.save();
+          console.log(`Milestone ${body.task_id} state updated to 'in_review' for project ${projectId}`);
+        } else {
+          console.warn(`Milestone ${body.task_id} not found in MongoDB for project ${projectId}, contract address ${contractAddress}`);
+        }
+      } catch (error) {
+        console.error(`Error updating milestone state for task ${body.task_id} in project ${projectId}:`, error);
+      }
+    }
+    
+    return submitResult;
   }
 
   async completeTask(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {

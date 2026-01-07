@@ -1166,6 +1166,32 @@ describe('Projects Module E2E Tests', () => {
           console.info(`✅ Submitted task #${firstTaskId} for review`);
         });
 
+        it('should verify milestone state was updated to in_review after submitting for review', async () => {
+          console.log('Verifying milestone state after submitting for review...');
+
+          expect(projectId).toBeDefined();
+
+          // Get all tasks to find the task ID that was submitted
+          const tasksResponse = await request(app.getHttpServer())
+            .get(`/projects/${projectId}/get_all_tasks`)
+            .expect(200);
+
+          expect(tasksResponse.body).toHaveProperty('response');
+          expect(Array.isArray(tasksResponse.body.response)).toBe(true);
+          expect(tasksResponse.body.response.length).toBeGreaterThan(0);
+
+          const firstTaskId = tasksResponse.body.response[0].id;
+
+          const statusResponse = await request(app.getHttpServer())
+            .get(`/projects/${projectId}/get_task_completion_status?task_id=${firstTaskId}`)
+            .expect(200);
+
+          console.log('Task completion status:', JSON.stringify(statusResponse.body, null, 2));
+
+          expect(statusResponse.body).toHaveProperty('milestoneState', 'in_review');
+          console.info(`✅ Milestone state updated to: ${statusResponse.body.milestoneState}`);
+        });
+
         describe('Projects Module - Task Management', () => {
           it('should complete a task', async () => {
             console.log('Completing task 1...');
