@@ -134,60 +134,47 @@ export class ProjectsService {
 
   async assignTeam(projectId: string, body: { _team_size: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    const assignResult = await this.callWriteMethod(contractAddress, 'assign_team', { _team_size: body._team_size }, authToken);
-    
-    // Create advance payment in background after team is assigned
-    this.createAdvancePaymentInBackground(projectId, contractAddress).catch((error) => {
-      console.error(`[Background] Error creating advance payment for project ${projectId}:`, error);
-    });
-    
-    return assignResult;
+    return this.callWriteMethod(contractAddress, 'assign_team', { _team_size: body._team_size }, authToken);
   }
 
   /**
-   * Creates advance payment automatically in background after team is assigned.
-   * Waits for team assignment to complete before creating the payment.
+   * Creates advance payment automatically in background after scope is approved by client.
+   * Uses the coordinator address obtained from get_project_info contract method.
    */
   private async createAdvancePaymentInBackground(projectId: string, contractAddress: string): Promise<void> {
     try {
-      console.log(`[Background] Waiting for team assignment to complete before creating advance payment for project ${projectId}...`);
+      console.log(`[Background] Creating advance payment for coordinator of project ${projectId}...`);
       
-      // Wait for team to be assigned with polling mechanism
-      let teamAssigned = false;
-      let attempts = 0;
-      const maxAttempts = 60; // 60 seconds max wait time
+      // Get coordinator address from contract using get_project_info
+      const projectInfo = await this.callReadMethod(contractAddress, 'get_project_info');
       
-      while (attempts < maxAttempts && !teamAssigned) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-        
-        try {
-          const teamInfo = await this.getTeam(projectId);
-          if (teamInfo.success && teamInfo.response && Array.isArray(teamInfo.response) && teamInfo.response.length > 0) {
-            teamAssigned = true;
-            console.log(`[Background] Team assigned, proceeding with advance payment creation for project ${projectId}`);
-            
-            const firstTeamMember = teamInfo.response[0];
-            const workerAccountId = firstTeamMember.account_id;
-            
-            const paymentResult = await this.createAdvancePayment(projectId, workerAccountId);
-            if (paymentResult.paymentId) {
-              this.paymentIds.set(contractAddress, paymentResult.paymentId);
-              console.log(`[Background] Advance payment created automatically after scope approval for worker ${workerAccountId}, paymentId: ${paymentResult.paymentId}`);
-            } else {
-              console.warn(`[Background] Advance payment creation did not return paymentId for project ${projectId}`);
-            }
-            return;
-          }
-        } catch (error) {
-          // Team might not be assigned yet, continue polling
-          console.log(`[Background] Team not yet assigned (attempt ${attempts + 1}/${maxAttempts}), waiting...`);
-        }
-        
-        attempts++;
+      if (!projectInfo.success || !projectInfo.response || !Array.isArray(projectInfo.response)) {
+        console.warn(`[Background] Project info not available or invalid format for project ${projectId}, skipping advance payment creation`);
+        return;
       }
       
-      if (!teamAssigned) {
-        console.warn(`[Background] Team assignment timed out after ${maxAttempts} seconds for project ${projectId}, skipping advance payment creation`);
+      // get_project_info returns: [name, client, dao, coordinator, status, total_cost, paid_amount]
+      // Coordinator is at index 3
+      if (projectInfo.response.length < 4) {
+        console.warn(`[Background] Project info response incomplete for project ${projectId}, skipping advance payment creation`);
+        return;
+      }
+      
+      const coordinatorAddress = projectInfo.response[3];
+      
+      if (!coordinatorAddress) {
+        console.warn(`[Background] Coordinator address not found in project info for project ${projectId}, skipping advance payment creation`);
+        return;
+      }
+      
+      console.log(`[Background] Using coordinator address ${coordinatorAddress} for advance payment`);
+      
+      const paymentResult = await this.createAdvancePayment(projectId, coordinatorAddress);
+      if (paymentResult.paymentId) {
+        this.paymentIds.set(contractAddress, paymentResult.paymentId);
+        console.log(`[Background] Advance payment created automatically for coordinator ${coordinatorAddress}, paymentId: ${paymentResult.paymentId}`);
+      } else {
+        console.warn(`[Background] Advance payment creation did not return paymentId for project ${projectId}`);
       }
     } catch (error) {
       console.error(`[Background] Error creating advance payment for project ${projectId}:`, error);
@@ -351,6 +338,10 @@ export class ProjectsService {
         console.error(`Error updating project state for ${projectId} after scope approval:`, error);
       }
     }
+    // Create advance payment in background after scope is approved by client
+    this.createAdvancePaymentInBackground(projectId, contractAddress).catch((error) => {
+      console.error(`[Background] Error creating advance payment for project ${projectId}:`, error);
+    });
     
     return approveResult;
   }
