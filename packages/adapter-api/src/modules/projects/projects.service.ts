@@ -324,6 +324,20 @@ export class ProjectsService {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const approveResult = await this.callPreSignedWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids });
     
+    // Update project state from 'scope_proposed' to 'scope_accepted' when scope is approved
+    if (approveResult && approveResult.success) {
+      try {
+        const project = await this.projectModel.findById(projectId).exec();
+        if (project && project.state === 'scope_proposed') {
+          project.state = 'scope_accepted';
+          project.updatedAt = Date.now();
+          await project.save();
+          console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_accepted' after scope approval`);
+        }
+      } catch (error) {
+        console.error(`Error updating project state for ${projectId} after scope approval:`, error);
+      }
+    }
     // Create advance payment in background after scope is approved by client
     this.createAdvancePaymentInBackground(projectId, contractAddress).catch((error) => {
       console.error(`[Background] Error creating advance payment for project ${projectId}:`, error);
@@ -339,11 +353,17 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
     
+    if (project.state === 'scope_proposed') {
+      project.state = 'scope_rejected';
+      project.updatedAt = Date.now();
+    }
+    
     if (body.clientResponse) {
       project.proposalRejectionReason = body.clientResponse;
-      project.updatedAt = Date.now();
-      await project.save();
     }
+    
+    await project.save();
+    console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_rejected' after scope rejection`);
     
     return { success: true };
   }

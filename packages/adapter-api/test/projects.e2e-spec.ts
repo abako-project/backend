@@ -1006,7 +1006,7 @@ describe('Projects Module E2E Tests', () => {
           expect(response.body).toHaveProperty('budget', 5000);
           expect(response.body).toHaveProperty('deliveryTime', 30);
           expect(response.body).toHaveProperty('projectType', 1);
-          expect(response.body).toHaveProperty('state', 'scope_proposed');
+          expect(response.body).toHaveProperty('state', 'scope_accepted');
           expect(response.body).toHaveProperty('coordinatorApprovalStatus', 'approved');
           expect(response.body).toHaveProperty('consultantId');
 
