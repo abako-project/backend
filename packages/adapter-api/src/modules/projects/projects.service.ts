@@ -623,9 +623,37 @@ export class ProjectsService {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const tasksResponse = await this.callReadMethod(contractAddress, 'get_all_tasks');
     const milestones = await this.milestoneModel.find({ contractAddress }).sort({ displayOrder: 1 }).exec();
+    
+    const enrichedMilestones = await Promise.all(
+      milestones.map(async (milestone) => {
+        const milestoneObj = milestone.toObject();
+        
+        if (tasksResponse.success && Array.isArray(tasksResponse.response)) {
+          const task = tasksResponse.response.find((t: any) => t.id === milestone.id);
+          
+          if (task && task.assigned_to) {
+            const developerId = await this.getDeveloperIdFromAddress(task.assigned_to);
+            if (developerId) {
+              milestoneObj.developerId = developerId;
+              
+              // Update the milestone in MongoDB if it doesn't have developerId set
+              if (milestone.developerId !== developerId) {
+                milestone.developerId = developerId;
+                milestone.updatedAt = Date.now();
+                await milestone.save();
+                console.log(`Updated milestone ${milestone.id} with developerId ${developerId}`);
+              }
+            }
+          }
+        }
+        
+        return milestoneObj;
+      })
+    );
+    
     return {
       ...tasksResponse,
-      milestones: milestones.map(m => m.toObject()),
+      milestones: enrichedMilestones,
     };
   }
 
