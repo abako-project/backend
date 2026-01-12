@@ -219,6 +219,7 @@ export class ProjectsService {
       const project = await this.projectModel.findById(projectId).exec();
       if (project) {
         project.deliveryDate = Date.now();
+        project.state = 'completed';
         await project.save();
         console.log(`Delivery date set automatically for project ${projectId}: ${project.deliveryDate}`);
       } else {
@@ -236,6 +237,18 @@ export class ProjectsService {
         await this.releaseAdvancePayment(paymentId);
         this.paymentIds.delete(contractAddress);
         console.log(`Advance payment released automatically after project completion, paymentId: ${paymentId}`);
+        
+        // Update project state to payment_released after releasing the payment
+        try {
+          const project = await this.projectModel.findById(projectId).exec();
+          if (project) {
+            project.state = 'payment_released';
+            await project.save();
+            console.log(`Project state updated to payment_released for project ${projectId}`);
+          }
+        } catch (updateError) {
+          console.error(`Error updating project state to payment_released for project ${projectId}:`, updateError);
+        }
       } else {
         console.warn(`No payment ID found for contract ${contractAddress}, skipping advance payment release`);
       }
