@@ -11,6 +11,7 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { DevelopersModule } from './modules/developers/developers.module';
+import { RatingsModule } from './modules/ratings/ratings.module';
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ dotenv.config();
     AuthModule,
     ClientsModule,
     DevelopersModule,
+    RatingsModule,
   ],
   controllers: [],
   providers: [],

@@ -1318,6 +1318,114 @@ describe('Projects Module E2E Tests', () => {
 
             console.info(`✅ Verified delivery date was set: ${new Date(response.body.deliveryDate).toISOString()}`);
           });
+
+          describe('Ratings Verification', () => {
+            it('should verify ratings were saved for the project', async () => {
+              console.log('Verifying ratings were saved for the project...');
+
+              expect(projectId).toBeDefined();
+
+              // Get team members to verify ratings
+              const teamResponse = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/get_team`)
+                .expect(200);
+
+              const teamMembers = teamResponse.body.response;
+              expect(Array.isArray(teamMembers)).toBe(true);
+              expect(teamMembers.length).toBeGreaterThan(0);
+
+              // Query ratings by project
+              const ratingsResponse = await request(app.getHttpServer())
+                .get(`/ratings/project/${projectId}`)
+                .expect(200);
+
+              console.log('Ratings by project:', JSON.stringify(ratingsResponse.body, null, 2));
+
+              expect(ratingsResponse.body).toHaveProperty('ratings');
+              expect(Array.isArray(ratingsResponse.body.ratings)).toBe(true);
+              expect(ratingsResponse.body.ratings.length).toBe(teamMembers.length);
+
+              console.info(`✅ Verified ${ratingsResponse.body.ratings.length} rating(s) saved for project ${projectId}`);
+            });
+
+            it('should verify ratings can be queried by client', async () => {
+              console.log('Verifying ratings can be queried by client...');
+
+              expect(projectId).toBeDefined();
+
+              // Get project to obtain clientId
+              const projectResponse = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/get_project_info`)
+                .expect(200);
+
+              const projectClientId = projectResponse.body.clientId;
+              expect(projectClientId).toBeDefined();
+
+              // Query ratings by client
+              const ratingsResponse = await request(app.getHttpServer())
+                .get(`/ratings/client/${projectClientId}`)
+                .expect(200);
+
+              console.log('Ratings by client:', JSON.stringify(ratingsResponse.body, null, 2));
+
+              expect(ratingsResponse.body).toHaveProperty('clientId', projectClientId);
+              expect(ratingsResponse.body).toHaveProperty('totalRatings');
+              expect(ratingsResponse.body).toHaveProperty('ratings');
+              expect(Array.isArray(ratingsResponse.body.ratings)).toBe(true);
+              expect(ratingsResponse.body.ratings.length).toBeGreaterThan(0);
+
+              // Verify all ratings belong to this client
+              for (const rating of ratingsResponse.body.ratings) {
+                expect(rating).toHaveProperty('clientId', projectClientId);
+                expect(rating).toHaveProperty('projectId', projectId);
+              }
+
+              console.info(`✅ Verified ${ratingsResponse.body.totalRatings} rating(s) for client ${projectClientId}`);
+            });
+
+            it('should verify ratings can be queried by developer (account_id)', async () => {
+              console.log('Verifying ratings can be queried by developer...');
+
+              expect(projectId).toBeDefined();
+
+              // Get team members to get account_ids
+              const teamResponse = await request(app.getHttpServer())
+                .get(`/projects/${projectId}/get_team`)
+                .expect(200);
+
+              const teamMembers = teamResponse.body.response;
+              expect(Array.isArray(teamMembers)).toBe(true);
+              expect(teamMembers.length).toBeGreaterThan(0);
+
+              // Query ratings for the first team member
+              const firstMemberAccountId = teamMembers[0].account_id;
+              expect(firstMemberAccountId).toBeDefined();
+
+              const ratingsResponse = await request(app.getHttpServer())
+                .get(`/ratings/developer/${firstMemberAccountId}`)
+                .expect(200);
+
+              console.log('Ratings by developer:', JSON.stringify(ratingsResponse.body, null, 2));
+
+              expect(ratingsResponse.body).toHaveProperty('developerId', firstMemberAccountId);
+              expect(ratingsResponse.body).toHaveProperty('averageRating');
+              expect(ratingsResponse.body).toHaveProperty('totalRatings');
+              expect(ratingsResponse.body).toHaveProperty('ratings');
+              expect(Array.isArray(ratingsResponse.body.ratings)).toBe(true);
+              expect(ratingsResponse.body.ratings.length).toBeGreaterThan(0);
+
+              // Verify all ratings belong to this developer
+              for (const rating of ratingsResponse.body.ratings) {
+                expect(rating).toHaveProperty('developerId', firstMemberAccountId);
+              }
+
+              // Verify average rating is correct (should be 8 in this test)
+              expect(ratingsResponse.body.averageRating).toBe(8);
+              expect(ratingsResponse.body.totalRatings).toBeGreaterThan(0);
+
+              console.info(`✅ Verified ${ratingsResponse.body.totalRatings} rating(s) for developer ${firstMemberAccountId.substring(0, 20)}... with average ${ratingsResponse.body.averageRating}`);
+            });
+          });
         });
 
 
