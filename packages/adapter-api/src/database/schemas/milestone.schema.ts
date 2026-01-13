@@ -41,6 +41,9 @@ export class Milestone {
   @Prop({ default: false })
   neededHourlyDeveloper: boolean;
 
+  @Prop()
+  neededHours?: number;
+
   @Prop({ type: Number, ref: 'Developer' })
   developerId?: number;
 

@@ -1021,6 +1021,17 @@ export class ProjectsController {
                 type: 'array',
                 items: { type: 'string' },
                 example: ['React', 'TypeScript', 'CSS']
+              },
+              availability: { 
+                type: 'string',
+                enum: ['fulltime', 'parttime', 'hourly'],
+                description: 'Developer availability type',
+                example: 'fulltime'
+              },
+              neededHours: { 
+                type: 'number',
+                description: 'Number of hours needed (required when availability is "hourly")',
+                example: 20
               }
             }
           }
@@ -1196,6 +1207,11 @@ export class ProjectsController {
           enum: ['fulltime', 'parttime', 'hourly'],
           description: 'Developer availability type',
           example: 'fulltime'
+        },
+        neededHours: { 
+          type: 'number',
+          description: 'Number of hours needed (required when availability is "hourly")',
+          example: 20
         }
       },
       required: ['title', 'budget', 'deliveryTime', 'availability']
