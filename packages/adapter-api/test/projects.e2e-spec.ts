@@ -1383,12 +1383,12 @@ describe('Projects Module E2E Tests', () => {
               console.info(`✅ Verified ${ratingsResponse.body.totalRatings} rating(s) for client ${projectClientId}`);
             });
 
-            it('should verify ratings can be queried by developer (account_id)', async () => {
+            it('should verify ratings can be queried by developer (developerId)', async () => {
               console.log('Verifying ratings can be queried by developer...');
 
               expect(projectId).toBeDefined();
 
-              // Get team members to get account_ids
+              // Get team members to get developerId
               const teamResponse = await request(app.getHttpServer())
                 .get(`/projects/${projectId}/get_team`)
                 .expect(200);
@@ -1397,17 +1397,19 @@ describe('Projects Module E2E Tests', () => {
               expect(Array.isArray(teamMembers)).toBe(true);
               expect(teamMembers.length).toBeGreaterThan(0);
 
-              // Query ratings for the first team member
-              const firstMemberAccountId = teamMembers[0].account_id;
-              expect(firstMemberAccountId).toBeDefined();
+              // Get ratings for the first team member 
+              const firstMember = teamMembers[0];
+              const firstMemberDeveloperId = firstMember.developerId;
+              expect(firstMemberDeveloperId).toBeDefined();
+              expect(typeof firstMemberDeveloperId).toBe('number');
 
               const ratingsResponse = await request(app.getHttpServer())
-                .get(`/ratings/developer/${firstMemberAccountId}`)
+                .get(`/ratings/developer/${firstMemberDeveloperId}`)
                 .expect(200);
 
               console.log('Ratings by developer:', JSON.stringify(ratingsResponse.body, null, 2));
 
-              expect(ratingsResponse.body).toHaveProperty('developerId', firstMemberAccountId);
+              expect(ratingsResponse.body).toHaveProperty('developerId', firstMemberDeveloperId);
               expect(ratingsResponse.body).toHaveProperty('averageRating');
               expect(ratingsResponse.body).toHaveProperty('totalRatings');
               expect(ratingsResponse.body).toHaveProperty('ratings');
@@ -1416,14 +1418,14 @@ describe('Projects Module E2E Tests', () => {
 
               // Verify all ratings belong to this developer
               for (const rating of ratingsResponse.body.ratings) {
-                expect(rating).toHaveProperty('developerId', firstMemberAccountId);
+                expect(rating).toHaveProperty('developerId', firstMemberDeveloperId.toString());
               }
 
               // Verify average rating is correct (should be 8 in this test)
               expect(ratingsResponse.body.averageRating).toBe(8);
               expect(ratingsResponse.body.totalRatings).toBeGreaterThan(0);
 
-              console.info(`✅ Verified ${ratingsResponse.body.totalRatings} rating(s) for developer ${firstMemberAccountId.substring(0, 20)}... with average ${ratingsResponse.body.averageRating}`);
+              console.info(`✅ Verified ${ratingsResponse.body.totalRatings} rating(s) for developer ${firstMemberDeveloperId} with average ${ratingsResponse.body.averageRating}`);
             });
           });
         });

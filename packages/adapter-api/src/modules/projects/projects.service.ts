@@ -227,13 +227,30 @@ export class ProjectsService {
         // Save ratings
         try {
           if (body.ratings && body.ratings.length > 0) {
-            await this.ratingsService.createRatings(
-              projectId,
-              project.clientId,
-              body.ratings,
-              contractAddress
-            );
-            console.log(`Ratings saved to database for project ${projectId}: ${body.ratings.length} ratings from client ${project.clientId}`);
+            const ratingsWithDeveloperIds: Array<[string, number]> = [];
+            
+            for (const [accountId, rating] of body.ratings) {
+              const developerId = await this.getUserIdFromAddress(
+                accountId,
+                (email: string) => this.developersService.findByEmail(email),
+                'developer'
+              );
+              if (developerId) {
+                ratingsWithDeveloperIds.push([developerId.toString(), rating]);
+              } else {
+                console.warn(`Could not find developer ID for account_id ${accountId}, skipping rating`);
+              }
+            }
+            
+            if (ratingsWithDeveloperIds.length > 0) {
+              await this.ratingsService.createRatings(
+                projectId,
+                project.clientId,
+                ratingsWithDeveloperIds,
+                contractAddress
+              );
+              console.log(`Ratings saved to database for project ${projectId}: ${ratingsWithDeveloperIds.length} ratings from client ${project.clientId}`);
+            }
           }
         } catch (ratingsError) {
           console.error(`Error saving ratings to database for project ${projectId}:`, ratingsError);
