@@ -1073,6 +1073,7 @@ export class ProjectsService {
       neededFullTimeDeveloper: milestoneData.availability === 'fulltime',
       neededPartTimeDeveloper: milestoneData.availability === 'parttime',
       neededHourlyDeveloper: milestoneData.availability === 'hourly',
+      neededHours: milestoneData.neededHours,
       displayOrder,
       state: 'pending',
     });
@@ -1113,6 +1114,7 @@ export class ProjectsService {
     milestone.neededFullTimeDeveloper = updateData.availability === 'fulltime';
     milestone.neededPartTimeDeveloper = updateData.availability === 'parttime';
     milestone.neededHourlyDeveloper = updateData.availability === 'hourly';
+    if (updateData.neededHours !== undefined) milestone.neededHours = updateData.neededHours;
 
     milestone.updatedAt = Date.now();
     return milestone.save();

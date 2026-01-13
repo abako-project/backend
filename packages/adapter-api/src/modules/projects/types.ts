@@ -119,6 +119,7 @@ export interface CreateMilestoneRequest {
   proficiency?: string;
   skills?: string[];
   availability: 'fulltime' | 'parttime' | 'hourly';
+  neededHours?: number;
 }
 
 export interface UpdateMilestoneRequest {
@@ -130,6 +131,7 @@ export interface UpdateMilestoneRequest {
   proficiency?: string;
   skills?: string[];
   availability: 'fulltime' | 'parttime' | 'hourly';
+  neededHours?: number;
 }
 
 export interface CreateProposalRequest {
