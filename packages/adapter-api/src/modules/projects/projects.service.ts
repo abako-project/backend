@@ -5,6 +5,7 @@ import { ConfigService } from '../../config/config.service';
 import { AuthService } from '../auth/auth.service';
 import { DevelopersService } from '../developers/developers.service';
 import { ClientsService } from '../clients/clients.service';
+import { RatingsService } from '../ratings/ratings.service';
 import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneRequest, UpdateMilestoneRequest, CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CoordinatorApprovalRequest } from './types';
 import { Project, ProjectDocument } from '../../database/schemas/project.schema';
 import { Milestone, MilestoneDocument } from '../../database/schemas/milestone.schema';
@@ -18,6 +19,7 @@ export class ProjectsService {
     private readonly authService: AuthService,
     private readonly developersService: DevelopersService,
     private readonly clientsService: ClientsService,
+    private readonly ratingsService: RatingsService,
     @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
     @InjectModel(Milestone.name) private milestoneModel: Model<MilestoneDocument>,
   ) {}
@@ -222,6 +224,38 @@ export class ProjectsService {
         project.state = 'completed';
         await project.save();
         console.log(`Delivery date set automatically for project ${projectId}: ${project.deliveryDate}`);
+        
+        // Save ratings
+        try {
+          if (body.ratings && body.ratings.length > 0) {
+            const ratingsWithDeveloperIds: Array<[string, number]> = [];
+            
+            for (const [accountId, rating] of body.ratings) {
+              const developerId = await this.getUserIdFromAddress(
+                accountId,
+                (email: string) => this.developersService.findByEmail(email),
+                'developer'
+              );
+              if (developerId) {
+                ratingsWithDeveloperIds.push([developerId.toString(), rating]);
+              } else {
+                console.warn(`Could not find developer ID for account_id ${accountId}, skipping rating`);
+              }
+            }
+            
+            if (ratingsWithDeveloperIds.length > 0) {
+              await this.ratingsService.createRatings(
+                projectId,
+                project.clientId,
+                ratingsWithDeveloperIds,
+                contractAddress
+              );
+              console.log(`Ratings saved to database for project ${projectId}: ${ratingsWithDeveloperIds.length} ratings from client ${project.clientId}`);
+            }
+          }
+        } catch (ratingsError) {
+          console.error(`Error saving ratings to database for project ${projectId}:`, ratingsError);
+        }
       } else {
         console.warn(`Project ${projectId} not found when trying to set delivery date`);
       }
