@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createClient } from 'polkadot-api';
+import { createClient, Binary } from 'polkadot-api';
 import { getWsProvider } from 'polkadot-api/ws-provider/node';
 import { kreivo, MultiAddress } from '@polkadot-api/descriptors';
 import { ConfigService } from '../../config/config.service';
@@ -21,7 +21,7 @@ import {
 
 @Injectable()
 export class ManagementService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   async getCommunityAddress(communityId: number): Promise<CommunityAddressResponse> {
     try {
@@ -32,7 +32,7 @@ export class ManagementService {
       const kreivoApi = client.getTypedApi(kreivo);
 
       const collectionDetails = await kreivoApi.query.CommunityMemberships.Collection.getValue(communityId);
-      
+
       if (!collectionDetails) {
         client.destroy();
         throw new Error(`Community with ID ${communityId} not found`);
@@ -119,7 +119,7 @@ export class ManagementService {
       const kreivoApi = client.getTypedApi(kreivo);
 
       const membershipKeys = await kreivoApi.query.CommunityMemberships.Account.getEntries(
-        address, 
+        address,
         communityId
       );
 
@@ -154,7 +154,7 @@ export class ManagementService {
     const kreivoApi = client.getTypedApi(kreivo);
 
     const membershipKeys = await kreivoApi.query.CommunityMemberships.Account.getEntries(
-      address, 
+      address,
       communityId
     );
 
@@ -166,14 +166,14 @@ export class ManagementService {
 
     // keyArgs format: [owner_address, collection_id, item_id]
     const membershipId = membershipKeys[0].keyArgs[2] as number;
-    
+
     return membershipId;
   }
 
   async removeMember(request: RemoveMemberRequest): Promise<RemoveMemberResponse> {
     try {
       const membershipId = await this.getMembershipId(request.memberAddress, request.communityId);
-      
+
       console.log(`Found membership ID: ${membershipId} for member ${request.memberAddress}`);
 
       const client = createClient(
@@ -242,13 +242,13 @@ export class ManagementService {
       const kreivoApi = client.getTypedApi(kreivo);
 
       const items = await kreivoApi.query.CommunityMemberships.Item.getEntries(request.communityId);
-      
+
       console.log(`Community ${request.communityId} has ${items.length} members`);
 
       const communityMembers: Membership[] = items.map((item) => {
         const [collectionId, itemId] = item.keyArgs;
         const ownerAddress = item.value.owner as string;
-        
+
         return {
           address: ownerAddress,
           membershipId: itemId as number,
@@ -262,7 +262,7 @@ export class ManagementService {
       const totalPages = Math.ceil(total / limit);
       const startIndex = (page - 1) * limit;
       const endIndex = startIndex + limit;
-      
+
       const members = communityMembers.slice(startIndex, endIndex);
 
       client.destroy();
@@ -289,7 +289,7 @@ export class ManagementService {
       const kreivoApi = client.getTypedApi(kreivo);
 
       const item = await kreivoApi.query.CommunityMemberships.Item.getValue(communityId, membershipId);
-      
+
       if (!item) {
         client.destroy();
         throw new Error(`Membership ${membershipId} not found in community ${communityId}`);
@@ -311,6 +311,50 @@ export class ManagementService {
     } catch (error) {
       console.error('Error getting member from blockchain:', error);
       throw new Error(`Failed to get member: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async submitRemarkReferendum(remark: string, origin: string): Promise<{ success: boolean; callData: string }> {
+    try {
+      const client = createClient(
+        getWsProvider(this.configService.getKreivoProvider())
+      );
+
+      const kreivoApi = client.getTypedApi(kreivo);
+
+      console.log(`Creating remark call: "${remark}"`);
+
+      const remarkCall = kreivoApi.tx.System.remark({
+        remark: Binary.fromText(remark) as any
+      });
+
+      const callData = await remarkCall.getEncodedData();
+
+      console.log(`Constructing referendum call for community 1...`);
+
+      const submitTx = (kreivoApi.tx.CommunityReferenda.submit as any)({
+        proposal_origin: {
+          type: "Communities",
+          value: {
+            community_id: 1,
+          }
+        },
+        proposal: { type: "Inline", value: callData },
+        enactment_moment: { type: "After", value: 100 }
+      });
+
+      const encodedCallData = await submitTx.getEncodedData();
+      console.log(`Referendum call constructed. Call data length: ${encodedCallData.asHex().length}`);
+
+      client.destroy();
+
+      return {
+        success: true,
+        callData: encodedCallData.asHex() as any
+      };
+    } catch (error) {
+      console.error('Error constructing referendum call:', error);
+      throw new Error(`Failed to construct referendum call: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

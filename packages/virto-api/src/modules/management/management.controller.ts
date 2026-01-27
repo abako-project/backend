@@ -11,7 +11,7 @@ import {
 
 @Controller('api/memberships')
 export class ManagementController {
-  constructor(private readonly managementService: ManagementService) {}
+  constructor(private readonly managementService: ManagementService) { }
 
   @Get(':communityId/address')
   async getCommunityAddress(@Param('communityId') communityId: string): Promise<CommunityAddressResponse> {
@@ -43,7 +43,7 @@ export class ManagementController {
       if (isNaN(parsedCommunityId)) {
         throw new HttpException('Invalid community ID', HttpStatus.BAD_REQUEST);
       }
-      
+
       return await this.managementService.getMembers({
         communityId: parsedCommunityId,
         page: page ? parseInt(page, 10) : undefined,
@@ -68,11 +68,11 @@ export class ManagementController {
     try {
       const parsedCommunityId = parseInt(communityId, 10);
       const parsedMembershipId = parseInt(membershipId, 10);
-      
+
       if (isNaN(parsedCommunityId) || isNaN(parsedMembershipId)) {
         throw new HttpException('Invalid community ID or membership ID', HttpStatus.BAD_REQUEST);
       }
-      
+
       return await this.managementService.getMember(parsedCommunityId, parsedMembershipId);
     } catch (error) {
       if (error instanceof HttpException) {
@@ -117,7 +117,7 @@ export class ManagementController {
       if (isNaN(parsedCommunityId)) {
         throw new HttpException('Invalid community ID', HttpStatus.BAD_REQUEST);
       }
-      
+
       return await this.managementService.addMember({
         communityId: parsedCommunityId,
         memberAddress: body.memberAddress
@@ -140,7 +140,7 @@ export class ManagementController {
       if (isNaN(parsedCommunityId)) {
         throw new HttpException('Invalid community ID', HttpStatus.BAD_REQUEST);
       }
-      
+
       return await this.managementService.removeMember({
         communityId: parsedCommunityId,
         memberAddress: address
@@ -148,6 +148,26 @@ export class ManagementController {
     } catch (error) {
       throw new HttpException(
         error instanceof Error ? error.message : 'Failed to remove member',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @Post('governance/submit-remark')
+  async submitRemarkReferendum(
+    @Body() body: { remark: string; origin: string }
+  ): Promise<{ success: boolean; callData: any }> {
+    try {
+      if (!body.remark) {
+        throw new HttpException('Missing required parameter: remark', HttpStatus.BAD_REQUEST);
+      }
+      return await this.managementService.submitRemarkReferendum(body.remark, body.origin);
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        error instanceof Error ? error.message : 'Failed to submit referendum',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
