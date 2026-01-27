@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0x53f93d8cee3c72070519f90a918eacacd54871b17abec089198339be1c9331a1",
+    "hash": "0xc207888219e29e2186c5c494b5fc8fee5cb38f3e442b2327423b76caa7d70dfd",
     "language": "ink! 5.1.1",
     "compiler": "rustc 1.85.0",
     "build_info": {
@@ -32,6 +32,15 @@
                 "String"
               ],
               "type": 0
+            }
+          },
+          {
+            "label": "client",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
             }
           },
           {
@@ -499,6 +508,47 @@
         "label": "ScopeResponseReceived",
         "module_path": "projects::projects",
         "signature_topic": "0xfb9143d083dd427f05a5ff28cd16bcdb3c50dd7403873f813aa55332b43e7157"
+      },
+      {
+        "args": [
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "payment_due",
+            "type": {
+              "displayName": [
+                "Balance"
+              ],
+              "type": 10
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "asset_id",
+            "type": {
+              "displayName": [
+                "u32"
+              ],
+              "type": 14
+            }
+          },
+          {
+            "docs": [],
+            "indexed": false,
+            "label": "is_test",
+            "type": {
+              "displayName": [
+                "bool"
+              ],
+              "type": 12
+            }
+          }
+        ],
+        "docs": [],
+        "label": "DebugPayment",
+        "module_path": "projects::projects",
+        "signature_topic": "0xb627ddcc1f0e656ccaae275752aa043e052fa64720b0dffc6311ed8a833d5da8"
       }
     ],
     "lang_error": {
@@ -1377,6 +1427,15 @@
                 }
               },
               "name": "paid_amount"
+            },
+            {
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 14
+                }
+              },
+              "name": "asset_id"
             }
           ],
           "name": "Project"
@@ -1901,6 +1960,11 @@
                 "name": "paid_amount",
                 "type": 10,
                 "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<972696643u32, ()>,>>::Type"
+              },
+              {
+                "name": "asset_id",
+                "type": 14,
+                "typeName": "<u32 as::ink::storage::traits::AutoStorableHint<::ink::storage\n::traits::ManualKey<221604333u32, ()>,>>::Type"
               }
             ]
           }
@@ -2298,6 +2362,26 @@
               {
                 "index": 29,
                 "name": "TaskNotApproved"
+              },
+              {
+                "index": 30,
+                "name": "InsufficientPayment"
+              },
+              {
+                "index": 31,
+                "name": "TransferFailed"
+              },
+              {
+                "index": 32,
+                "name": "AssetTransferFailed"
+              },
+              {
+                "index": 33,
+                "name": "AssetDepositFailed"
+              },
+              {
+                "index": 34,
+                "name": "AssetPaymentFailed"
               }
             ]
           }
@@ -2977,9 +3061,10 @@
           "variant": {}
         },
         "path": [
-          "ink_env",
-          "types",
-          "NoChainExtension"
+          "kreivo_apis",
+          "contract",
+          "chain_extension",
+          "ChainExtension"
         ]
       }
     }
