@@ -12,7 +12,7 @@ import { Milestone, MilestoneDocument } from '../../database/schemas/milestone.s
 
 @Injectable()
 export class ProjectsService {
-  private paymentIds: Map<string, string> = new Map();
+
 
   constructor(
     private readonly configService: ConfigService,
@@ -22,7 +22,7 @@ export class ProjectsService {
     private readonly ratingsService: RatingsService,
     @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
     @InjectModel(Milestone.name) private milestoneModel: Model<MilestoneDocument>,
-  ) {}
+  ) { }
 
   /**
    * Helper method to get contract address from project ID
@@ -30,7 +30,7 @@ export class ProjectsService {
    */
   private async getContractAddressFromProjectId(projectId: string): Promise<string> {
     const project = await this.projectModel.findById(projectId).exec();
-    
+
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
@@ -65,9 +65,9 @@ export class ProjectsService {
     try {
       const federateServerUrl = this.configService.getFederateServer();
       const url = `${federateServerUrl}/get-user-id-by-address?address=${encodeURIComponent(address)}`;
-      
+
       const response = await fetch(url, { method: "GET" });
-      
+
       if (!response.ok) {
         if (response.status === 404) {
           console.warn(`Could not find user for ${entityType} address: ${address}`);
@@ -77,9 +77,9 @@ export class ProjectsService {
       }
 
       const responseData = await response.json() as { userId?: string };
-      
+
       const { userId } = responseData;
-      
+
       if (!userId) {
         console.warn(`No userId returned for ${entityType} address: ${address}`);
         return null;
@@ -87,7 +87,7 @@ export class ProjectsService {
 
       // Find entity by email (userId is the email)
       const entity = await findByEmailFn(userId);
-      
+
       if (!entity) {
         console.warn(`Could not find ${entityType} for user email: ${userId}`);
         return null;
@@ -103,17 +103,17 @@ export class ProjectsService {
   async assignCoordinator(projectId: string, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const result = await this.callPreSignedWriteMethod(contractAddress, 'assign_coordinator', {});
-    
+
     if (result && result.success && result.coordinator) {
       const project = await this.projectModel.findById(projectId).exec();
-      
+
       if (project) {
         const developerId = await this.getUserIdFromAddress(
           result.coordinator,
           (email) => this.developersService.findByEmail(email),
           'developer'
         );
-        
+
         if (developerId) {
           project.consultantId = developerId.toString();
           project.updatedAt = Date.now();
@@ -130,14 +130,14 @@ export class ProjectsService {
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
-    
+
     return result;
   }
 
   async assignTeam(projectId: string, body: { _team_size: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const assignResult = await this.callWriteMethod(contractAddress, 'assign_team', { _team_size: body._team_size }, authToken);
-    
+
     // Update project state to 'team_assigned' and milestones to 'task_in_progress' when team is assigned
     if (assignResult && assignResult.success) {
       try {
@@ -148,7 +148,7 @@ export class ProjectsService {
           await project.save();
           console.log(`Project ${projectId} state updated from 'scope_accepted' to 'team_assigned' after team assignment`);
         }
-        
+
         // Update all milestones to 'task_in_progress' when team is assigned
         const milestones = await this.milestoneModel.find({ contractAddress }).exec();
         for (const milestone of milestones) {
@@ -163,59 +163,14 @@ export class ProjectsService {
         console.error(`Error updating project and milestones state for ${projectId} after team assignment:`, error);
       }
     }
-    
-    return assignResult;
-  }
 
-  /**
-   * Creates advance payment automatically in background after scope is approved by client.
-   * Uses the coordinator address obtained from get_project_info contract method.
-   */
-  private async createAdvancePaymentInBackground(projectId: string, contractAddress: string): Promise<void> {
-    try {
-      console.log(`[Background] Creating advance payment for coordinator of project ${projectId}...`);
-      
-      // Get coordinator address from contract using get_project_info
-      const projectInfo = await this.callReadMethod(contractAddress, 'get_project_info');
-      
-      if (!projectInfo.success || !projectInfo.response || !Array.isArray(projectInfo.response)) {
-        console.warn(`[Background] Project info not available or invalid format for project ${projectId}, skipping advance payment creation`);
-        return;
-      }
-      
-      // get_project_info returns: [name, client, dao, coordinator, status, total_cost, paid_amount]
-      // Coordinator is at index 3
-      if (projectInfo.response.length < 4) {
-        console.warn(`[Background] Project info response incomplete for project ${projectId}, skipping advance payment creation`);
-        return;
-      }
-      
-      const coordinatorAddress = projectInfo.response[3];
-      
-      if (!coordinatorAddress) {
-        console.warn(`[Background] Coordinator address not found in project info for project ${projectId}, skipping advance payment creation`);
-        return;
-      }
-      
-      console.log(`[Background] Using coordinator address ${coordinatorAddress} for advance payment`);
-      
-      const paymentResult = await this.createAdvancePayment(projectId, coordinatorAddress);
-      if (paymentResult.paymentId) {
-        this.paymentIds.set(contractAddress, paymentResult.paymentId);
-        console.log(`[Background] Advance payment created automatically for coordinator ${coordinatorAddress}, paymentId: ${paymentResult.paymentId}`);
-      } else {
-        console.warn(`[Background] Advance payment creation did not return paymentId for project ${projectId}`);
-      }
-    } catch (error) {
-      console.error(`[Background] Error creating advance payment for project ${projectId}:`, error);
-      // Don't throw - this is a background operation
-    }
+    return assignResult;
   }
 
   async markCompleted(projectId: string, body: { ratings: Array<[string, number]> }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'mark_completed', { ratings: body.ratings });
-    
+    const completeResult = await this.callWriteMethod(contractAddress, 'mark_completed', { ratings: body.ratings }, authToken);
+
     // Set deliveryDate automatically when project is marked as completed
     try {
       const project = await this.projectModel.findById(projectId).exec();
@@ -224,12 +179,12 @@ export class ProjectsService {
         project.state = 'completed';
         await project.save();
         console.log(`Delivery date set automatically for project ${projectId}: ${project.deliveryDate}`);
-        
+
         // Save ratings
         try {
           if (body.ratings && body.ratings.length > 0) {
             const ratingsWithDeveloperIds: Array<[string, number]> = [];
-            
+
             for (const [accountId, rating] of body.ratings) {
               const developerId = await this.getUserIdFromAddress(
                 accountId,
@@ -242,7 +197,7 @@ export class ProjectsService {
                 console.warn(`Could not find developer ID for account_id ${accountId}, skipping rating`);
               }
             }
-            
+
             if (ratingsWithDeveloperIds.length > 0) {
               await this.ratingsService.createRatings(
                 projectId,
@@ -262,132 +217,18 @@ export class ProjectsService {
     } catch (error) {
       console.error(`Error setting delivery date for project ${projectId}:`, error);
     }
-    
-    try {
-      console.log({paymentIds: this.paymentIds});
-      const paymentId = this.paymentIds.get(contractAddress);
 
-      if (paymentId) {
-        await this.releaseAdvancePayment(paymentId);
-        this.paymentIds.delete(contractAddress);
-        console.log(`Advance payment released automatically after project completion, paymentId: ${paymentId}`);
-        
-        // Update project state to payment_released after releasing the payment
-        try {
-          const project = await this.projectModel.findById(projectId).exec();
-          if (project) {
-            project.state = 'payment_released';
-            await project.save();
-            console.log(`Project state updated to payment_released for project ${projectId}`);
-          }
-        } catch (updateError) {
-          console.error(`Error updating project state to payment_released for project ${projectId}:`, updateError);
-        }
-      } else {
-        console.warn(`No payment ID found for contract ${contractAddress}, skipping advance payment release`);
-      }
-    } catch (error) {
-      console.error('Error releasing advance payment after completion:', error);
-    }
-    
     return completeResult;
   }
 
-  private async createAdvancePayment(projectId: string, workerAccountId: string): Promise<{ success: boolean; paymentId?: string }> {
-    try {
-      const contractAddress = await this.getContractAddressFromProjectId(projectId);
-      const scopeInfo = await this.getScopeInfo(projectId);
-      if (!scopeInfo.success || !scopeInfo.response || !Array.isArray(scopeInfo.response)) {
-        throw new Error('Scope info not available or invalid format');
-      }
 
-      if (scopeInfo.response.length < 4) {
-        throw new Error('Scope info response incomplete');
-      }
-
-      const totalCost = scopeInfo.response[3];
-      const advancePercentage = scopeInfo.response[1];
-
-      const advanceAmount = (BigInt(totalCost) * BigInt(advancePercentage)) / BigInt(100);
-      
-      const federateServer = this.configService.getFederateServer();
-      const paymentsUrl = `${federateServer.replace('/api', '')}/api/payments/create`;
-
-      console.log(`Creating advance payment of ${advanceAmount} for worker ${workerAccountId} (project ${projectId})`);
-
-      const createResponse = await fetch(paymentsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          recipientAddress: workerAccountId,
-          amount: advanceAmount.toString(),
-          assetId: 1,
-          remark: contractAddress,
-        }),
-      });
-
-      if (!createResponse.ok) {
-        throw new Error(`Payment service error: ${createResponse.status} ${createResponse.statusText}`);
-      }
-
-      const createResult = await createResponse.json() as { success: boolean; paymentId?: string | bigint };
-      console.log('Advance payment created:', createResult);
-
-      return {
-        success: createResult.success,
-        paymentId: createResult.paymentId ? String(createResult.paymentId) : undefined,
-      };
-    } catch (error) {
-      console.error('Error creating advance payment:', error);
-      throw new HttpException(
-        `Error creating advance payment: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
-  private async releaseAdvancePayment(paymentId: string): Promise<{ success: boolean; txHash?: string }> {
-    try {
-      const federateServer = this.configService.getFederateServer();
-      const paymentsUrl = `${federateServer.replace('/api', '')}/api/payments/release`;
-
-      console.log(`Releasing advance payment with ID: ${paymentId}`);
-
-      const releaseResponse = await fetch(paymentsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          paymentId: `${paymentId}`,
-        }),
-      });
-
-      if (!releaseResponse.ok) {
-        throw new Error(`Payment service error: ${releaseResponse.status} ${releaseResponse.statusText}`);
-      }
-
-      const releaseResult = await releaseResponse.json() as { success: boolean; txHash?: string };
-      console.log('Advance payment released:', releaseResult);
-
-      return releaseResult;
-    } catch (error) {
-      console.error('Error releasing advance payment:', error);
-      throw new HttpException(
-        `Error releasing advance payment: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
 
   async setCalendarContract(projectId: string, body: { calendar_contract: string }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     return this.callWriteMethod(contractAddress, 'set_calendar_contract', { calendar_contract: body.calendar_contract }, authToken);
   }
 
-  private async proposeScope(contractAddress: string, body: { 
+  private async proposeScope(contractAddress: string, body: {
     tasks: Array<[number, any, string, number[]]>;
     advance_payment_percentage: number;
     document_hash: string;
@@ -397,8 +238,12 @@ export class ProjectsService {
 
   async approveScope(projectId: string, body: { approved_task_ids: number[] }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    const approveResult = await this.callPreSignedWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids });
-    
+    const project = await this.projectModel.findById(projectId).exec();
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
+    }
+    const approveResult = await this.callWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids, value: (project.budget || 0).toString() }, authToken);
+
     // Update project state from 'scope_proposed' to 'scope_accepted' when scope is approved
     if (approveResult && approveResult.success) {
       try {
@@ -413,39 +258,36 @@ export class ProjectsService {
         console.error(`Error updating project state for ${projectId} after scope approval:`, error);
       }
     }
-    // Create advance payment in background after scope is approved by client
-    this.createAdvancePaymentInBackground(projectId, contractAddress).catch((error) => {
-      console.error(`[Background] Error creating advance payment for project ${projectId}:`, error);
-    });
-    
+
+
     return approveResult;
   }
 
   async rejectScope(projectId: string, body: ScopeRejectRequest, authToken: string): Promise<any> {
     const project = await this.projectModel.findById(projectId).exec();
-    
+
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
-    
+
     if (project.state === 'scope_proposed') {
       project.state = 'scope_rejected';
       project.updatedAt = Date.now();
     }
-    
+
     if (body.clientResponse) {
       project.proposalRejectionReason = body.clientResponse;
     }
-    
+
     await project.save();
     console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_rejected' after scope rejection`);
-    
+
     return { success: true };
   }
 
   async coordinatorRejectProject(projectId: string, rejectionReason: string): Promise<any> {
     const project = await this.projectModel.findById(projectId).exec();
-    
+
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
@@ -460,13 +302,13 @@ export class ProjectsService {
   }
 
   async coordinatorApproveProject(
-    projectId: string, 
+    projectId: string,
     approvalData: CoordinatorApprovalRequest,
     authToken: string
   ): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const project = await this.projectModel.findById(projectId).exec();
-    
+
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
@@ -474,7 +316,7 @@ export class ProjectsService {
     try {
       console.log('Creating milestones in MongoDB...');
       const createdMilestones: Milestone[] = [];
-      
+
       // Create all milestones in MongoDB
       for (const milestoneData of approvalData.milestones) {
         const milestone = await this.createMilestone(contractAddress, milestoneData);
@@ -491,7 +333,7 @@ export class ProjectsService {
       ]);
 
       console.log('Proposing scope to contract with tasks:', tasks);
-      
+
       // Propose scope to the contract
       const proposeResult = await this.proposeScope(contractAddress, {
         tasks,
@@ -507,11 +349,11 @@ export class ProjectsService {
       project.updatedAt = Date.now();
       await project.save();
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         status: 'approved',
         milestones: createdMilestones,
-        proposeResult 
+        proposeResult
       };
     } catch (error) {
       console.error('Error during coordinator approval:', error);
@@ -525,7 +367,7 @@ export class ProjectsService {
   async submitTaskForReview(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const submitResult = await this.callWriteMethod(contractAddress, 'submit_task_for_review', { task_id: body.task_id }, authToken);
-    
+
     if (submitResult && submitResult.success) {
       try {
         const milestone = await this.milestoneModel.findOne({ contractAddress, id: body.task_id }).exec();
@@ -541,14 +383,14 @@ export class ProjectsService {
         console.error(`Error updating milestone state for task ${body.task_id} in project ${projectId}:`, error);
       }
     }
-    
+
     return submitResult;
   }
 
   async completeTask(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id });
-    
+    const completeResult = await this.callWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id }, authToken);
+
     // Update milestone state in MongoDB to 'completed'
     try {
       const milestone = await this.milestoneModel.findOne({ contractAddress, id: body.task_id }).exec();
@@ -564,14 +406,14 @@ export class ProjectsService {
       console.error(`Error updating milestone state for task ${body.task_id} in project ${projectId}:`, error);
       // Don't throw - the contract call succeeded, MongoDB update is secondary
     }
-    
+
     return completeResult;
   }
 
   async rejectMilestone(projectId: string, milestoneId: number, body: { rejectionReason?: string }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const milestone = await this.milestoneModel.findOne({ contractAddress, id: milestoneId }).exec();
-    
+
     if (!milestone) {
       throw new NotFoundException(`Milestone ${milestoneId} not found for project ${projectId}`);
     }
@@ -598,12 +440,12 @@ export class ProjectsService {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
 
     const teamResponse = await this.callReadMethod(contractAddress, 'get_team');
-    
+
     if (teamResponse.success && Array.isArray(teamResponse.response)) {
       // Get all milestones for this project and group by developerId
       const milestones = await this.milestoneModel.find({ contractAddress }).exec();
       const milestonesByDeveloperId = new Map<number, number[]>();
-      
+
       milestones.forEach(milestone => {
         if (milestone.developerId !== undefined && milestone.developerId !== null) {
           const existing = milestonesByDeveloperId.get(milestone.developerId) || [];
@@ -611,25 +453,25 @@ export class ProjectsService {
           milestonesByDeveloperId.set(milestone.developerId, existing);
         }
       });
-      
+
       const enrichedTeam = await Promise.all(
         teamResponse.response.map(async (member: any) => {
           const developerId = await this.getDeveloperIdFromAddress(member.account_id);
           const milestoneIds = developerId ? (milestonesByDeveloperId.get(developerId) || []) : [];
-          
+
           return {
             ...member,
             developerId: developerId || null,
           };
         })
       );
-      
+
       return {
         ...teamResponse,
         response: enrichedTeam,
       };
     }
-    
+
     return teamResponse;
   }
 
@@ -670,19 +512,19 @@ export class ProjectsService {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const tasksResponse = await this.callReadMethod(contractAddress, 'get_all_tasks');
     const milestones = await this.milestoneModel.find({ contractAddress }).sort({ displayOrder: 1 }).exec();
-    
+
     const enrichedMilestones = await Promise.all(
       milestones.map(async (milestone) => {
         const milestoneObj = milestone.toObject();
-        
+
         if (tasksResponse.success && Array.isArray(tasksResponse.response)) {
           const task = tasksResponse.response.find((t: any) => t.id === milestone.id);
-          
+
           if (task && task.assigned_to) {
             const developerId = await this.getDeveloperIdFromAddress(task.assigned_to);
             if (developerId) {
               milestoneObj.developerId = developerId;
-              
+
               // Update the milestone in MongoDB if it doesn't have developerId set
               if (milestone.developerId !== developerId) {
                 milestone.developerId = developerId;
@@ -693,11 +535,11 @@ export class ProjectsService {
             }
           }
         }
-        
+
         return milestoneObj;
       })
     );
-    
+
     return {
       ...tasksResponse,
       milestones: enrichedMilestones,
@@ -712,12 +554,12 @@ export class ProjectsService {
     try {
       // Use provided contracts or fallback to defaults
       const defaultCalendarContract = process.env.DEFAULT_CALENDAR_CONTRACT || 'Dd34LSU53MLwJpq4wfHmDFwAifJrcaPbd1qTCGZcR7iXQkd';
-      
+
       const calendarContract = proposalData.calendarContract || defaultCalendarContract;
 
       const userId = await this.authService.getUserIdFromToken(authToken);
       const client = await this.clientsService.findByEmail(userId);
-      
+
       if (!client || !client.id) {
         throw new HttpException(
           `Could not find client ID for user ${userId}. Please ensure the client is registered.`,
@@ -738,16 +580,32 @@ export class ProjectsService {
         state: 'draft',
         creationStatus: 'creating',
       });
-      
+
       const savedProject = await newProject.save();
-      const projectId = savedProject._id.toString();
+      const projectId = String(savedProject._id);
+
+
+
+      const federateServerUrl = this.configService.getFederateServer();
+      const url = `${federateServerUrl}/get-user-address?userId=${encodeURIComponent(userId)}`;
+
+      const callerResponse = await fetch(url, { method: "GET" });
+      if (!callerResponse.ok) {
+        throw new HttpException(
+          `Failed to fetch client address from FederateServer: ${callerResponse.status} ${callerResponse.statusText}`,
+          HttpStatus.INTERNAL_SERVER_ERROR
+        );
+      }
+
+      const { address: clientAddress } = await callerResponse.json() as { address: string };
 
       this.executeDeploymentInBackground(
         projectId,
         version,
         proposalData,
         authToken,
-        calendarContract
+        calendarContract,
+        clientAddress
       ).catch((error) => {
         console.error(`[Fatal] Background deployment error handler caught error for project ${projectId}:`, error);
         this.projectModel.findByIdAndUpdate(
@@ -780,10 +638,11 @@ export class ProjectsService {
     version: string,
     proposalData: CreateProposalRequest,
     authToken: string,
-    calendarContract: string
+    calendarContract: string,
+    client: string
   ): Promise<void> {
     let project = await this.projectModel.findById(projectId).exec();
-    
+
     if (!project) {
       console.error(`[Background] Project ${projectId} not found`);
       return;
@@ -794,26 +653,27 @@ export class ProjectsService {
       const signingServiceUrl = this.configService.getSigningServiceUrl();
       const deployerUrl = `${signingServiceUrl}/projects/deploy/${version}`;
       const address = await this.authService.getAddress(authToken!);
-      
+
       const defaultRatingsContract = process.env.DEFAULT_RATINGS_CONTRACT || 'JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY';
-      
+
       const ratingsContract = proposalData.ratingsContract || defaultRatingsContract;
-      
+
       const deployBody: any = {
         name: proposalData.title,
+        client,
         dao_address: daoAddress,
         calendar_contract: calendarContract,
         ratings_contract: ratingsContract,
       };
 
-      console.log(`[Background] Deploying contract for project ${projectId}`, {deployerUrl, deployBody});
-      
+      console.log(`[Background] Deploying contract for project ${projectId}`, { deployerUrl, deployBody });
+
       const deployerResponse = await fetch(deployerUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({...deployBody, address})
+        body: JSON.stringify({ ...deployBody, address })
       });
 
       if (!deployerResponse.ok) {
@@ -848,7 +708,7 @@ export class ProjectsService {
       }
     } catch (error) {
       console.error(`[Background] Error in deployment for project ${projectId}:`, error);
-      
+
       project = await this.projectModel.findById(projectId).exec();
       if (project) {
         project.creationStatus = 'failed';
@@ -862,8 +722,8 @@ export class ProjectsService {
   }
 
   private async callWriteMethod(
-    contractAddress: string, 
-    method: string, 
+    contractAddress: string,
+    method: string,
     data: any,
     authToken: string
   ): Promise<any> {
@@ -888,27 +748,29 @@ export class ProjectsService {
 
       const { address: caller } = await callerResponse.json() as { address: string };
 
-      console.log({caller});
-      console.log({craftUrl});
-      
+      console.log({ caller });
+      console.log({ craftUrl });
+
       const craftResponse = await fetch(craftUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({...requestBody, caller})
+        body: JSON.stringify({ ...requestBody, caller })
       });
 
       if (!craftResponse.ok) {
-        throw new Error(`Craft service error: ${craftResponse.status} ${craftResponse.statusText}`);
+        const errorBody = await craftResponse.text();
+        console.error(`Craft service error body: ${errorBody}`);
+        throw new Error(`Craft service error: ${craftResponse.status} ${craftResponse.statusText} - ${errorBody}`);
       }
 
       const craftResult = await craftResponse.json() as ExtrinsicResponse;
       console.log('Crafted extrinsic:', craftResult);
 
       if (craftResult.encodedData) {
-        const signResult = await this.authService.sign(authToken, { 
-          extrinsic: craftResult.encodedData 
+        const signResult = await this.authService.sign(authToken, {
+          extrinsic: craftResult.encodedData
         });
 
         if (!signResult.success) {
@@ -949,7 +811,7 @@ export class ProjectsService {
         body: JSON.stringify(requestBody)
       });
 
-      console.log({craftResponse})
+      console.log({ craftResponse })
 
       if (!craftResponse.ok) {
         throw new Error(`Craft service error: ${craftResponse.status} ${craftResponse.statusText}`);
@@ -968,8 +830,8 @@ export class ProjectsService {
   }
 
   private async callReadMethod(
-    contractAddress: string, 
-    method: string, 
+    contractAddress: string,
+    method: string,
     params?: Record<string, any>
   ): Promise<QueryResponse> {
     try {
@@ -983,7 +845,7 @@ export class ProjectsService {
         });
         url += `?${searchParams.toString()}`;
       }
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -995,8 +857,8 @@ export class ProjectsService {
 
       const result = await response.json() as QueryResponse;
 
-       console.log({result});
-    
+      console.log({ result });
+
       return result;
     } catch (error) {
       throw new HttpException(
@@ -1098,7 +960,7 @@ export class ProjectsService {
   async updateMilestone(projectId: string, milestoneId: number, updateData: UpdateMilestoneRequest): Promise<MilestoneDocument> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const milestone = await this.milestoneModel.findOne({ contractAddress, id: milestoneId }).exec();
-    
+
     if (!milestone) {
       throw new NotFoundException(`Milestone ${milestoneId} not found for project ${projectId}`);
     }
@@ -1110,7 +972,7 @@ export class ProjectsService {
     if (updateData.role !== undefined) milestone.role = updateData.role;
     if (updateData.proficiency !== undefined) milestone.proficiency = updateData.proficiency;
     if (updateData.skills !== undefined) milestone.skills = updateData.skills;
-    
+
     milestone.neededFullTimeDeveloper = updateData.availability === 'fulltime';
     milestone.neededPartTimeDeveloper = updateData.availability === 'parttime';
     milestone.neededHourlyDeveloper = updateData.availability === 'hourly';
@@ -1123,9 +985,36 @@ export class ProjectsService {
   async deleteMilestone(projectId: string, milestoneId: number): Promise<void> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const result = await this.milestoneModel.deleteOne({ contractAddress, id: milestoneId }).exec();
-    
+
     if (result.deletedCount === 0) {
       throw new NotFoundException(`Milestone ${milestoneId} not found for project ${projectId}`);
+    }
+  }
+
+  async getBalance(address: string, assetId: number = 1): Promise<{ balance: string; assetId: number }> {
+    try {
+      const federateServer = this.configService.getFederateServer();
+      const url = `${federateServer}/balance?address=${encodeURIComponent(address)}&assetId=${assetId}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get balance: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json() as { balance: string; assetId: number };
+      return result;
+    } catch (error) {
+      console.error(`Error getting balance for address ${address}:`, error);
+      throw new HttpException(
+        `Error getting balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 }

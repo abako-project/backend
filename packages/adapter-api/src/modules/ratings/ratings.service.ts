@@ -2,17 +2,17 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Rating, RatingDocument } from '../../database/schemas/rating.schema';
-import { 
-  RatingResponse, 
-  DeveloperRatingsResponse, 
-  ClientRatingsResponse 
+import {
+  RatingResponse,
+  DeveloperRatingsResponse,
+  ClientRatingsResponse
 } from './types';
 
 @Injectable()
 export class RatingsService {
   constructor(
     @InjectModel(Rating.name) private ratingModel: Model<RatingDocument>,
-  ) {}
+  ) { }
 
   async createRatings(
     projectId: string,
@@ -31,7 +31,7 @@ export class RatingsService {
 
       const createdRatings = await this.ratingModel.insertMany(ratingDocuments);
       console.log(`Created ${createdRatings.length} ratings for project ${projectId}`);
-      
+
       return createdRatings;
     } catch (error: any) {
       console.error('Error creating ratings:', error);
@@ -45,7 +45,7 @@ export class RatingsService {
 
   async getRatingsByClient(clientId: string): Promise<ClientRatingsResponse> {
     const ratings = await this.ratingModel.find({ clientId }).exec();
-    
+
     return {
       clientId,
       totalRatings: ratings.length,
@@ -55,7 +55,7 @@ export class RatingsService {
 
   async getRatingsByDeveloper(developerId: string): Promise<DeveloperRatingsResponse> {
     const ratings = await this.ratingModel.find({ developerId }).exec();
-    
+
     if (ratings.length === 0) {
       return {
         developerId,
@@ -83,7 +83,7 @@ export class RatingsService {
 
   private mapToResponse(rating: RatingDocument): RatingResponse {
     return {
-      id: rating._id.toString(),
+      id: String(rating._id),
       projectId: rating.projectId,
       clientId: rating.clientId,
       developerId: rating.developerId,

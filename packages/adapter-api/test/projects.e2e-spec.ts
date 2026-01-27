@@ -74,6 +74,22 @@ describe('Projects Module E2E Tests', () => {
   });
 
   describe('Complete Workflow: PolkaTalent Platform', () => {
+    let initialClientBalance: bigint;
+    let initialContractBalance: bigint;
+    let initialCoordinatorBalance: bigint;
+    let postApprovalClientBalance: bigint;
+    let postApprovalContractBalance: bigint;
+    let postApprovalCoordinatorBalance: bigint;
+
+    const checkBalance = async (address: string, assetId: number = 1) => {
+      const federateServerUrl = 'http://localhost:3000/api';
+      const response = await fetch(`${federateServerUrl}/balance?address=${encodeURIComponent(address)}&assetId=${assetId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to get balance: ${response.status} ${response.statusText}`);
+      }
+      const data = await response.json() as { balance: string };
+      return BigInt(data.balance);
+    };
     describe('Deploy Ratings Contract for Test Isolation', () => {
       it('should deploy ratings contract for E2E test', async () => {
         console.log('Deploying isolated ratings contract for E2E test...');
@@ -461,6 +477,50 @@ describe('Projects Module E2E Tests', () => {
       // });
     });
 
+    describe('DAO Governance', () => {
+      it('should verify client can create a remark referendum', async () => {
+        console.log('Client creating remark referendum...');
+
+        const remark = `Client Referendum ${Date.now()}`;
+
+        console.log(`Submitting referendum: "${remark}" for client ${clientAccountId}`);
+
+        const response = await request(app.getHttpServer())
+          .post('/dao/submit-remark')
+          .set('Authorization', `Bearer ${authTokenClient}`)
+          .send({ remark })
+          .expect(201);
+
+        console.log('Referendum submission result:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('success', true);
+        expect(response.body).toHaveProperty('blockHash');
+
+        console.info(`✅ Verified client created remark referendum: ${response.body.blockHash}`);
+      });
+
+      it('should verify developer can create a remark referendum', async () => {
+        console.log('Developer creating remark referendum...');
+
+        const remark = `Developer Referendum ${Date.now()}`;
+
+        console.log(`Submitting referendum: "${remark}" for developer ${workerOneAccountId}`);
+
+        const response = await request(app.getHttpServer())
+          .post('/dao/submit-remark')
+          .set('Authorization', `Bearer ${authTokenWorkerOne}`)
+          .send({ remark })
+          .expect(201);
+
+        console.log('Referendum submission result:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('success', true);
+        expect(response.body).toHaveProperty('blockHash');
+
+        console.info(`✅ Verified developer created remark referendum: ${response.body.blockHash}`);
+      });
+    });
+
     describe('📝 Listings & Developer Matching', () => {
       describe('Submitting a project proposal as a client', () => {
         describe('Calendar - Worker Registration', () => {
@@ -629,7 +689,7 @@ describe('Projects Module E2E Tests', () => {
 
             while (attempts < maxAttempts) {
               await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-              
+
               const statusResponse = await request(app.getHttpServer())
                 .get(`/projects/${projectId}/get_project_info`)
                 .expect(200);
@@ -646,7 +706,7 @@ describe('Projects Module E2E Tests', () => {
               if (creationStatus === 'created') {
                 contractAddress = statusResponse.body.contractAddress;
                 expect(contractAddress).toBeDefined();
-                
+
                 // Verify coordinator was assigned
                 if (statusResponse.body.consultantId) {
                   coordinatorId = statusResponse.body.consultantId;
@@ -669,7 +729,7 @@ describe('Projects Module E2E Tests', () => {
             expect(creationStatus).toBe('created');
             expect(contractAddress).toBeDefined();
             expect(coordinatorId).toBeDefined();
-            
+
             const developerResponse = await request(app.getHttpServer())
               .get(`/developers/${coordinatorId}`)
               .expect(200);
@@ -679,7 +739,7 @@ describe('Projects Module E2E Tests', () => {
 
             const federateServerUrl = 'http://localhost:3000/api';
             const addressResponse = await fetch(`${federateServerUrl}/get-user-address?userId=${encodeURIComponent(coordinatorEmail)}`);
-            
+
             if (!addressResponse.ok) {
               throw new Error(`Failed to get coordinator address: ${addressResponse.status} ${addressResponse.statusText}`);
             }
@@ -687,7 +747,7 @@ describe('Projects Module E2E Tests', () => {
             const addressData = await addressResponse.json() as { address: string };
             coordinatorAccountId = addressData.address;
             expect(coordinatorAccountId).toBeDefined();
-            
+
             // Map coordinator address to the correct auth token
             const ss58Format = 2;
             const coordinatorSs58 = encodeAddress(coordinatorAccountId, ss58Format);
@@ -698,14 +758,14 @@ describe('Projects Module E2E Tests', () => {
             if (coordinatorSs58 === workerOneSs58) {
               coordinatorAuthToken = authTokenWorkerOne;
               console.log('Coordinator is Worker One');
-            // } else if (coordinatorSs58 === workerTwoSs58) {
-            //   coordinatorAuthToken = authTokenWorkerTwo;
-            //   console.log('Coordinator is Worker Two');
-            // } else if (coordinatorSs58 === workerThreeSs58) {
-            //   coordinatorAuthToken = authTokenWorkerThree;
-            //   console.log('Coordinator is Worker Three');
-            // } else {
-            //   throw new Error(`Coordinator ${coordinatorAccountId} does not match any registered worker`);
+              // } else if (coordinatorSs58 === workerTwoSs58) {
+              //   coordinatorAuthToken = authTokenWorkerTwo;
+              //   console.log('Coordinator is Worker Two');
+              // } else if (coordinatorSs58 === workerThreeSs58) {
+              //   coordinatorAuthToken = authTokenWorkerThree;
+              //   console.log('Coordinator is Worker Three');
+              // } else {
+              //   throw new Error(`Coordinator ${coordinatorAccountId} does not match any registered worker`);
             }
 
             expect(coordinatorAuthToken).toBeDefined();
@@ -866,6 +926,20 @@ describe('Projects Module E2E Tests', () => {
       });
 
       describe('Projects Module - Approve Scope', () => {
+        it('should check initial balances before approval', async () => {
+          console.log('Checking initial balances...');
+          expect(clientAccountId).toBeDefined();
+          expect(contractAddress).toBeDefined();
+
+          initialClientBalance = await checkBalance(clientAccountId);
+          initialContractBalance = await checkBalance(contractAddress);
+          initialCoordinatorBalance = await checkBalance(coordinatorAccountId);
+
+          console.log(`Initial Client Balance: ${initialClientBalance}`);
+          console.log(`Initial Contract Balance: ${initialContractBalance}`);
+          console.log(`Initial Coordinator Balance: ${initialCoordinatorBalance}`);
+        });
+
         it('should approve scope tasks', async () => {
           console.log('Approving scope tasks...');
 
@@ -906,6 +980,33 @@ describe('Projects Module E2E Tests', () => {
           console.log('Waiting for contract state to update to ScopeAccepted...');
           await new Promise(resolve => setTimeout(resolve, 50000)); // Increased wait time
           console.info('✅ Waited for contract state update');
+        });
+
+        it('should verify balances after approval (advance payment)', async () => {
+          console.log('Verifying balances after approval...');
+
+          // Wait a bit for the payment to be processed
+          await new Promise(resolve => setTimeout(resolve, 5000));
+
+          postApprovalClientBalance = await checkBalance(clientAccountId);
+          postApprovalContractBalance = await checkBalance(contractAddress);
+          postApprovalCoordinatorBalance = await checkBalance(coordinatorAccountId);
+
+          console.log(`Post-Approval Client Balance: ${postApprovalClientBalance}`);
+          console.log(`Post-Approval Contract Balance: ${postApprovalContractBalance}`);
+          console.log(`Post-Approval Coordinator Balance: ${postApprovalCoordinatorBalance}`);
+
+          // Client should have less funds (advance payment sent)
+          expect(postApprovalClientBalance).toBeLessThan(initialClientBalance);
+
+          // Contract should have funds (advance payment received)
+          // Note: In the current implementation, the payment might be held in the contract or forwarded.
+          // The user requirement says: "consultarlo en la direccion del contrato, verificar que se haya incluido y restado del cliente"
+          // So contract should have increased balance.
+          expect(postApprovalContractBalance).toBeGreaterThan(initialContractBalance);
+
+          const advancePaymentAmount = initialClientBalance - postApprovalClientBalance;
+          console.log(`Advance Payment Amount (approx): ${advancePaymentAmount}`);
         });
       });
 
@@ -1044,7 +1145,7 @@ describe('Projects Module E2E Tests', () => {
           expect(response.body).toHaveProperty('budget', 5000);
           expect(response.body).toHaveProperty('deliveryTime', 30);
           expect(response.body).toHaveProperty('projectType', 1);
-          expect(response.body).toHaveProperty('state', 'scope_accepted');
+          expect(response.body).toHaveProperty('state', 'team_assigned');
           expect(response.body).toHaveProperty('coordinatorApprovalStatus', 'approved');
           expect(response.body).toHaveProperty('consultantId');
 
@@ -1161,7 +1262,7 @@ describe('Projects Module E2E Tests', () => {
           expect(response.body).toHaveProperty('success', true);
           expect(response.body).toHaveProperty('response');
 
-          expect(response.body).toHaveProperty('milestoneState', 'pending');
+          expect(response.body).toHaveProperty('milestoneState', 'task_in_progress');
           console.log(`Milestone state in MongoDB: ${response.body.milestoneState}`);
 
           const taskStatus = response.body.response;
@@ -1247,20 +1348,22 @@ describe('Projects Module E2E Tests', () => {
             expect(Array.isArray(tasksResponse.body.response)).toBe(true);
             expect(tasksResponse.body.response.length).toBeGreaterThan(0);
 
-            const firstTaskId = tasksResponse.body.response[0].id;
-            console.log(`Completing task with ID: ${firstTaskId}`);
+            const tasks = tasksResponse.body.response;
+            console.log(`Found ${tasks.length} tasks to complete`);
 
-            const response = await request(app.getHttpServer())
-              .post(`/projects/${projectId}/complete_task`)
-              .set('Authorization', `Bearer ${authTokenClient}`)
-              .send({ task_id: firstTaskId })
-              .expect(201);
+            for (const task of tasks) {
+              console.log(`Completing task with ID: ${task.id}`);
+              const response = await request(app.getHttpServer())
+                .post(`/projects/${projectId}/complete_task`)
+                .set('Authorization', `Bearer ${authTokenClient}`)
+                .send({ task_id: task.id })
+                .expect(201);
 
-            console.log('Response:', JSON.stringify(response.body, null, 2));
+              expect(response.body).toHaveProperty('success');
+              expect(response.body.success).toBe(true);
+            }
 
-            expect(response.body).toHaveProperty('success');
-            expect(response.body.success).toBe(true);
-            console.info(`✅ Completed task #${firstTaskId}`);
+            console.info(`✅ Completed all ${tasks.length} tasks`);
           });
         });
 
@@ -1300,6 +1403,31 @@ describe('Projects Module E2E Tests', () => {
             console.log('Project marked as completed successfully');
             console.info(`✅ Marked project as completed with ${ratings.length} rating(s)`);
             console.info('\n✅ Developer team assembly and project execution completed successfully!\n');
+            console.info(`✅ Marked project as completed with ${ratings.length} rating(s)`);
+            console.info('\n✅ Developer team assembly and project execution completed successfully!\n');
+          });
+
+          it('should verify balances after completion (payment release)', async () => {
+            console.log('Verifying balances after completion...');
+
+            // Wait a bit for the payment release to be processed
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            const finalClientBalance = await checkBalance(clientAccountId);
+            const finalContractBalance = await checkBalance(contractAddress);
+            const finalCoordinatorBalance = await checkBalance(coordinatorAccountId);
+
+            console.log(`Final Client Balance: ${finalClientBalance}`);
+            console.log(`Final Contract Balance: ${finalContractBalance}`);
+            console.log(`Final Coordinator Balance: ${finalCoordinatorBalance}`);
+
+            expect(finalContractBalance).toBeLessThan(postApprovalContractBalance);
+            expect(finalCoordinatorBalance).toBeGreaterThan(initialCoordinatorBalance);
+
+            const coordinatorGain = finalCoordinatorBalance - initialCoordinatorBalance;
+            console.log(`Coordinator Gain: ${coordinatorGain}`);
+            expect(coordinatorGain).toBeGreaterThan(BigInt(0));
+            expect(finalClientBalance).toBeLessThan(initialClientBalance);
           });
 
           it('should verify project delivery date was set after completion', async () => {
@@ -1409,7 +1537,7 @@ describe('Projects Module E2E Tests', () => {
 
               console.log('Ratings by developer:', JSON.stringify(ratingsResponse.body, null, 2));
 
-              expect(ratingsResponse.body).toHaveProperty('developerId', firstMemberDeveloperId);
+              expect(ratingsResponse.body).toHaveProperty('developerId', firstMemberDeveloperId.toString());
               expect(ratingsResponse.body).toHaveProperty('averageRating');
               expect(ratingsResponse.body).toHaveProperty('totalRatings');
               expect(ratingsResponse.body).toHaveProperty('ratings');

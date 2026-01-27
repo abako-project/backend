@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { DevelopersModule } from './modules/developers/developers.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
+import { DaoModule } from './modules/dao/dao.module';
 
 dotenv.config();
 
@@ -31,10 +32,11 @@ dotenv.config();
     ClientsModule,
     DevelopersModule,
     RatingsModule,
+    DaoModule,
   ],
   controllers: [],
   providers: [],
 })
 export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {}
+  configure(consumer: MiddlewareConsumer) { }
 } 

@@ -20,7 +20,7 @@ export class ConfigService {
     if (hello === "") {
       return hello;
     }
-    
+
     if (!hello) {
       throw new Error(`Environment variable ${key} is not set.`);
     }
