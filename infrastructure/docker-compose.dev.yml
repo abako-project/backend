@@ -93,6 +93,7 @@ services:
       - MONGODB_URI=mongodb://admin:admin123@mongodb:27017/abako?authSource=admin
       - DEFAULT_RATINGS_CONTRACT=JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY
       - DEFAULT_CALENDAR_CONTRACT=Dd34LSU53MLwJpq4wfHmDFwAifJrcaPbd1qTCGZcR7iXQkd
+      - BRAMP_SERVICE_URL=http://bramp:3001
     networks:
       - abako-network
     depends_on:
@@ -103,6 +104,8 @@ services:
       contracts-api:
         condition: service_started
       virto-api:
+        condition: service_started
+      bramp:
         condition: service_started
     restart: unless-stopped
     logging:
@@ -117,6 +120,40 @@ services:
           target: /app/src
         - action: rebuild
           path: ../packages/adapter-api/package.json
+
+  bramp:
+    build:
+      context: ../../bramp
+      dockerfile: Dockerfile
+    container_name: bramp-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=development
+      - DATABASE_URL=file:/app/data/bramp.db
+      - PROVIDER_URL=ws://zombienet:21000
+      - MASTER_ACCOUNT_URI=//Bob
+    volumes:
+      - bramp-data:/app/data
+    networks:
+      - abako-network
+    depends_on:
+      zombienet:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    develop:
+      watch:
+        - action: sync
+          path: ../../bramp/src
+          target: /app/src
+        - action: rebuild
+          path: ../../bramp/package.json
 
   virto-api:
     build:
@@ -159,6 +196,8 @@ volumes:
   mongodb-data:
     driver: local
   virto-api-data:
+    driver: local
+  bramp-data:
     driver: local
 
 networks:

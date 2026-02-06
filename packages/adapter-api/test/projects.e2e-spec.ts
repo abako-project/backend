@@ -34,6 +34,10 @@ describe('Projects Module E2E Tests', () => {
   let calendarContractAddress: string;
   let ratingsContractAddress: string;
 
+  let brampClientUserId: number;
+  let brampWorkerOneUserId: number;
+  let depositId: number;
+
   beforeAll(async () => {
     console.info('🚀 Starting PolkaTalent Workflow E2E Tests');
     console.info('='.repeat(80));
@@ -55,10 +59,10 @@ describe('Projects Module E2E Tests', () => {
 
     // Generate a unique user ID for this test run
     const timestamp = Date.now();
-    clientUserId = `test-projects-user-${timestamp}@example.com`;
-    workerOneUserId = `test-projects-worker1-${timestamp}@example.com`;
-    // workerTwoUserId = `test-projects-worker2-${timestamp}@example.com`;
-    // workerThreeUserId = `test-projects-worker3-${timestamp}@example.com`;
+    clientUserId = `u-${timestamp}@w3f.com`;
+    workerOneUserId = `w1-${timestamp}@w3f.com`;
+    // workerTwoUserId = `w2-${timestamp}@w3f.com`;
+    // workerThreeUserId = `w3-${timestamp}@w3f.com`;
 
     console.log('Application started successfully');
     console.log('Client SDK initialized');
@@ -72,6 +76,8 @@ describe('Projects Module E2E Tests', () => {
     console.info('='.repeat(80) + '\n');
     await app.close();
   });
+
+  // 
 
   describe('Complete Workflow: PolkaTalent Platform', () => {
     let initialClientBalance: bigint;
@@ -647,7 +653,7 @@ describe('Projects Module E2E Tests', () => {
               title: 'Test Project',
               summary: 'A test project summary',
               description: 'A test project description',
-              url: 'https://example.com',
+              url: 'https://w3f.com',
               projectType: 1,
               budget: 5000,
               deliveryTime: 30,
@@ -788,7 +794,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('title', 'Test Project');
             expect(response.body).toHaveProperty('summary', 'A test project summary');
             expect(response.body).toHaveProperty('description', 'A test project description');
-            expect(response.body).toHaveProperty('url', 'https://example.com');
+            expect(response.body).toHaveProperty('url', 'https://w3f.com');
             expect(response.body).toHaveProperty('projectType', 1);
             expect(response.body).toHaveProperty('budget', 5000);
             expect(response.body).toHaveProperty('deliveryTime', 30);
@@ -798,6 +804,142 @@ describe('Projects Module E2E Tests', () => {
             console.info(`✅ Verified project data in MongoDB for project ${projectId}`);
           });
 
+        });
+
+        describe('Bramp Integration', () => {
+          it('should create a bramp user for testing', async () => {
+            console.log('Creating Bramp user for integration tests...');
+
+            const response = await request(app.getHttpServer())
+              .post('/bramp/users')
+              .send({ email: clientUserId })
+              .expect(201);
+
+            console.log('Bramp user created:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('id');
+            expect(response.body).toHaveProperty('email', clientUserId);
+            expect(response.body).toHaveProperty('balance');
+            expect(response.body).toHaveProperty('depositAddress');
+            expect(response.body.depositAddress).toHaveProperty('address');
+
+            brampClientUserId = response.body.id;
+
+            console.info(`✅ Bramp user created: ID ${brampClientUserId}, Email: ${clientUserId}`);
+          });
+
+          it('should get bramp user by email', async () => {
+            console.log(`Getting Bramp user by email: ${clientUserId}...`);
+
+            expect(clientUserId).toBeDefined();
+
+            const response = await request(app.getHttpServer())
+              .get(`/bramp/users?email=${encodeURIComponent(clientUserId)}`)
+              .expect(200);
+
+            console.log('Bramp user retrieved:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('id', brampClientUserId);
+            expect(response.body).toHaveProperty('email', clientUserId);
+
+            console.info(`✅ Bramp user retrieved successfully`);
+          });
+
+          it('should create a bramp developer user for testing', async () => {
+            console.log('Creating Bramp user for integration tests...');
+
+            const response = await request(app.getHttpServer())
+              .post('/bramp/users')
+              .send({ email: workerOneUserId })
+              .expect(201);
+
+            console.log('Bramp user created:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('id');
+            expect(response.body).toHaveProperty('email', workerOneUserId);
+            expect(response.body).toHaveProperty('balance');
+            expect(response.body).toHaveProperty('depositAddress');
+            expect(response.body.depositAddress).toHaveProperty('address');
+
+            brampWorkerOneUserId = response.body.id;
+
+            console.info(`✅ Bramp user created: ID ${brampWorkerOneUserId}, Email: ${workerOneUserId}`);
+          });
+
+          it('should get bramp user by email', async () => {
+            console.log(`Getting Bramp user by email: ${workerOneUserId}...`);
+
+            expect(workerOneUserId).toBeDefined();
+
+            const response = await request(app.getHttpServer())
+              .get(`/bramp/users?email=${encodeURIComponent(workerOneUserId)}`)
+              .expect(200);
+
+            console.log('Bramp user retrieved:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('id', brampWorkerOneUserId);
+            expect(response.body).toHaveProperty('email', workerOneUserId);
+
+            console.info(`✅ Bramp user retrieved successfully`);
+          });
+
+          it('should create a deposit (on-ramp: fiat -> crypto)', async () => {
+            console.log('Creating deposit request...');
+
+            expect(brampClientUserId).toBeDefined();
+            expect(clientAccountId).toBeDefined();
+
+            const depositAmount = '10000';
+            const depositData = {
+              userId: brampClientUserId,
+              amount: depositAmount,
+              toAddress: clientAccountId
+            };
+
+            const response = await request(app.getHttpServer())
+              .post('/bramp/deposit')
+              .send(depositData)
+              .expect(201);
+
+            console.log('Deposit created:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('message');
+            expect(response.body).toHaveProperty('depositId');
+            expect(response.body).toHaveProperty('instructions');
+            expect(response.body.instructions).toHaveProperty('amount', depositAmount);
+            expect(response.body.instructions).toHaveProperty('bankAccount');
+            expect(response.body.instructions).toHaveProperty('reference');
+
+            depositId = response.body.depositId;
+
+            console.info(`✅ Deposit created: ID ${depositId}, Amount: ${depositAmount}`);
+            console.info(`   Instructions: ${JSON.stringify(response.body.instructions)}`);
+          });
+
+          it('should confirm deposit and transfer crypto to client', async () => {
+            console.log(`Confirming deposit ${depositId}...`);
+
+            expect(depositId).toBeDefined();
+            expect(clientAccountId).toBeDefined();
+
+            const confirmData = {
+              toAddress: clientAccountId
+            };
+
+            const response = await request(app.getHttpServer())
+              .post(`/bramp/deposit/${depositId}/confirm`)
+              .send(confirmData)
+              .expect(201);
+
+            console.log('Deposit confirmed:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('status', 'success');
+            expect(response.body).toHaveProperty('txHash');
+            expect(response.body.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+
+            console.info(`✅ Deposit confirmed successfully`);
+            console.info(`   Transaction Hash: ${response.body.txHash}`);
+          });
         });
 
         describe('Coordinator Approval Process', () => {
@@ -1558,6 +1700,40 @@ describe('Projects Module E2E Tests', () => {
           });
         });
 
+        describe('Bramp Integration', () => {
+          let withdrawalId: number;
+
+          it('should create a withdrawal (off-ramp: crypto -> fiat)', async () => {
+            console.log('Creating withdrawal request...');
+
+            expect(brampWorkerOneUserId).toBeDefined();
+
+            const withdrawalAmount = '500';
+            const withdrawalData = {
+              userId: brampWorkerOneUserId,
+              amount: withdrawalAmount
+            };
+
+            const response = await request(app.getHttpServer())
+              .post('/bramp/withdrawal')
+              .send(withdrawalData)
+              .expect(201);
+
+            console.log('Withdrawal created:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('message');
+            expect(response.body).toHaveProperty('withdrawalId');
+            expect(response.body).toHaveProperty('depositAddress');
+            expect(response.body).toHaveProperty('amount', withdrawalAmount);
+            expect(response.body.depositAddress).toMatch(/^5[A-Za-z0-9]{47}$/);
+
+            withdrawalId = response.body.withdrawalId;
+
+            console.info(`✅ Withdrawal created: ID ${withdrawalId}, Amount: ${withdrawalAmount}`);
+            console.info(`   Developer should send crypto to: ${response.body.depositAddress}`);
+            console.info(`   Bramp will process off-ramp to fiat after receiving crypto`);
+          });
+        });
 
         // TODO: Fix coordinator rejection process, CONTRACT TRAPPED IN THE BLOCKCHAIN
         // describe('Coordinator Rejection Process', () => {
@@ -1569,7 +1745,7 @@ describe('Projects Module E2E Tests', () => {
         //       title: 'Test Project - To Be Rejected',
         //       summary: 'A test project that will be rejected',
         //       description: 'This project will be rejected by the coordinator',
-        //       url: 'https://example.com/rejected',
+        //       url: 'https://w3f.com/rejected',
         //       projectType: 1,
         //       budget: 3000,
         //       deliveryTime: 20,
