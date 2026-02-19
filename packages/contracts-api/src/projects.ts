@@ -279,6 +279,8 @@ export class ProjectsService {
       'set_calendar_contract',
       'propose_scope',
       'submit_task_for_review',
+      'submit_coordinator_ratings',
+      'submit_developer_rating',
     ]
 
     try {
@@ -289,6 +291,9 @@ export class ProjectsService {
       console.log(`[callMethod] ========== START ${methodName} ==========`)
       console.log(`[callMethod] Caller:`, caller)
       console.log(`[callMethod] Rest data:`, rest)
+
+      console.log(`[callMethod] encodedDataMethods list:`, encodedDataMethods)
+      console.log(`[callMethod] Is ${methodName} in list?`, encodedDataMethods.includes(methodName))
 
       if (encodedDataMethods.includes(methodName)) {
         console.log(`[callMethod] Method ${methodName} is in encodedDataMethods list`)
@@ -482,7 +487,7 @@ export class ProjectsService {
                 const coordinatorBytes = new Uint8Array(
                   hexWithout0x.match(/.{1,2}/g)?.map((byte: string) => parseInt(byte, 16)) || []
                 );
-                
+
                 // Encode to SS58 address with prefix 42 (Substrate standard)
                 // virto-api stores addresses with prefix 42, so we convert from prefix 2 to 42
                 coordinator = ss58Encode(coordinatorBytes, 42);
