@@ -308,43 +308,43 @@ export class ProjectsService {
           console.log(`[callMethod] Final contract data after conversion:`, contractData)
         }
 
-        // const txResponse = await contract.query(methodName as any, {
-        //   origin: caller || adminPublicAddress,
-        //   data: contractData,
-        //   gas_limit: {
-        //     ref_time: 10000000000n,
-        //     proof_size: 1000000n
-        //   },
-        //   storage_deposit_limit: 100000000000n,
-        // })
+        const txResponse = await contract.query(methodName as any, {
+          origin: caller || adminPublicAddress,
+          data: contractData,
+          gas_limit: {
+            ref_time: 10000000000n,
+            proof_size: 1000000n
+          },
+          storage_deposit_limit: 100000000000n,
+        })
 
-        // console.log('txResponse:', txResponse);
+        console.log('txResponse:', txResponse);
 
-        // // Check if the query failed with a revert
-        // if (!txResponse.success) {
-        //   // Extract error information from the reverted response and throw exception
-        //   let errorMessage = 'Contract call would fail';
-        //   let errorCode: string | null = null;
+        // Check if the query failed with a revert
+        if (!txResponse.success) {
+          // Extract error information from the reverted response and throw exception
+          let errorMessage = 'Contract call would fail';
+          let errorCode: string | null = null;
 
-        //   if (txResponse.value?.type === 'FlagReverted') {
-        //     const revertedValue = txResponse.value.value;
+          if (txResponse.value?.type === 'FlagReverted') {
+            const revertedValue = txResponse.value.value;
 
-        //     // Decode the error message from hex code
-        //     if (revertedValue.message) {
-        //       const decodedError = decodeErrorMessage(revertedValue.message, this.contractErrors);
-        //       console.log('decodedError:', decodedError)
-        //       errorMessage = decodedError;
-        //       errorCode = revertedValue.message;
-        //     }
-        //   }
+            // Decode the error message from hex code
+            if (revertedValue.message) {
+              const decodedError = decodeErrorMessage(revertedValue.message, this.contractErrors);
+              console.log('decodedError:', decodedError)
+              errorMessage = decodedError;
+              errorCode = revertedValue.message;
+            }
+          }
 
-        //   throw new ContractError(
-        //     methodName,
-        //     contractAddress,
-        //     errorMessage,
-        //     errorCode,
-        //   );
-        // }
+          throw new ContractError(
+            methodName,
+            contractAddress,
+            errorMessage,
+            errorCode,
+          );
+        }
 
         console.log(`[callMethod] Preparing to send transaction to contract`)
         const tx = await contract.send(methodName as any, {
