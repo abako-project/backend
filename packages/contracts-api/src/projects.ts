@@ -287,6 +287,8 @@ export class ProjectsService {
       'approve_scope',
       'complete_task',
       'mark_completed',
+      'submit_coordinator_ratings',
+      'submit_developer_rating',
     ]
 
     try {
@@ -297,6 +299,9 @@ export class ProjectsService {
       console.log(`[callMethod] ========== START ${methodName} ==========`)
       console.log(`[callMethod] Caller:`, caller)
       console.log(`[callMethod] Rest data:`, rest)
+
+      console.log(`[callMethod] encodedDataMethods list:`, encodedDataMethods)
+      console.log(`[callMethod] Is ${methodName} in list?`, encodedDataMethods.includes(methodName))
 
       if (encodedDataMethods.includes(methodName)) {
         console.log(`[callMethod] Method ${methodName} is in encodedDataMethods list`)

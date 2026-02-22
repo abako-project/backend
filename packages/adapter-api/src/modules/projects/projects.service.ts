@@ -167,9 +167,13 @@ export class ProjectsService {
     return assignResult;
   }
 
-  async markCompleted(projectId: string, body: { ratings: Array<[string, number]> }, authToken: string): Promise<any> {
+  async markCompleted(projectId: string, body: { ratings: Array<[string, number]>, coordinatorRating: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const completeResult = await this.callWriteMethod(contractAddress, 'mark_completed', { ratings: body.ratings }, authToken);
+    // const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'mark_completed', {
+    //   ratings: body.ratings,
+    //   coordinator_rating: body.coordinatorRating
+    // });
 
     // Set deliveryDate automatically when project is marked as completed
     try {
@@ -217,7 +221,6 @@ export class ProjectsService {
     } catch (error) {
       console.error(`Error setting delivery date for project ${projectId}:`, error);
     }
-
     return completeResult;
   }
 
@@ -243,6 +246,7 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
     const approveResult = await this.callWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids, value: (project.budget || 0).toString() }, authToken);
+    // const approveResult = await this.callPreSignedWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids });
 
     // Update project state from 'scope_proposed' to 'scope_accepted' when scope is approved
     if (approveResult && approveResult.success) {
@@ -258,7 +262,6 @@ export class ProjectsService {
         console.error(`Error updating project state for ${projectId} after scope approval:`, error);
       }
     }
-
 
     return approveResult;
   }
@@ -390,6 +393,7 @@ export class ProjectsService {
   async completeTask(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const completeResult = await this.callWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id }, authToken);
+    // const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id });
 
     // Update milestone state in MongoDB to 'completed'
     try {
@@ -425,6 +429,81 @@ export class ProjectsService {
     await milestone.save();
 
     return { success: true, status: 'rejected', milestone: milestone.toObject() };
+  }
+
+  async submitCoordinatorRatings(projectId: string, body: { clientRating: number, teamRatings: Array<[string, number]> }, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
+    const result = await this.callWriteMethod(contractAddress, 'submit_coordinator_ratings', {
+      client_rating: body.clientRating,
+      team_ratings: body.teamRatings
+    }, authToken);
+
+    if (result && result.success) {
+      try {
+        const project = await this.projectModel.findById(projectId).exec();
+        if (project) {
+          if (project.consultantId) {
+            await this.ratingsService.createRatings(
+              projectId,
+              project.consultantId,
+              [[project.clientId, body.clientRating]],
+              contractAddress
+            );
+          }
+
+          const ratingsWithDeveloperIds: Array<[string, number]> = [];
+          for (const [accountId, rating] of body.teamRatings) {
+            const developerId = await this.getUserIdFromAddress(
+              accountId,
+              (email: string) => this.developersService.findByEmail(email),
+              'developer'
+            );
+            if (developerId) {
+              ratingsWithDeveloperIds.push([developerId.toString(), rating]);
+            }
+          }
+          if (project.consultantId && ratingsWithDeveloperIds.length > 0) {
+            await this.ratingsService.createRatings(
+              projectId,
+              project.consultantId,
+              ratingsWithDeveloperIds,
+              contractAddress
+            );
+          }
+        }
+      } catch (error) {
+        console.error(`Error saving coordinator ratings to database for project ${projectId}:`, error);
+      }
+    }
+    return result;
+  }
+
+  async submitDeveloperRating(projectId: string, body: { coordinatorRating: number }, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
+    const result = await this.callWriteMethod(contractAddress, 'submit_developer_rating', {
+      rating: body.coordinatorRating
+    }, authToken);
+
+    if (result && result.success) {
+      try {
+        const project = await this.projectModel.findById(projectId).exec();
+        const userId = await this.authService.getUserIdFromToken(authToken);
+        const developer = await this.developersService.findByEmail(userId);
+
+        if (project && project.consultantId && developer && developer.id) {
+          await this.ratingsService.createRatings(
+            projectId,
+            developer.id.toString(),
+            [[project.consultantId, body.coordinatorRating]],
+            contractAddress
+          );
+        }
+      } catch (error) {
+        console.error(`Error saving developer rating to database for project ${projectId}:`, error);
+      }
+    }
+
+    return result;
   }
 
   async getProjectInfo(projectId: string): Promise<ProjectDocument> {
@@ -582,7 +661,8 @@ export class ProjectsService {
       });
 
       const savedProject = await newProject.save();
-      const projectId = String(savedProject._id);
+      // const projectId = String(savedProject._id);
+      const projectId = (savedProject._id as any).toString();
 
 
 

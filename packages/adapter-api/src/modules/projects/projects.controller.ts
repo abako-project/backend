@@ -15,7 +15,7 @@ import { CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, Creat
 @ApiTags('Projects')
 @Controller({ path: 'projects', version: '1' })
 export class ProjectsController {
-  constructor(private readonly projectsService: ProjectsService) {}
+  constructor(private readonly projectsService: ProjectsService) { }
 
   private extractToken(authHeader: string): string {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -25,12 +25,12 @@ export class ProjectsController {
   }
 
   @Post(':projectId/assign_coordinator')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Assign coordinator to project',
     description: 'Assigns a coordinator to manage the specified project contract'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -44,20 +44,20 @@ export class ProjectsController {
       example: 'Bearer <your-jwt-token>'
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Coordinator assigned successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 400, 
+  @ApiResponse({
+    status: 400,
     description: 'Bad request - Project not ready or not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async assignCoordinator(
@@ -69,12 +69,12 @@ export class ProjectsController {
   }
 
   @Post(':projectId/assign_team')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Assign team to project',
     description: 'Assigns a team with specified size to the project contract'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -92,7 +92,7 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        _team_size: { 
+        _team_size: {
           type: 'number',
           description: 'Number of team members to assign',
           example: 5
@@ -101,20 +101,20 @@ export class ProjectsController {
       required: ['_team_size']
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Team assigned successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 400, 
+  @ApiResponse({
+    status: 400,
     description: 'Bad request - Project not ready or not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async assignTeam(
@@ -127,12 +127,12 @@ export class ProjectsController {
   }
 
   @Post(':projectId/mark_completed')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Mark project as completed',
     description: 'Marks the project as completed with team member ratings'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -150,7 +150,7 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        ratings: { 
+        ratings: {
           type: 'array',
           items: {
             type: 'array',
@@ -165,39 +165,112 @@ export class ProjectsController {
           },
           description: 'Array of team member ratings as [account_id, rating] tuples',
           example: [["5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY", 4.5]]
+        },
+        coordinatorRating: {
+          type: 'number',
+          description: 'Rating for the coordinator',
+          example: 9
         }
       },
-      required: ['ratings']
+      required: ['ratings', 'coordinatorRating']
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Project marked as completed successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async markCompleted(
     @Param('projectId') projectId: string,
-    @Body() body: { ratings: Array<[string, number]> },
+    @Body() body: { ratings: Array<[string, number]>, coordinatorRating: number },
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
     return await this.projectsService.markCompleted(projectId, body, token);
   }
 
+  @Post(':projectId/submit_coordinator_ratings')
+  @ApiOperation({
+    summary: 'Submit coordinator ratings',
+    description: 'Submit ratings from coordinator for client and team members'
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'MongoDB ID of the project',
+    type: 'string'
+  })
+  @ApiBearerAuth()
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        clientRating: { type: 'number', example: 9 },
+        teamRatings: {
+          type: 'array',
+          items: {
+            type: 'array',
+            items: { oneOf: [{ type: 'string' }, { type: 'number' }] },
+            minItems: 2,
+            maxItems: 2
+          },
+          example: [['5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY', 8]]
+        }
+      },
+      required: ['clientRating', 'teamRatings']
+    }
+  })
+  async submitCoordinatorRatings(
+    @Param('projectId') projectId: string,
+    @Body() body: { clientRating: number, teamRatings: Array<[string, number]> },
+    @Headers('authorization') authHeader: string
+  ) {
+    const token = this.extractToken(authHeader);
+    return await this.projectsService.submitCoordinatorRatings(projectId, body, token);
+  }
+
+  @Post(':projectId/submit_developer_rating')
+  @ApiOperation({
+    summary: 'Submit developer rating',
+    description: 'Submit rating from developer for coordinator'
+  })
+  @ApiParam({
+    name: 'projectId',
+    description: 'MongoDB ID of the project',
+    type: 'string'
+  })
+  @ApiBearerAuth()
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        coordinatorRating: { type: 'number', example: 9 }
+      },
+      required: ['coordinatorRating']
+    }
+  })
+  async submitDeveloperRating(
+    @Param('projectId') projectId: string,
+    @Body() body: { coordinatorRating: number },
+    @Headers('authorization') authHeader: string
+  ) {
+    const token = this.extractToken(authHeader);
+    return await this.projectsService.submitDeveloperRating(projectId, body, token);
+  }
+
   @Post(':projectId/set_calendar_contract')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Set calendar contract',
     description: 'Associates a calendar contract with the project'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -215,7 +288,7 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        calendar_contract: { 
+        calendar_contract: {
           type: 'string',
           description: 'Address of the calendar contract to associate',
           example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY'
@@ -224,16 +297,16 @@ export class ProjectsController {
       required: ['calendar_contract']
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Calendar contract set successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async setCalendarContract(
@@ -247,12 +320,12 @@ export class ProjectsController {
 
 
   @Post(':projectId/approve_scope')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Approve project scope',
     description: 'Approves specific tasks from the proposed project scope'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -270,7 +343,7 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        approved_task_ids: { 
+        approved_task_ids: {
           type: 'array',
           items: { type: 'number' },
           description: 'Array of task IDs to approve',
@@ -280,16 +353,16 @@ export class ProjectsController {
       required: ['approved_task_ids']
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Scope approved successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async approveScope(
@@ -302,12 +375,12 @@ export class ProjectsController {
   }
 
   @Post(':projectId/reject_scope')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Reject project scope',
     description: 'Rejects the proposed project scope with optional client response'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -325,7 +398,7 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        clientResponse: { 
+        clientResponse: {
           type: 'string',
           description: 'Optional client response explaining the rejection',
           example: 'The proposed scope does not meet our requirements'
@@ -333,16 +406,16 @@ export class ProjectsController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Scope rejected successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async rejectScope(
@@ -355,12 +428,12 @@ export class ProjectsController {
   }
 
   @Post(':projectId/submit_task_for_review')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Submit task for review',
     description: 'Submits a specific task for review. This method returns encoded data that needs to be signed by the coordinator.'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -378,7 +451,7 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        task_id: { 
+        task_id: {
           type: 'number',
           description: 'ID of the task to submit for review',
           example: 1
@@ -387,8 +460,8 @@ export class ProjectsController {
       required: ['task_id']
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Task submitted for review successfully',
     schema: {
       type: 'object',
@@ -399,12 +472,12 @@ export class ProjectsController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async submitTaskForReview(
@@ -417,12 +490,12 @@ export class ProjectsController {
   }
 
   @Post(':projectId/complete_task')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Complete a task',
     description: 'Marks a specific task as completed in the project'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -440,7 +513,7 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        task_id: { 
+        task_id: {
           type: 'number',
           description: 'ID of the task to complete',
           example: 1
@@ -449,16 +522,16 @@ export class ProjectsController {
       required: ['task_id']
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Task completed successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async completeTask(
@@ -471,17 +544,17 @@ export class ProjectsController {
   }
 
   @Post(':projectId/milestones/:milestoneId/reject')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Reject a milestone',
     description: 'Rejects a specific milestone with an optional reason. The rejection is stored in MongoDB.'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
-  @ApiParam({ 
-    name: 'milestoneId', 
+  @ApiParam({
+    name: 'milestoneId',
     description: 'ID of the milestone to reject',
     type: 'number'
   })
@@ -499,7 +572,7 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        rejectionReason: { 
+        rejectionReason: {
           type: 'string',
           description: 'Optional reason explaining why the milestone is rejected',
           example: 'The milestone does not meet the requirements'
@@ -507,20 +580,20 @@ export class ProjectsController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Milestone rejected successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Milestone not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async rejectMilestone(
@@ -534,25 +607,25 @@ export class ProjectsController {
   }
 
   @Get(':projectId/get_project_info')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get project information',
     description: 'Retrieves detailed information about a specific project'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Project information retrieved successfully'
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Project not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async getProjectInfo(@Param('projectId') projectId: string) {
@@ -560,25 +633,25 @@ export class ProjectsController {
   }
 
   @Get(':projectId/get_team')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get project team',
     description: 'Retrieves the team members assigned to a specific project'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Team information retrieved successfully'
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Project not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async getTeam(@Param('projectId') projectId: string) {
@@ -586,25 +659,25 @@ export class ProjectsController {
   }
 
   @Get(':projectId/get_scope_info')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get project scope information',
     description: 'Retrieves the scope information for a specific project'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Scope information retrieved successfully'
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Project not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async getScopeInfo(@Param('projectId') projectId: string) {
@@ -612,23 +685,23 @@ export class ProjectsController {
   }
 
   @Get(':projectId/get_task')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get specific task information and milestone',
     description: 'Retrieves detailed information about a specific task from the smart contract and its corresponding milestone from MongoDB'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
-  @ApiQuery({ 
-    name: 'task_id', 
+  @ApiQuery({
+    name: 'task_id',
     description: 'ID of the task to retrieve',
     type: 'number',
     example: 1
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Task and milestone information retrieved successfully',
     schema: {
       type: 'object',
@@ -665,12 +738,12 @@ export class ProjectsController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Task or project not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async getTask(
@@ -681,31 +754,31 @@ export class ProjectsController {
   }
 
   @Get(':projectId/get_task_completion_status')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get task completion status',
     description: 'Retrieves the completion status of a specific task'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
-  @ApiQuery({ 
-    name: 'task_id', 
+  @ApiQuery({
+    name: 'task_id',
     description: 'ID of the task to check completion status',
     type: 'number',
     example: 1
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Task completion status retrieved successfully'
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Task or project not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async getTaskCompletionStatus(
@@ -716,17 +789,17 @@ export class ProjectsController {
   }
 
   @Get(':projectId/get_all_tasks')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Get all project tasks and milestones',
     description: 'Retrieves all tasks from the smart contract and milestones from MongoDB for a specific project'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'All tasks and milestones retrieved successfully',
     schema: {
       type: 'object',
@@ -769,12 +842,12 @@ export class ProjectsController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Project not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async getAllTasks(@Param('projectId') projectId: string) {
@@ -782,12 +855,12 @@ export class ProjectsController {
   }
 
   @Post('deploy/:version')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Initiate project contract deployment (async)',
     description: 'Initiates the deployment of a new project contract asynchronously. Returns immediately with a project ID. Use the creation status endpoint to check the deployment progress.'
   })
-  @ApiParam({ 
-    name: 'version', 
+  @ApiParam({
+    name: 'version',
     description: 'Version of the contract to deploy',
     type: 'string',
     example: 'v1.0.0'
@@ -806,42 +879,42 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        title: { 
+        title: {
           type: 'string',
           description: 'Title of the project',
           example: 'My Project'
         },
-        summary: { 
+        summary: {
           type: 'string',
           description: 'Brief summary of the project',
           example: 'A brief project description'
         },
-        description: { 
+        description: {
           type: 'string',
           description: 'Detailed description of the project',
           example: 'Full project description...'
         },
-        url: { 
+        url: {
           type: 'string',
           description: 'Project URL',
           example: 'https://example.com'
         },
-        projectType: { 
+        projectType: {
           type: 'number',
           description: 'Project type',
           example: 1
         },
-        budget: { 
+        budget: {
           type: 'number',
           description: 'Project budget in tokens',
           example: 5000
         },
-        deliveryTime: { 
+        deliveryTime: {
           type: 'number',
           description: 'Expected delivery time',
           example: 30
         },
-        clientId: { 
+        clientId: {
           type: 'string',
           description: 'Client AccountId',
           example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY'
@@ -862,8 +935,8 @@ export class ProjectsController {
     }
   })
   @HttpCode(200)
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Project creation initiated successfully',
     schema: {
       type: 'object',
@@ -874,12 +947,12 @@ export class ProjectsController {
       }
     }
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async deployContract(
@@ -889,17 +962,17 @@ export class ProjectsController {
   ) {
     const token = this.extractToken(authHeader);
     const { ...proposalData } = body;
-    
+
     return await this.projectsService.deployContract(version, proposalData, token);
   }
 
   @Put(':projectId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Update project',
     description: 'Updates project information in the database'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -917,37 +990,37 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        title: { 
+        title: {
           type: 'string',
           description: 'Title of the project',
           example: 'My Project'
         },
-        summary: { 
+        summary: {
           type: 'string',
           description: 'Brief summary of the project',
           example: 'A brief project description'
         },
-        description: { 
+        description: {
           type: 'string',
           description: 'Detailed description of the project',
           example: 'Full project description...'
         },
-        url: { 
+        url: {
           type: 'string',
           description: 'Project URL',
           example: 'https://example.com'
         },
-        projectType: { 
+        projectType: {
           type: 'number',
           description: 'Project type',
           example: 1
         },
-        budget: { 
+        budget: {
           type: 'number',
           description: 'Project budget in tokens',
           example: 5000
         },
-        deliveryTime: { 
+        deliveryTime: {
           type: 'number',
           description: 'Expected delivery time',
           example: 30
@@ -956,20 +1029,20 @@ export class ProjectsController {
       required: ['title', 'budget', 'deliveryTime']
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Project updated successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Project not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async updateProject(
@@ -982,12 +1055,12 @@ export class ProjectsController {
   }
 
   @Post(':projectId/propose_scope')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Coordinator approves project and proposes scope',
     description: 'Coordinator approves a project by creating milestones and proposing scope to the smart contract. This is an atomic operation that saves milestones to the database and converts them into tasks for the blockchain contract.'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -1017,18 +1090,18 @@ export class ProjectsController {
               deliveryTime: { type: 'number', example: 15 },
               role: { type: 'string', example: 'Frontend Developer' },
               proficiency: { type: 'string', example: 'Senior' },
-              skills: { 
+              skills: {
                 type: 'array',
                 items: { type: 'string' },
                 example: ['React', 'TypeScript', 'CSS']
               },
-              availability: { 
+              availability: {
                 type: 'string',
                 enum: ['fulltime', 'parttime', 'hourly'],
                 description: 'Developer availability type',
                 example: 'fulltime'
               },
-              neededHours: { 
+              neededHours: {
                 type: 'number',
                 description: 'Number of hours needed (required when availability is "hourly")',
                 example: 20
@@ -1050,20 +1123,20 @@ export class ProjectsController {
       required: ['milestones', 'advance_payment_percentage', 'document_hash']
     }
   })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Project approved, milestones created, and scope proposed successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token or not a coordinator'
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Project not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async proposeScope(
@@ -1080,12 +1153,12 @@ export class ProjectsController {
   }
 
   @Post(':projectId/coordinator_reject')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Coordinator rejects project',
     description: 'Coordinator rejects a project with a reason. The rejection is stored.'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
@@ -1112,20 +1185,20 @@ export class ProjectsController {
       required: ['rejectionReason']
     }
   })
-  @ApiResponse({ 
-    status: 201, 
+  @ApiResponse({
+    status: 201,
     description: 'Project rejected successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token or not a coordinator'
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Project not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async coordinatorRejectProject(
@@ -1138,17 +1211,17 @@ export class ProjectsController {
   }
 
   @Put(':projectId/milestones/:milestoneId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Update milestone',
     description: 'Updates a specific milestone'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
-  @ApiParam({ 
-    name: 'milestoneId', 
+  @ApiParam({
+    name: 'milestoneId',
     description: 'The ID of the milestone',
     type: 'number'
   })
@@ -1166,49 +1239,49 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        title: { 
+        title: {
           type: 'string',
           description: 'Title of the milestone',
           example: 'Phase 1: Design'
         },
-        description: { 
+        description: {
           type: 'string',
           description: 'Description of the milestone',
           example: 'Complete the UI/UX design'
         },
-        budget: { 
+        budget: {
           type: 'number',
           description: 'Budget for the milestone in tokens',
           example: 5000
         },
-        deliveryTime: { 
+        deliveryTime: {
           type: 'number',
           description: 'Delivery time in days',
           example: 15
         },
-        role: { 
+        role: {
           type: 'string',
           description: 'Required role for the milestone',
           example: 'Frontend Developer'
         },
-        proficiency: { 
+        proficiency: {
           type: 'string',
           description: 'Required proficiency level',
           example: 'Senior'
         },
-        skills: { 
+        skills: {
           type: 'array',
           items: { type: 'string' },
           description: 'Required skills',
           example: ['React', 'TypeScript', 'CSS']
         },
-        availability: { 
+        availability: {
           type: 'string',
           enum: ['fulltime', 'parttime', 'hourly'],
           description: 'Developer availability type',
           example: 'fulltime'
         },
-        neededHours: { 
+        neededHours: {
           type: 'number',
           description: 'Number of hours needed (required when availability is "hourly")',
           example: 20
@@ -1217,20 +1290,20 @@ export class ProjectsController {
       required: ['title', 'budget', 'deliveryTime', 'availability']
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Milestone updated successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Milestone not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async updateMilestone(
@@ -1244,17 +1317,17 @@ export class ProjectsController {
   }
 
   @Delete(':projectId/milestones/:milestoneId')
-  @ApiOperation({ 
+  @ApiOperation({
     summary: 'Delete milestone',
     description: 'Deletes a specific milestone'
   })
-  @ApiParam({ 
-    name: 'projectId', 
+  @ApiParam({
+    name: 'projectId',
     description: 'MongoDB ID of the project',
     type: 'string'
   })
-  @ApiParam({ 
-    name: 'milestoneId', 
+  @ApiParam({
+    name: 'milestoneId',
     description: 'The ID of the milestone',
     type: 'number'
   })
@@ -1268,20 +1341,20 @@ export class ProjectsController {
       example: 'Bearer <your-jwt-token>'
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Milestone deleted successfully'
   })
-  @ApiResponse({ 
-    status: 401, 
+  @ApiResponse({
+    status: 401,
     description: 'Unauthorized - Invalid token'
   })
-  @ApiResponse({ 
-    status: 404, 
+  @ApiResponse({
+    status: 404,
     description: 'Milestone not found'
   })
-  @ApiResponse({ 
-    status: 500, 
+  @ApiResponse({
+    status: 500,
     description: 'Internal server error'
   })
   async deleteMilestone(

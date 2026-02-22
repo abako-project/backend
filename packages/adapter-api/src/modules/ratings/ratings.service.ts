@@ -83,7 +83,7 @@ export class RatingsService {
 
   private mapToResponse(rating: RatingDocument): RatingResponse {
     return {
-      id: String(rating._id),
+      id: (rating._id as any).toString(),
       projectId: rating.projectId,
       clientId: rating.clientId,
       developerId: rating.developerId,

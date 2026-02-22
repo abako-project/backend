@@ -1,8 +1,8 @@
 {
   "source": {
-    "hash": "0xc207888219e29e2186c5c494b5fc8fee5cb38f3e442b2327423b76caa7d70dfd",
+    "hash": "0x580e97ec2e7010dfa4036c41b6ca9aa9783c7ff1c2408b1a8de00ba4126e7698",
     "language": "ink! 5.1.1",
-    "compiler": "rustc 1.85.0",
+    "compiler": "rustc 1.86.0",
     "build_info": {
       "build_mode": "Release",
       "cargo_contract_version": "5.0.3",
@@ -508,47 +508,6 @@
         "label": "ScopeResponseReceived",
         "module_path": "projects::projects",
         "signature_topic": "0xfb9143d083dd427f05a5ff28cd16bcdb3c50dd7403873f813aa55332b43e7157"
-      },
-      {
-        "args": [
-          {
-            "docs": [],
-            "indexed": false,
-            "label": "payment_due",
-            "type": {
-              "displayName": [
-                "Balance"
-              ],
-              "type": 10
-            }
-          },
-          {
-            "docs": [],
-            "indexed": false,
-            "label": "asset_id",
-            "type": {
-              "displayName": [
-                "u32"
-              ],
-              "type": 14
-            }
-          },
-          {
-            "docs": [],
-            "indexed": false,
-            "label": "is_test",
-            "type": {
-              "displayName": [
-                "bool"
-              ],
-              "type": 12
-            }
-          }
-        ],
-        "docs": [],
-        "label": "DebugPayment",
-        "module_path": "projects::projects",
-        "signature_topic": "0xb627ddcc1f0e656ccaae275752aa043e052fa64720b0dffc6311ed8a833d5da8"
       }
     ],
     "lang_error": {
@@ -653,18 +612,28 @@
               ],
               "type": 33
             }
+          },
+          {
+            "label": "coordinator_rating",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
           }
         ],
         "default": false,
         "docs": [
-          " Marks the project as completed with team member ratings",
+          " Marks the project as completed with team member and coordinator ratings",
           "",
           " Only the client can call this function once all tasks are completed.",
-          " The client must provide ratings for all team members.",
+          " The client must provide ratings for all team members and the coordinator.",
           "",
           " # Parameters",
           " - `ratings`: Vector of (AccountId, rating) pairs for each team member",
-          "   where rating is 0-10",
+          "   where rating is 0-100",
+          " - `coordinator_rating`: Rating for the coordinator (0-100)",
           "",
           " # Errors",
           " - `NotAuthorized`: Caller is not the client",
@@ -672,11 +641,12 @@
           " - `InvalidProjectState`: Project not in TeamAssigned state",
           " - `TasksNotCompleted`: Not all tasks are completed",
           " - `RatingsCountMismatch`: Number of ratings doesn't match team size",
-          " - `InvalidRatingValue`: Rating value not between 0-10",
+          " - `InvalidRatingValue`: Rating value not between 0-100",
           " - `TeamMemberNotFound`: Rating provided for non-existent team member",
           "",
           " # State Changes",
           " - Updates team member ratings",
+          " - Updates coordinator rating",
           " - Sets status to Completed",
           " - Updates paid_amount to total_cost",
           " - Emits ProjectCompleted event"
@@ -692,6 +662,75 @@
           "type": 35
         },
         "selector": "0x62d9ce6f"
+      },
+      {
+        "args": [
+          {
+            "label": "client_rating",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          },
+          {
+            "label": "team_ratings",
+            "type": {
+              "displayName": [
+                "Vec"
+              ],
+              "type": 33
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Allows the coordinator to rate the client and team members",
+          "",
+          " Can only be called after project is completed."
+        ],
+        "label": "submit_coordinator_ratings",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 35
+        },
+        "selector": "0xc8314322"
+      },
+      {
+        "args": [
+          {
+            "label": "rating",
+            "type": {
+              "displayName": [
+                "u8"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "default": false,
+        "docs": [
+          " Allows a team member to rate the coordinator",
+          "",
+          " Can only be called after project is completed."
+        ],
+        "label": "submit_developer_rating",
+        "mutates": true,
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "ink",
+            "MessageResult"
+          ],
+          "type": 35
+        },
+        "selector": "0xc69694e5"
       },
       {
         "args": [],
@@ -1412,6 +1451,64 @@
             },
             {
               "layout": {
+                "enum": {
+                  "dispatchKey": "0x00000000",
+                  "name": "Option",
+                  "variants": {
+                    "0": {
+                      "fields": [],
+                      "name": "None"
+                    },
+                    "1": {
+                      "fields": [
+                        {
+                          "layout": {
+                            "leaf": {
+                              "key": "0x00000000",
+                              "ty": 3
+                            }
+                          },
+                          "name": "0"
+                        }
+                      ],
+                      "name": "Some"
+                    }
+                  }
+                }
+              },
+              "name": "coordinator_rating_from_client"
+            },
+            {
+              "layout": {
+                "enum": {
+                  "dispatchKey": "0x00000000",
+                  "name": "Option",
+                  "variants": {
+                    "0": {
+                      "fields": [],
+                      "name": "None"
+                    },
+                    "1": {
+                      "fields": [
+                        {
+                          "layout": {
+                            "leaf": {
+                              "key": "0x00000000",
+                              "ty": 3
+                            }
+                          },
+                          "name": "0"
+                        }
+                      ],
+                      "name": "Some"
+                    }
+                  }
+                }
+              },
+              "name": "client_rating_from_coordinator"
+            },
+            {
+              "layout": {
                 "leaf": {
                   "key": "0x00000000",
                   "ty": 10
@@ -1521,6 +1618,16 @@
               },
               {
                 "name": "rating",
+                "type": 6,
+                "typeName": "Option<u8>"
+              },
+              {
+                "name": "rating_from_coordinator",
+                "type": 6,
+                "typeName": "Option<u8>"
+              },
+              {
+                "name": "rating_for_coordinator",
                 "type": 6,
                 "typeName": "Option<u8>"
               }
@@ -1950,6 +2057,16 @@
                 "name": "scope",
                 "type": 23,
                 "typeName": "<Option<ProjectScope> as::ink::storage::traits::AutoStorableHint<\n::ink::storage::traits::ManualKey<2521983880u32, ()>,>>::Type"
+              },
+              {
+                "name": "coordinator_rating_from_client",
+                "type": 6,
+                "typeName": "<Option<u8> as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<1662159954u32, ()>,>>::Type"
+              },
+              {
+                "name": "client_rating_from_coordinator",
+                "type": 6,
+                "typeName": "<Option<u8> as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<2375808640u32, ()>,>>::Type"
               },
               {
                 "name": "total_cost",
