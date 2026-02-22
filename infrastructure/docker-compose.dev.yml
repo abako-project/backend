@@ -123,7 +123,7 @@ services:
 
   bramp:
     build:
-      context: ../../bramp
+      context: ../packages/bramp
       dockerfile: Dockerfile
     container_name: bramp-service
     ports:
@@ -133,7 +133,7 @@ services:
       - NODE_ENV=development
       - DATABASE_URL=file:/app/data/bramp.db
       - PROVIDER_URL=ws://zombienet:21000
-      - MASTER_ACCOUNT_URI=//Bob
+      - MASTER_ACCOUNT_URI=//Alice
     volumes:
       - bramp-data:/app/data
     networks:
@@ -150,10 +150,10 @@ services:
     develop:
       watch:
         - action: sync
-          path: ../../bramp/src
+          path: ../packages/bramp/src
           target: /app/src
         - action: rebuild
-          path: ../../bramp/package.json
+          path: ../packages/bramp/package.json
 
   virto-api:
     build:

@@ -97,9 +97,9 @@ export class DepositService {
             // 2. Transfer Asset 1 (amount) to toAddress
             this.logger.log(`Step 2: Transferring Asset 1 (${amount}) to ${toAddress}`);
 
-            const tx = this.papi.api.tx.Assets.transfer({
+            const tx = this.papi.api.tx.Assets.mint({
                 id: Enum('Here', 1),
-                target: Enum('Id', toAddress),
+                beneficiary: Enum('Id', toAddress),
                 amount: BigInt(amount),
             });
 
