@@ -35,6 +35,9 @@ describe('Projects Module E2E Tests', () => {
   let calendarContractAddress: string;
   let ratingsContractAddress: string;
 
+  let brampClientUserId: number;
+  let brampWorkerOneUserId: number;
+  let depositId: number;
   // Constants for ratings verification
   const RATING_CLIENT_TO_TEAM = 8;
   const RATING_CLIENT_TO_COORDINATOR = 9;
@@ -81,7 +84,25 @@ describe('Projects Module E2E Tests', () => {
     await app.close();
   });
 
+  // 
+
   describe('Complete Workflow: PolkaTalent Platform', () => {
+    let initialClientBalance: bigint;
+    let initialContractBalance: bigint;
+    let initialCoordinatorBalance: bigint;
+    let postApprovalClientBalance: bigint;
+    let postApprovalContractBalance: bigint;
+    let postApprovalCoordinatorBalance: bigint;
+
+    const checkBalance = async (address: string, assetId: number = 1) => {
+      const federateServerUrl = 'http://localhost:3000/api';
+      const response = await fetch(`${federateServerUrl}/balance?address=${encodeURIComponent(address)}&assetId=${assetId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to get balance: ${response.status} ${response.statusText}`);
+      }
+      const data = await response.json() as { balance: string };
+      return BigInt(data.balance);
+    };
     describe('Deploy Ratings Contract for Test Isolation', () => {
       it('should deploy ratings contract for E2E test', async () => {
         console.log('Deploying isolated ratings contract for E2E test...');
@@ -495,6 +516,50 @@ describe('Projects Module E2E Tests', () => {
       // });
     });
 
+    describe('DAO Governance', () => {
+      it('should verify client can create a remark referendum', async () => {
+        console.log('Client creating remark referendum...');
+
+        const remark = `Client Referendum ${Date.now()}`;
+
+        console.log(`Submitting referendum: "${remark}" for client ${clientAccountId}`);
+
+        const response = await request(app.getHttpServer())
+          .post('/dao/submit-remark')
+          .set('Authorization', `Bearer ${authTokenClient}`)
+          .send({ remark })
+          .expect(201);
+
+        console.log('Referendum submission result:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('success', true);
+        expect(response.body).toHaveProperty('blockHash');
+
+        console.info(`✅ Verified client created remark referendum: ${response.body.blockHash}`);
+      });
+
+      it('should verify developer can create a remark referendum', async () => {
+        console.log('Developer creating remark referendum...');
+
+        const remark = `Developer Referendum ${Date.now()}`;
+
+        console.log(`Submitting referendum: "${remark}" for developer ${workerOneAccountId}`);
+
+        const response = await request(app.getHttpServer())
+          .post('/dao/submit-remark')
+          .set('Authorization', `Bearer ${authTokenWorkerOne}`)
+          .send({ remark })
+          .expect(201);
+
+        console.log('Referendum submission result:', JSON.stringify(response.body, null, 2));
+
+        expect(response.body).toHaveProperty('success', true);
+        expect(response.body).toHaveProperty('blockHash');
+
+        console.info(`✅ Verified developer created remark referendum: ${response.body.blockHash}`);
+      });
+    });
+
     describe('📝 Listings & Developer Matching', () => {
       describe('Submitting a project proposal as a client', () => {
         describe('Calendar - Worker Registration', () => {
@@ -621,7 +686,7 @@ describe('Projects Module E2E Tests', () => {
               title: 'Test Project',
               summary: 'A test project summary',
               description: 'A test project description',
-              url: 'https://example.com',
+              url: 'https://w3f.com',
               projectType: 1,
               budget: 5000,
               deliveryTime: 30,
@@ -761,7 +826,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body).toHaveProperty('title', 'Test Project');
             expect(response.body).toHaveProperty('summary', 'A test project summary');
             expect(response.body).toHaveProperty('description', 'A test project description');
-            expect(response.body).toHaveProperty('url', 'https://example.com');
+            expect(response.body).toHaveProperty('url', 'https://w3f.com');
             expect(response.body).toHaveProperty('projectType', 1);
             expect(response.body).toHaveProperty('budget', 5000);
             expect(response.body).toHaveProperty('deliveryTime', 30);
@@ -771,6 +836,142 @@ describe('Projects Module E2E Tests', () => {
             console.info(`✅ Verified project data in MongoDB for project ${projectId}`);
           });
 
+        });
+
+        describe('Bramp Integration', () => {
+          it('should create a bramp user for testing', async () => {
+            console.log('Creating Bramp user for integration tests...');
+
+            const response = await request(app.getHttpServer())
+              .post('/bramp/users')
+              .send({ email: clientUserId })
+              .expect(201);
+
+            console.log('Bramp user created:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('id');
+            expect(response.body).toHaveProperty('email', clientUserId);
+            expect(response.body).toHaveProperty('balance');
+            expect(response.body).toHaveProperty('depositAddress');
+            expect(response.body.depositAddress).toHaveProperty('address');
+
+            brampClientUserId = response.body.id;
+
+            console.info(`✅ Bramp user created: ID ${brampClientUserId}, Email: ${clientUserId}`);
+          });
+
+          it('should get bramp user by email', async () => {
+            console.log(`Getting Bramp user by email: ${clientUserId}...`);
+
+            expect(clientUserId).toBeDefined();
+
+            const response = await request(app.getHttpServer())
+              .get(`/bramp/users?email=${encodeURIComponent(clientUserId)}`)
+              .expect(200);
+
+            console.log('Bramp user retrieved:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('id', brampClientUserId);
+            expect(response.body).toHaveProperty('email', clientUserId);
+
+            console.info(`✅ Bramp user retrieved successfully`);
+          });
+
+          it('should create a bramp developer user for testing', async () => {
+            console.log('Creating Bramp user for integration tests...');
+
+            const response = await request(app.getHttpServer())
+              .post('/bramp/users')
+              .send({ email: workerOneUserId })
+              .expect(201);
+
+            console.log('Bramp user created:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('id');
+            expect(response.body).toHaveProperty('email', workerOneUserId);
+            expect(response.body).toHaveProperty('balance');
+            expect(response.body).toHaveProperty('depositAddress');
+            expect(response.body.depositAddress).toHaveProperty('address');
+
+            brampWorkerOneUserId = response.body.id;
+
+            console.info(`✅ Bramp user created: ID ${brampWorkerOneUserId}, Email: ${workerOneUserId}`);
+          });
+
+          it('should get bramp user by email', async () => {
+            console.log(`Getting Bramp user by email: ${workerOneUserId}...`);
+
+            expect(workerOneUserId).toBeDefined();
+
+            const response = await request(app.getHttpServer())
+              .get(`/bramp/users?email=${encodeURIComponent(workerOneUserId)}`)
+              .expect(200);
+
+            console.log('Bramp user retrieved:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('id', brampWorkerOneUserId);
+            expect(response.body).toHaveProperty('email', workerOneUserId);
+
+            console.info(`✅ Bramp user retrieved successfully`);
+          });
+
+          it('should create a deposit (on-ramp: fiat -> crypto)', async () => {
+            console.log('Creating deposit request...');
+
+            expect(brampClientUserId).toBeDefined();
+            expect(clientAccountId).toBeDefined();
+
+            const depositAmount = '10000';
+            const depositData = {
+              userId: brampClientUserId,
+              amount: depositAmount,
+              toAddress: clientAccountId
+            };
+
+            const response = await request(app.getHttpServer())
+              .post('/bramp/deposit')
+              .send(depositData)
+              .expect(201);
+
+            console.log('Deposit created:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('message');
+            expect(response.body).toHaveProperty('depositId');
+            expect(response.body).toHaveProperty('instructions');
+            expect(response.body.instructions).toHaveProperty('amount', depositAmount);
+            expect(response.body.instructions).toHaveProperty('bankAccount');
+            expect(response.body.instructions).toHaveProperty('reference');
+
+            depositId = response.body.depositId;
+
+            console.info(`✅ Deposit created: ID ${depositId}, Amount: ${depositAmount}`);
+            console.info(`   Instructions: ${JSON.stringify(response.body.instructions)}`);
+          });
+
+          it('should confirm deposit and transfer crypto to client', async () => {
+            console.log(`Confirming deposit ${depositId}...`);
+
+            expect(depositId).toBeDefined();
+            expect(clientAccountId).toBeDefined();
+
+            const confirmData = {
+              toAddress: clientAccountId
+            };
+
+            const response = await request(app.getHttpServer())
+              .post(`/bramp/deposit/${depositId}/confirm`)
+              .send(confirmData)
+              .expect(201);
+
+            console.log('Deposit confirmed:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('status', 'success');
+            expect(response.body).toHaveProperty('txHash');
+            expect(response.body.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+
+            console.info(`✅ Deposit confirmed successfully`);
+            console.info(`   Transaction Hash: ${response.body.txHash}`);
+          });
         });
 
         describe('Coordinator Approval Process', () => {
@@ -899,6 +1100,20 @@ describe('Projects Module E2E Tests', () => {
       });
 
       describe('Projects Module - Approve Scope', () => {
+        it('should check initial balances before approval', async () => {
+          console.log('Checking initial balances...');
+          expect(clientAccountId).toBeDefined();
+          expect(contractAddress).toBeDefined();
+
+          initialClientBalance = await checkBalance(clientAccountId);
+          initialContractBalance = await checkBalance(contractAddress);
+          initialCoordinatorBalance = await checkBalance(coordinatorAccountId);
+
+          console.log(`Initial Client Balance: ${initialClientBalance}`);
+          console.log(`Initial Contract Balance: ${initialContractBalance}`);
+          console.log(`Initial Coordinator Balance: ${initialCoordinatorBalance}`);
+        });
+
         it('should approve scope tasks', async () => {
           console.log('Approving scope tasks...');
 
@@ -939,6 +1154,33 @@ describe('Projects Module E2E Tests', () => {
           console.log('Waiting for contract state to update to ScopeAccepted...');
           await new Promise(resolve => setTimeout(resolve, 50000)); // Increased wait time
           console.info('✅ Waited for contract state update');
+        });
+
+        it('should verify balances after approval (advance payment)', async () => {
+          console.log('Verifying balances after approval...');
+
+          // Wait a bit for the payment to be processed
+          await new Promise(resolve => setTimeout(resolve, 5000));
+
+          postApprovalClientBalance = await checkBalance(clientAccountId);
+          postApprovalContractBalance = await checkBalance(contractAddress);
+          postApprovalCoordinatorBalance = await checkBalance(coordinatorAccountId);
+
+          console.log(`Post-Approval Client Balance: ${postApprovalClientBalance}`);
+          console.log(`Post-Approval Contract Balance: ${postApprovalContractBalance}`);
+          console.log(`Post-Approval Coordinator Balance: ${postApprovalCoordinatorBalance}`);
+
+          // Client should have less funds (advance payment sent)
+          expect(postApprovalClientBalance).toBeLessThan(initialClientBalance);
+
+          // Contract should have funds (advance payment received)
+          // Note: In the current implementation, the payment might be held in the contract or forwarded.
+          // The user requirement says: "consultarlo en la direccion del contrato, verificar que se haya incluido y restado del cliente"
+          // So contract should have increased balance.
+          expect(postApprovalContractBalance).toBeGreaterThan(initialContractBalance);
+
+          const advancePaymentAmount = initialClientBalance - postApprovalClientBalance;
+          console.log(`Advance Payment Amount (approx): ${advancePaymentAmount}`);
         });
       });
 
@@ -1280,20 +1522,22 @@ describe('Projects Module E2E Tests', () => {
             expect(Array.isArray(tasksResponse.body.response)).toBe(true);
             expect(tasksResponse.body.response.length).toBeGreaterThan(0);
 
-            const firstTaskId = tasksResponse.body.response[0].id;
-            console.log(`Completing task with ID: ${firstTaskId}`);
+            const tasks = tasksResponse.body.response;
+            console.log(`Found ${tasks.length} tasks to complete`);
 
-            const response = await request(app.getHttpServer())
-              .post(`/projects/${projectId}/complete_task`)
-              .set('Authorization', `Bearer ${authTokenClient}`)
-              .send({ task_id: firstTaskId })
-              .expect(201);
+            for (const task of tasks) {
+              console.log(`Completing task with ID: ${task.id}`);
+              const response = await request(app.getHttpServer())
+                .post(`/projects/${projectId}/complete_task`)
+                .set('Authorization', `Bearer ${authTokenClient}`)
+                .send({ task_id: task.id })
+                .expect(201);
 
-            console.log('Response:', JSON.stringify(response.body, null, 2));
+              expect(response.body).toHaveProperty('success');
+              expect(response.body.success).toBe(true);
+            }
 
-            expect(response.body).toHaveProperty('success');
-            expect(response.body.success).toBe(true);
-            console.info(`✅ Completed task #${firstTaskId}`);
+            console.info(`✅ Completed all ${tasks.length} tasks`);
           });
         });
 
@@ -1333,6 +1577,31 @@ describe('Projects Module E2E Tests', () => {
             console.log('Project marked as completed successfully');
             console.info(`✅ Marked project as completed with ${ratings.length} rating(s) (Client->Team: ${RATING_CLIENT_TO_TEAM}, Client->Coordinator: ${RATING_CLIENT_TO_COORDINATOR})`);
             console.info('\n✅ Developer team assembly and project execution completed successfully!\n');
+            console.info(`✅ Marked project as completed with ${ratings.length} rating(s)`);
+            console.info('\n✅ Developer team assembly and project execution completed successfully!\n');
+          });
+
+          it('should verify balances after completion (payment release)', async () => {
+            console.log('Verifying balances after completion...');
+
+            // Wait a bit for the payment release to be processed
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            const finalClientBalance = await checkBalance(clientAccountId);
+            const finalContractBalance = await checkBalance(contractAddress);
+            const finalCoordinatorBalance = await checkBalance(coordinatorAccountId);
+
+            console.log(`Final Client Balance: ${finalClientBalance}`);
+            console.log(`Final Contract Balance: ${finalContractBalance}`);
+            console.log(`Final Coordinator Balance: ${finalCoordinatorBalance}`);
+
+            expect(finalContractBalance).toBeLessThan(postApprovalContractBalance);
+            expect(finalCoordinatorBalance).toBeGreaterThan(initialCoordinatorBalance);
+
+            const coordinatorGain = finalCoordinatorBalance - initialCoordinatorBalance;
+            console.log(`Coordinator Gain: ${coordinatorGain}`);
+            expect(coordinatorGain).toBeGreaterThan(BigInt(0));
+            expect(finalClientBalance).toBeLessThan(initialClientBalance);
           });
 
           it('should verify project delivery date was set after completion', async () => {
@@ -1542,6 +1811,40 @@ describe('Projects Module E2E Tests', () => {
           });
         });
 
+        describe('Bramp Integration', () => {
+          let withdrawalId: number;
+
+          it('should create a withdrawal (off-ramp: crypto -> fiat)', async () => {
+            console.log('Creating withdrawal request...');
+
+            expect(brampWorkerOneUserId).toBeDefined();
+
+            const withdrawalAmount = '500';
+            const withdrawalData = {
+              userId: brampWorkerOneUserId,
+              amount: withdrawalAmount
+            };
+
+            const response = await request(app.getHttpServer())
+              .post('/bramp/withdrawal')
+              .send(withdrawalData)
+              .expect(201);
+
+            console.log('Withdrawal created:', JSON.stringify(response.body, null, 2));
+
+            expect(response.body).toHaveProperty('message');
+            expect(response.body).toHaveProperty('withdrawalId');
+            expect(response.body).toHaveProperty('depositAddress');
+            expect(response.body).toHaveProperty('amount', withdrawalAmount);
+            expect(response.body.depositAddress).toMatch(/^5[A-Za-z0-9]{47}$/);
+
+            withdrawalId = response.body.withdrawalId;
+
+            console.info(`✅ Withdrawal created: ID ${withdrawalId}, Amount: ${withdrawalAmount}`);
+            console.info(`   Developer should send crypto to: ${response.body.depositAddress}`);
+            console.info(`   Bramp will process off-ramp to fiat after receiving crypto`);
+          });
+        });
 
         // TODO: Fix coordinator rejection process, CONTRACT TRAPPED IN THE BLOCKCHAIN
         // describe('Coordinator Rejection Process', () => {
@@ -1553,7 +1856,7 @@ describe('Projects Module E2E Tests', () => {
         //       title: 'Test Project - To Be Rejected',
         //       summary: 'A test project that will be rejected',
         //       description: 'This project will be rejected by the coordinator',
-        //       url: 'https://example.com/rejected',
+        //       url: 'https://w3f.com/rejected',
         //       projectType: 1,
         //       budget: 3000,
         //       deliveryTime: 20,

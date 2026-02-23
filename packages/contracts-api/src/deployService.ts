@@ -45,19 +45,19 @@ export class DeployService {
       'ratings': 'RATINGS_APP_ID',
       'projects': 'PROJECTS_APP_ID'
     }
-    
+
     const envVarName = envVarMap[contractType] || 'PROJECTS_APP_ID'
     const appId = process.env[envVarName]
-    
+
     if (!appId) {
       throw new Error(`${envVarName} environment variable is not set`)
     }
-    
+
     const parsedAppId = Number(appId)
     if (isNaN(parsedAppId)) {
       throw new Error(`${envVarName} environment variable must be a valid number, got: ${appId}`)
     }
-    
+
     return parsedAppId
   }
 
@@ -95,23 +95,24 @@ export class DeployService {
       } else {
         return {
           name: params.name,
+          client: params.client || undefined,
           dao_address: params.dao_address || adminPublicAddress,
           calendar_contract: params.calendar_contract || undefined,
           ratings_contract: params.ratings_contract || undefined
         }
       }
     }
-    
+
     if (config.contractType === 'calendar') {
       return {
         ratings_contract: params.ratings_contract || undefined
       }
     }
-    
+
     if (config.contractType === 'ratings') {
       return {}
     }
-    
+
     return params
   }
 
@@ -128,7 +129,7 @@ export class DeployService {
 
       const constructorData = this.buildConstructorData(config, params)
       console.log("Constructor data:", constructorData)
-      
+
       const appId = this.getAppId(config.contractType)
       console.log(`Using APP_ID: ${appId} for contract type: ${config.contractType}`)
 
@@ -139,7 +140,7 @@ export class DeployService {
         origin: adminPublicAddress,
         options: { salt }
       })
-      
+
       const txDecodedCall = await tx.decodedCall
       console.log("Tx decoded call", txDecodedCall)
       instantiateData = txDecodedCall.value.value.data
@@ -169,10 +170,10 @@ export class DeployService {
       const licenseResponse = licenseResult as { ok: boolean; txHash: string; blockHash: string; events: any[] };
       const contractsStoreEvent = licenseResponse.events.find((event: any) => event.type === 'ContractsStore')
       let licenseId = contractsStoreEvent?.value?.value?.license_id
-      
+
       if (licenseId === undefined || licenseId === null) {
-        licenseId = contractsStoreEvent?.value?.license_id || 
-                   contractsStoreEvent?.license_id
+        licenseId = contractsStoreEvent?.value?.license_id ||
+          contractsStoreEvent?.license_id
         if (licenseId !== undefined && licenseId !== null) {
           console.log("License ID found via alternative path:", licenseId)
         } else {
@@ -180,7 +181,7 @@ export class DeployService {
           throw new Error("License ID not found in ContractsStore event")
         }
       }
-      
+
       console.log("License ID:", licenseId)
 
       const encodedLicense = await license.getEncodedData()
@@ -199,7 +200,7 @@ export class DeployService {
       const encodedBatch = await instantiate.signAndSubmit(adminPolkadotSigner)
 
       console.log(encodedBatch)
-      
+
       const contractEvent = encodedBatch.events.find((event: any) => event.type === 'Contracts')
       console.log(contractEvent)
       const contractAddress = contractEvent?.value?.value?.contract
@@ -207,7 +208,7 @@ export class DeployService {
       if (!contractAddress) {
         throw new Error("Contract address not found, deploy failed")
       }
-      
+
       console.log("Contract Address:", contractAddress)
       console.log("Transaction created successfully")
 

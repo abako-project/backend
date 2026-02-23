@@ -20,7 +20,7 @@ export class ConfigService {
     if (hello === "") {
       return hello;
     }
-    
+
     if (!hello) {
       throw new Error(`Environment variable ${key} is not set.`);
     }
@@ -65,5 +65,9 @@ export class ConfigService {
 
   getDaoAddress(): string {
     return this.envConfig['DAO_ADDRESS'] || process.env['DAO_ADDRESS'] || '';
+  }
+
+  getBrampServiceUrl(): string {
+    return this.envConfig['BRAMP_SERVICE_URL'] || process.env['BRAMP_SERVICE_URL'] || 'http://localhost:3001';
   }
 }

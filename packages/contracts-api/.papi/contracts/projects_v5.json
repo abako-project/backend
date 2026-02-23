@@ -1,6 +1,6 @@
 {
   "source": {
-    "hash": "0xe6e5d134429f903565ad62c1847ccc6b81e8b196fa57f96a9854806709f75219",
+    "hash": "0x580e97ec2e7010dfa4036c41b6ca9aa9783c7ff1c2408b1a8de00ba4126e7698",
     "language": "ink! 5.1.1",
     "compiler": "rustc 1.86.0",
     "build_info": {
@@ -32,6 +32,15 @@
                 "String"
               ],
               "type": 0
+            }
+          },
+          {
+            "label": "client",
+            "type": {
+              "displayName": [
+                "AccountId"
+              ],
+              "type": 1
             }
           },
           {
@@ -623,8 +632,8 @@
           "",
           " # Parameters",
           " - `ratings`: Vector of (AccountId, rating) pairs for each team member",
-          "   where rating is 0-10",
-          " - `coordinator_rating`: Rating for the coordinator (0-10)",
+          "   where rating is 0-100",
+          " - `coordinator_rating`: Rating for the coordinator (0-100)",
           "",
           " # Errors",
           " - `NotAuthorized`: Caller is not the client",
@@ -632,7 +641,7 @@
           " - `InvalidProjectState`: Project not in TeamAssigned state",
           " - `TasksNotCompleted`: Not all tasks are completed",
           " - `RatingsCountMismatch`: Number of ratings doesn't match team size",
-          " - `InvalidRatingValue`: Rating value not between 0-10",
+          " - `InvalidRatingValue`: Rating value not between 0-100",
           " - `TeamMemberNotFound`: Rating provided for non-existent team member",
           "",
           " # State Changes",
@@ -1515,6 +1524,15 @@
                 }
               },
               "name": "paid_amount"
+            },
+            {
+              "layout": {
+                "leaf": {
+                  "key": "0x00000000",
+                  "ty": 14
+                }
+              },
+              "name": "asset_id"
             }
           ],
           "name": "Project"
@@ -2059,6 +2077,11 @@
                 "name": "paid_amount",
                 "type": 10,
                 "typeName": "<Balance as::ink::storage::traits::AutoStorableHint<::ink::\nstorage::traits::ManualKey<972696643u32, ()>,>>::Type"
+              },
+              {
+                "name": "asset_id",
+                "type": 14,
+                "typeName": "<u32 as::ink::storage::traits::AutoStorableHint<::ink::storage\n::traits::ManualKey<221604333u32, ()>,>>::Type"
               }
             ]
           }
@@ -2456,6 +2479,26 @@
               {
                 "index": 29,
                 "name": "TaskNotApproved"
+              },
+              {
+                "index": 30,
+                "name": "InsufficientPayment"
+              },
+              {
+                "index": 31,
+                "name": "TransferFailed"
+              },
+              {
+                "index": 32,
+                "name": "AssetTransferFailed"
+              },
+              {
+                "index": 33,
+                "name": "AssetDepositFailed"
+              },
+              {
+                "index": 34,
+                "name": "AssetPaymentFailed"
               }
             ]
           }
@@ -3135,9 +3178,10 @@
           "variant": {}
         },
         "path": [
-          "ink_env",
-          "types",
-          "NoChainExtension"
+          "kreivo_apis",
+          "contract",
+          "chain_extension",
+          "ChainExtension"
         ]
       }
     }

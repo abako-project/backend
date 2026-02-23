@@ -197,6 +197,11 @@ export class ProjectsService {
       const response = await contract.query(methodName as any, {
         origin: adminPublicAddress,
         data: data,
+        gas_limit: {
+          ref_time: 200000000000n,
+          proof_size: 10000000n
+        },
+        storage_deposit_limit: null,
       })
 
       console.log("before response hdp", response)
@@ -279,6 +284,9 @@ export class ProjectsService {
       'set_calendar_contract',
       'propose_scope',
       'submit_task_for_review',
+      'approve_scope',
+      'complete_task',
+      'mark_completed',
       'submit_coordinator_ratings',
       'submit_developer_rating',
     ]
@@ -518,126 +526,7 @@ export class ProjectsService {
         }
       }
 
-      let contractData = rest.data || rest
-      console.log('contractData:', contractData);
-      if (methodName === 'approve_scope' || methodName === 'complete_task' || methodName === 'mark_completed') {
-        try {
-          let dataToSend;
-          const communityAddress = "F3opxRaMqPWKwA5yup6vZy2GLA28aJ3XSEX31Uf8qrhmaQt";
-          const simulationOrigin = communityAddress || adminPublicAddress;
-          // const dataToSend = methodName === 'approve_scope' ? {
-          //   approved_task_ids: Binary.fromBytes(new Uint8Array([1]))
-          // } : contractData
 
-          if (methodName === 'approve_scope') {
-            dataToSend = {
-              approved_task_ids: Binary.fromBytes(contractData.approved_task_ids)
-            }
-          } else if (methodName === 'complete_task') {
-            dataToSend = contractData
-          } else if (methodName === 'mark_completed') {
-            dataToSend = {
-              ratings: contractData.ratings
-            }
-          }
-
-          const txResponse = await contract.query(methodName as any, {
-            origin: simulationOrigin,
-            data: dataToSend,
-            gas_limit: {
-              ref_time: 10000000000n,
-              proof_size: 1000000n
-            },
-            storage_deposit_limit: 100000000000n,
-          })
-
-          console.log('txResponse with community address:', txResponse);
-
-          // Check if the query failed with a revert
-          if (!txResponse.success) {
-            // Extract error information from the reverted response and throw exception
-            let errorMessage = 'Contract call would fail';
-            let errorCode: string | null = null;
-
-            if (txResponse.value?.type === 'FlagReverted') {
-              const revertedValue = txResponse.value.value;
-
-              // Decode the error message from hex code
-              if (revertedValue.message) {
-                const decodedError = decodeErrorMessage(revertedValue.message, this.contractErrors);
-                console.log('decodedError:', decodedError)
-                errorMessage = decodedError;
-                errorCode = revertedValue.message;
-              }
-            }
-
-            throw new ContractError(
-              methodName,
-              contractAddress,
-              errorMessage,
-              errorCode,
-            );
-          }
-
-          console.log(`[callMethod] Preparing to send transaction to contract`)
-          const tx = await contract.send(methodName as any, {
-            origin: caller || adminPublicAddress,
-            data: dataToSend,
-            gas_limit: {
-              ref_time: 10000000000n,
-              proof_size: 1000000n
-            },
-            storage_deposit_limit: 100000000000n,
-          })
-
-          console.log(`[callMethod] Transaction prepared successfully`)
-
-          const callData = await tx.decodedCall
-          const callDataHex = callData.value.value.data.asHex()
-
-          console.log(`[callMethod] Decoded call data (hex):`, callDataHex)
-          console.log(`[callMethod] Gas limit:`, callData.value.value.gas_limit)
-
-          console.log(`[callMethod] Creating encoded transaction for Contracts.call`)
-          const encodedDataTx = this.typedApi.tx.Communities.dispatch_as_account({
-            call: {
-              type: "Contracts",
-              value: {
-                type: "call",
-                value: {
-                  dest: {
-                    type: "Id",
-                    value: contractAddress
-                  },
-                  value: 0n,
-                  gas_limit: {
-                    ref_time: 10000000000n,
-                    proof_size: 1000000n
-                  },
-                  storage_deposit_limit: 100000000000n,
-                  data: Binary.fromHex(callDataHex)
-                }
-              }
-            }
-          })
-
-          const result = await encodedDataTx.signAndSubmit(adminPolkadotSigner);
-          console.log('Result:', result);
-
-          return {
-            method: methodName,
-            success: result.ok,
-            transactionHash: result.txHash,
-            blockHash: result.blockHash,
-            blockNumber: result.blockNumber,
-            dispatchError: result.dispatchError,
-          }
-        } catch (error) {
-          console.error(`[callMethod] Error in ${methodName}:`, error);
-          // Re-throw the error to propagate it
-          throw error;
-        }
-      }
 
       // Normal flow for other methods
       const tx = await contract.send(methodName as any, {

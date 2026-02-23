@@ -35,21 +35,21 @@ export class VosMockService {
     const userIdArray = Array.from(hashedUserId);
 
     const publicKey = {
-        rp: {
-            name: this.rpName,
-        },
-        user: {
-            id: userIdArray,
-            name: user.profile.id.toString(),
-            displayName: user.profile.name as string ?? user.profile.id.toString(),
-        },
-        challenge: challengeHex,
-        pubKeyCredParams: [{ type: "public-key", alg: -7 }],
-        authenticatorSelection: { userVerification: "required" },
-        timeout: 60000,
-        attestation: "none",
+      rp: {
+        name: this.rpName,
+      },
+      user: {
+        id: userIdArray,
+        name: user.profile.id.toString(),
+        displayName: user.profile.name as string ?? user.profile.id.toString(),
+      },
+      challenge: challengeHex,
+      pubKeyCredParams: [{ type: "public-key", alg: -7 }],
+      authenticatorSelection: { userVerification: "required" },
+      timeout: 60000,
+      attestation: "none",
     };
-    
+
     return publicKey;
   }
 
@@ -62,12 +62,12 @@ export class VosMockService {
     const client = createClient(
       getWsProvider(this.configService.getKreivoProvider())
     );
-  
+
     const kreivoApi = client.getTypedApi(kreivo);
 
     // Convert client_data JSON string to hex
     const clientDataHex = '0x' + Buffer.from(attestationResponse.client_data, 'utf8').toString('hex');
-    
+
     const registerCharlotte = kreivoApi.tx.Pass.register({
       user: Binary.fromHex(hashedUserId),
       attestation: {
@@ -118,7 +118,7 @@ export class VosMockService {
       if (!result.ok) {
         throw new Error('Failed to register');
       }
-      
+
       await sessionStorage.set(userId, { credentialId, address });
 
       return {
@@ -141,7 +141,7 @@ export class VosMockService {
     if (!storedData) {
       throw new Error('User data not found');
     }
-    
+
     // Update storage with new block number
     await sessionStorage.set(userId, { ...storedData });
 
@@ -178,7 +178,7 @@ export class VosMockService {
     if (!address) {
       throw new Error('Address not found');
     }
-  
+
     const kreivoApi = client.getTypedApi(kreivo);
 
     const addMembership = kreivoApi.tx.Communities.add_member({
@@ -196,16 +196,17 @@ export class VosMockService {
         value: 1, // Kusama 50000002 Paseo 50000087
       },
       target: MultiAddress.Id(address),
-      amount: BigInt("100000000000"),
+      amount: BigInt("1000000"),
     }).decodedCall;
 
     const addMember = kreivoApi.tx.Utility.batch_all({
       calls: [
         addMembership,
         transfer,
+        transferUSD
       ],
-    });    
-    
+    });
+
     const addMemberRes = await new Promise((resolve, reject) => {
       addMember.signSubmitAndWatch(polkadotSigner)
         .subscribe({
@@ -255,7 +256,7 @@ export class VosMockService {
       address, parseInt(this.configService.getCommunityId())
     );
 
-    console.log({membershipKeys});
+    console.log({ membershipKeys });
 
     if (membershipKeys.length === 0) {
       throw new Error('Not a member');
@@ -329,5 +330,41 @@ export class VosMockService {
     }
   }
 
-  
+
+  /**
+   * Get asset balance for a given address
+   */
+  async getBalance(address: string, assetId: number = 1) {
+    const client = createClient(
+      getWsProvider(this.configService.getKreivoProvider())
+    );
+
+    const kreivoApi = client.getTypedApi(kreivo);
+    console.log({ address, assetId })
+    try {
+      const asset = { type: 'Here' as const, value: 1 };
+      const balance = await kreivoApi.query.Assets.Account.getValue(
+        asset,
+        address
+      );
+
+      client.destroy();
+
+      if (!balance) {
+        return {
+          balance: '0',
+          assetId
+        };
+      }
+
+      return {
+        balance: balance.balance.toString(),
+        assetId
+      };
+    } catch (error) {
+      client.destroy();
+      console.error('Error getting balance:', error);
+      throw new Error('Failed to get balance');
+    }
+  }
 } 

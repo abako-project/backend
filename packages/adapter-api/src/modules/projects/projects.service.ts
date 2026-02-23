@@ -12,7 +12,7 @@ import { Milestone, MilestoneDocument } from '../../database/schemas/milestone.s
 
 @Injectable()
 export class ProjectsService {
-  private paymentIds: Map<string, string> = new Map();
+
 
   constructor(
     private readonly configService: ConfigService,
@@ -167,57 +167,13 @@ export class ProjectsService {
     return assignResult;
   }
 
-  /**
-   * Creates advance payment automatically in background after scope is approved by client.
-   * Uses the coordinator address obtained from get_project_info contract method.
-   */
-  private async createAdvancePaymentInBackground(projectId: string, contractAddress: string): Promise<void> {
-    try {
-      console.log(`[Background] Creating advance payment for coordinator of project ${projectId}...`);
-
-      // Get coordinator address from contract using get_project_info
-      const projectInfo = await this.callReadMethod(contractAddress, 'get_project_info');
-
-      if (!projectInfo.success || !projectInfo.response || !Array.isArray(projectInfo.response)) {
-        console.warn(`[Background] Project info not available or invalid format for project ${projectId}, skipping advance payment creation`);
-        return;
-      }
-
-      // get_project_info returns: [name, client, dao, coordinator, status, total_cost, paid_amount]
-      // Coordinator is at index 3
-      if (projectInfo.response.length < 4) {
-        console.warn(`[Background] Project info response incomplete for project ${projectId}, skipping advance payment creation`);
-        return;
-      }
-
-      const coordinatorAddress = projectInfo.response[3];
-
-      if (!coordinatorAddress) {
-        console.warn(`[Background] Coordinator address not found in project info for project ${projectId}, skipping advance payment creation`);
-        return;
-      }
-
-      console.log(`[Background] Using coordinator address ${coordinatorAddress} for advance payment`);
-
-      const paymentResult = await this.createAdvancePayment(projectId, coordinatorAddress);
-      if (paymentResult.paymentId) {
-        this.paymentIds.set(contractAddress, paymentResult.paymentId);
-        console.log(`[Background] Advance payment created automatically for coordinator ${coordinatorAddress}, paymentId: ${paymentResult.paymentId}`);
-      } else {
-        console.warn(`[Background] Advance payment creation did not return paymentId for project ${projectId}`);
-      }
-    } catch (error) {
-      console.error(`[Background] Error creating advance payment for project ${projectId}:`, error);
-      // Don't throw - this is a background operation
-    }
-  }
-
   async markCompleted(projectId: string, body: { ratings: Array<[string, number]>, coordinatorRating: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'mark_completed', {
-      ratings: body.ratings,
-      coordinator_rating: body.coordinatorRating
-    });
+    const completeResult = await this.callWriteMethod(contractAddress, 'mark_completed', { ratings: body.ratings }, authToken);
+    // const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'mark_completed', {
+    //   ratings: body.ratings,
+    //   coordinator_rating: body.coordinatorRating
+    // });
 
     // Set deliveryDate automatically when project is marked as completed
     try {
@@ -265,125 +221,10 @@ export class ProjectsService {
     } catch (error) {
       console.error(`Error setting delivery date for project ${projectId}:`, error);
     }
-
-    try {
-      console.log({ paymentIds: this.paymentIds });
-      const paymentId = this.paymentIds.get(contractAddress);
-
-      if (paymentId) {
-        await this.releaseAdvancePayment(paymentId);
-        this.paymentIds.delete(contractAddress);
-        console.log(`Advance payment released automatically after project completion, paymentId: ${paymentId}`);
-
-        // Update project state to payment_released after releasing the payment
-        try {
-          const project = await this.projectModel.findById(projectId).exec();
-          if (project) {
-            project.state = 'payment_released';
-            await project.save();
-            console.log(`Project state updated to payment_released for project ${projectId}`);
-          }
-        } catch (updateError) {
-          console.error(`Error updating project state to payment_released for project ${projectId}:`, updateError);
-        }
-      } else {
-        console.warn(`No payment ID found for contract ${contractAddress}, skipping advance payment release`);
-      }
-    } catch (error) {
-      console.error('Error releasing advance payment after completion:', error);
-    }
-
     return completeResult;
   }
 
-  private async createAdvancePayment(projectId: string, workerAccountId: string): Promise<{ success: boolean; paymentId?: string }> {
-    try {
-      const contractAddress = await this.getContractAddressFromProjectId(projectId);
-      const scopeInfo = await this.getScopeInfo(projectId);
-      if (!scopeInfo.success || !scopeInfo.response || !Array.isArray(scopeInfo.response)) {
-        throw new Error('Scope info not available or invalid format');
-      }
 
-      if (scopeInfo.response.length < 4) {
-        throw new Error('Scope info response incomplete');
-      }
-
-      const totalCost = scopeInfo.response[3];
-      const advancePercentage = scopeInfo.response[1];
-
-      const advanceAmount = (BigInt(totalCost) * BigInt(advancePercentage)) / BigInt(100);
-
-      const federateServer = this.configService.getFederateServer();
-      const paymentsUrl = `${federateServer.replace('/api', '')}/api/payments/create`;
-
-      console.log(`Creating advance payment of ${advanceAmount} for worker ${workerAccountId} (project ${projectId})`);
-
-      const createResponse = await fetch(paymentsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          recipientAddress: workerAccountId,
-          amount: advanceAmount.toString(),
-          assetId: 1,
-          remark: contractAddress,
-        }),
-      });
-
-      if (!createResponse.ok) {
-        throw new Error(`Payment service error: ${createResponse.status} ${createResponse.statusText}`);
-      }
-
-      const createResult = await createResponse.json() as { success: boolean; paymentId?: string | bigint };
-      console.log('Advance payment created:', createResult);
-
-      return {
-        success: createResult.success,
-        paymentId: createResult.paymentId ? String(createResult.paymentId) : undefined,
-      };
-    } catch (error) {
-      console.error('Error creating advance payment:', error);
-      throw new HttpException(
-        `Error creating advance payment: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
-  private async releaseAdvancePayment(paymentId: string): Promise<{ success: boolean; txHash?: string }> {
-    try {
-      const federateServer = this.configService.getFederateServer();
-      const paymentsUrl = `${federateServer.replace('/api', '')}/api/payments/release`;
-
-      console.log(`Releasing advance payment with ID: ${paymentId}`);
-
-      const releaseResponse = await fetch(paymentsUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          paymentId: `${paymentId}`,
-        }),
-      });
-
-      if (!releaseResponse.ok) {
-        throw new Error(`Payment service error: ${releaseResponse.status} ${releaseResponse.statusText}`);
-      }
-
-      const releaseResult = await releaseResponse.json() as { success: boolean; txHash?: string };
-      console.log('Advance payment released:', releaseResult);
-
-      return releaseResult;
-    } catch (error) {
-      console.error('Error releasing advance payment:', error);
-      throw new HttpException(
-        `Error releasing advance payment: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
 
   async setCalendarContract(projectId: string, body: { calendar_contract: string }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
@@ -400,7 +241,12 @@ export class ProjectsService {
 
   async approveScope(projectId: string, body: { approved_task_ids: number[] }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    const approveResult = await this.callPreSignedWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids });
+    const project = await this.projectModel.findById(projectId).exec();
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
+    }
+    const approveResult = await this.callWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids, value: (project.budget || 0).toString() }, authToken);
+    // const approveResult = await this.callPreSignedWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids });
 
     // Update project state from 'scope_proposed' to 'scope_accepted' when scope is approved
     if (approveResult && approveResult.success) {
@@ -416,10 +262,6 @@ export class ProjectsService {
         console.error(`Error updating project state for ${projectId} after scope approval:`, error);
       }
     }
-    // Create advance payment in background after scope is approved by client
-    this.createAdvancePaymentInBackground(projectId, contractAddress).catch((error) => {
-      console.error(`[Background] Error creating advance payment for project ${projectId}:`, error);
-    });
 
     return approveResult;
   }
@@ -550,7 +392,8 @@ export class ProjectsService {
 
   async completeTask(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id });
+    const completeResult = await this.callWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id }, authToken);
+    // const completeResult = await this.callPreSignedWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id });
 
     // Update milestone state in MongoDB to 'completed'
     try {
@@ -818,14 +661,31 @@ export class ProjectsService {
       });
 
       const savedProject = await newProject.save();
+      // const projectId = String(savedProject._id);
       const projectId = (savedProject._id as any).toString();
+
+
+
+      const federateServerUrl = this.configService.getFederateServer();
+      const url = `${federateServerUrl}/get-user-address?userId=${encodeURIComponent(userId)}`;
+
+      const callerResponse = await fetch(url, { method: "GET" });
+      if (!callerResponse.ok) {
+        throw new HttpException(
+          `Failed to fetch client address from FederateServer: ${callerResponse.status} ${callerResponse.statusText}`,
+          HttpStatus.INTERNAL_SERVER_ERROR
+        );
+      }
+
+      const { address: clientAddress } = await callerResponse.json() as { address: string };
 
       this.executeDeploymentInBackground(
         projectId,
         version,
         proposalData,
         authToken,
-        calendarContract
+        calendarContract,
+        clientAddress
       ).catch((error) => {
         console.error(`[Fatal] Background deployment error handler caught error for project ${projectId}:`, error);
         this.projectModel.findByIdAndUpdate(
@@ -858,7 +718,8 @@ export class ProjectsService {
     version: string,
     proposalData: CreateProposalRequest,
     authToken: string,
-    calendarContract: string
+    calendarContract: string,
+    client: string
   ): Promise<void> {
     let project = await this.projectModel.findById(projectId).exec();
 
@@ -879,6 +740,7 @@ export class ProjectsService {
 
       const deployBody: any = {
         name: proposalData.title,
+        client,
         dao_address: daoAddress,
         calendar_contract: calendarContract,
         ratings_contract: ratingsContract,
@@ -978,7 +840,9 @@ export class ProjectsService {
       });
 
       if (!craftResponse.ok) {
-        throw new Error(`Craft service error: ${craftResponse.status} ${craftResponse.statusText}`);
+        const errorBody = await craftResponse.text();
+        console.error(`Craft service error body: ${errorBody}`);
+        throw new Error(`Craft service error: ${craftResponse.status} ${craftResponse.statusText} - ${errorBody}`);
       }
 
       const craftResult = await craftResponse.json() as ExtrinsicResponse;
@@ -1204,6 +1068,33 @@ export class ProjectsService {
 
     if (result.deletedCount === 0) {
       throw new NotFoundException(`Milestone ${milestoneId} not found for project ${projectId}`);
+    }
+  }
+
+  async getBalance(address: string, assetId: number = 1): Promise<{ balance: string; assetId: number }> {
+    try {
+      const federateServer = this.configService.getFederateServer();
+      const url = `${federateServer}/balance?address=${encodeURIComponent(address)}&assetId=${assetId}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get balance: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json() as { balance: string; assetId: number };
+      return result;
+    } catch (error) {
+      console.error(`Error getting balance for address ${address}:`, error);
+      throw new HttpException(
+        `Error getting balance: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
   }
 }

@@ -11,10 +11,11 @@ import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/s
 @ApiTags('vos-mock')
 @Controller('api')
 export class VosMockController {
-  constructor(private readonly vosMockService: VosMockService) {}
+  constructor(private readonly vosMockService: VosMockService) { }
 
   @ApiOperation({ summary: 'Health check endpoint' })
-  @ApiResponse({ status: 200, description: 'Service is healthy', 
+  @ApiResponse({
+    status: 200, description: 'Service is healthy',
     schema: {
       type: 'object',
       properties: {
@@ -41,8 +42,8 @@ export class VosMockController {
   @ApiOperation({ summary: 'Initialize WebAuthn registration process' })
   @ApiQuery({ name: 'id', required: true, type: String, description: 'User ID', example: 'test' })
   @ApiQuery({ name: 'name', required: false, type: String, description: 'User display name (defaults to id if not provided)', example: 'Test' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Registration initialization successful, returns attestation options',
     schema: {
       type: 'object',
@@ -115,7 +116,7 @@ export class VosMockController {
 
     try {
       const storage = req.storage as SQLiteSessionStorage;
-      
+
       // Create a user object from query parameters
       const user: User<BaseProfile> = {
         profile: {
@@ -124,7 +125,7 @@ export class VosMockController {
           displayName: name || id
         }
       };
-      
+
       const attestationOptions = await this.vosMockService.attestation(user, challenge);
       return attestationOptions;
     } catch (error) {
@@ -142,8 +143,8 @@ export class VosMockController {
       type: 'object',
       properties: {
         userId: { type: 'string', description: 'User ID', example: 'test' },
-        attestationResponse: { 
-          type: 'object', 
+        attestationResponse: {
+          type: 'object',
           description: 'WebAuthn attestation response',
           properties: {
             id: { type: 'string', description: 'Credential ID as base64url string', example: 'yLbgoD7WL6UXBHpj5SZIOQw35XNk6z4Bz3BLSquG2HI' },
@@ -164,8 +165,8 @@ export class VosMockController {
       required: ['userId', 'attestationResponse', 'blockNumber']
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Registration completed successfully',
     schema: {
       type: 'object',
@@ -182,14 +183,14 @@ export class VosMockController {
     const { userId, hashedUserId, credentialId, address, attestationResponse } = body;
 
     console.log(userId, hashedUserId, credentialId, address, attestationResponse);
-    
+
     if (!userId || !attestationResponse) {
       throw new HttpException('User ID and attestation response are required', HttpStatus.BAD_REQUEST);
     }
 
     try {
       const storage = req.storage as SQLiteSessionStorage;
-      
+
       const result = await this.vosMockService.register(userId, hashedUserId, credentialId, address, attestationResponse, storage);
       return result;
     } catch (error) {
@@ -203,8 +204,8 @@ export class VosMockController {
 
   @ApiOperation({ summary: 'Initialize WebAuthn authentication process' })
   @ApiQuery({ name: 'userId', required: true, type: String, description: 'User ID for which to generate authentication assertion', example: 'test' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Authentication initialization successful, returns assertion options',
     schema: {
       type: 'object',
@@ -212,8 +213,8 @@ export class VosMockController {
         publicKey: {
           type: 'object',
           properties: {
-            challenge: { 
-              type: 'string', 
+            challenge: {
+              type: 'string',
               description: 'Challenge as hex string',
               example: '0xd9c7d5339e935d1ef6b44949972ef5aaa373cd29ba16beb5edcc93acd9ce9667'
             },
@@ -224,8 +225,8 @@ export class VosMockController {
                 properties: {
                   id: { type: 'string', description: 'Credential ID', example: 'yLbgoD7WL6UXBHpj5SZIOQw35XNk6z4Bz3BLSquG2HI' },
                   type: { type: 'string', example: 'public-key' },
-                  transports: { 
-                    type: 'array', 
+                  transports: {
+                    type: 'array',
                     items: { type: 'string' },
                   }
                 }
@@ -270,8 +271,8 @@ export class VosMockController {
 
   @ApiOperation({ summary: 'Check if a user is registered with WebAuthn' })
   @ApiQuery({ name: 'userId', required: true, type: String, description: 'User ID to check if registered', example: 'test' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Check completed successfully',
     schema: {
       type: 'object',
@@ -306,8 +307,8 @@ export class VosMockController {
 
   @ApiOperation({ summary: 'Get user address by username' })
   @ApiQuery({ name: 'userId', required: true, type: String, description: 'User ID to get address for', example: 'test' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'User address retrieved successfully',
     schema: {
       type: 'object',
@@ -330,7 +331,7 @@ export class VosMockController {
     try {
       const storage = req.storage as SQLiteSessionStorage;
       const storedData = await storage.get(userId);
-      
+
       if (!storedData || !storedData.address) {
         throw new HttpException('User not found or not registered', HttpStatus.NOT_FOUND);
       }
@@ -338,11 +339,11 @@ export class VosMockController {
       return { address: storedData.address };
     } catch (error) {
       console.error('Get user address error:', error);
-      
+
       if (error instanceof HttpException) {
         throw error;
       }
-      
+
       throw new HttpException(
         'Failed to get user address',
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -352,8 +353,8 @@ export class VosMockController {
 
   @ApiOperation({ summary: 'Get user ID by address' })
   @ApiQuery({ name: 'address', required: true, type: String, description: 'Address to get user ID for', example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY' })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'User ID retrieved successfully',
     schema: {
       type: 'object',
@@ -376,7 +377,7 @@ export class VosMockController {
     try {
       const storage = req.storage as SQLiteSessionStorage;
       const userId = await storage.getUserIdByAddress(address);
-      
+
       if (!userId) {
         throw new HttpException('User not found or not registered for this address', HttpStatus.NOT_FOUND);
       }
@@ -384,11 +385,11 @@ export class VosMockController {
       return { userId };
     } catch (error) {
       console.error('Get user ID by address error:', error);
-      
+
       if (error instanceof HttpException) {
         throw error;
       }
-      
+
       throw new HttpException(
         'Failed to get user ID by address',
         HttpStatus.INTERNAL_SERVER_ERROR
@@ -439,17 +440,17 @@ export class VosMockController {
     schema: {
       type: 'object',
       properties: {
-        address: { 
-          type: 'string', 
-          description: 'Address to transfer funds to', 
-          example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY' 
+        address: {
+          type: 'string',
+          description: 'Address to transfer funds to',
+          example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY'
         }
       },
       required: ['address']
     }
   })
-  @ApiResponse({ 
-    status: 200, 
+  @ApiResponse({
+    status: 200,
     description: 'Funds transferred successfully',
     schema: {
       type: 'object',
@@ -479,6 +480,37 @@ export class VosMockController {
       console.error('Fund transfer error:', error);
       throw new HttpException(
         error instanceof Error ? error.message : 'Failed to transfer funds',
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+  @ApiOperation({ summary: 'Get asset balance for an address' })
+  @ApiQuery({ name: 'address', required: true, type: String, description: 'Address to check balance for' })
+  @ApiQuery({ name: 'assetId', required: false, type: Number, description: 'Asset ID (defaults to 1)', example: 1 })
+  @ApiResponse({
+    status: 200,
+    description: 'Balance retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        balance: { type: 'string', example: '1000000' },
+        assetId: { type: 'number', example: 1 }
+      }
+    }
+  })
+  @Get('balance')
+  async getBalance(@Query('address') address: string, @Query('assetId') assetId?: number) {
+    if (!address) {
+      throw new HttpException('Address is required', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      const result = await this.vosMockService.getBalance(address, assetId);
+      return result;
+    } catch (error) {
+      console.error('Get balance error:', error);
+      throw new HttpException(
+        error instanceof Error ? error.message : 'Failed to get balance',
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }

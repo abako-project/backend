@@ -1,25 +1,25 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class AttestationData {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Authenticator data from WebAuthn',
     example: '0x1234567890abcdef...'
   })
   authenticator_data: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Client data from WebAuthn',
     example: '0xabcdef1234567890...'
   })
   client_data: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Public key from WebAuthn',
     example: '0x9876543210fedcba...'
   })
   public_key: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Metadata about the attestation',
     type: 'object',
     properties: {
@@ -36,31 +36,31 @@ export class AttestationData {
 }
 
 export class PreparedRegistrationData {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'WebAuthn attestation data',
     type: AttestationData
   })
   attestation: AttestationData;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Hashed user ID for security',
     example: '0xabcdef1234567890...'
   })
   hashedUserId: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Credential ID from WebAuthn',
     example: 'cred-123456'
   })
   credentialId: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'User identifier',
     example: 'user-123'
   })
   userId: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Pass account address',
     example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY'
   })
@@ -68,7 +68,7 @@ export class PreparedRegistrationData {
 }
 
 export class SignRequest {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Extrinsic data to be signed',
     example: { method: 'transfer', params: { to: '0x...', value: '1000' } }
   })
@@ -76,40 +76,40 @@ export class SignRequest {
 }
 
 export class AuthResponse {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Indicates if the operation was successful',
     example: true
   })
   success: boolean;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Success message',
     example: 'Operation completed successfully',
     required: false
   })
   message?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Response data',
     required: false
   })
   data?: any;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Error message',
     example: 'Invalid credentials',
     required: false
   })
   error?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Additional error details',
     example: 'Token has expired',
     required: false
   })
   details?: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Error code',
     example: 'E_JWT_EXPIRED',
     required: false
@@ -118,13 +118,13 @@ export class AuthResponse {
 }
 
 export class CheckRegistrationResponse {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'User identifier',
     example: 'user-123'
   })
   userId: string;
 
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Whether the user is registered',
     example: true
   })
