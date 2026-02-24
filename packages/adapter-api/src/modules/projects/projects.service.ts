@@ -811,6 +811,7 @@ export class ProjectsService {
       const signingServiceUrl = this.configService.getSigningServiceUrl();
       const craftUrl = `${signingServiceUrl}/projects/call/${contractAddress}/${method}`;
       const address = await this.authService.getAddress(authToken!);
+      console.log({ data });
       const requestBody = { data };
 
       const userId = await this.authService.getUserIdFromToken(authToken);

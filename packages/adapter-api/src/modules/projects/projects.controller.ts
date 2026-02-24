@@ -231,6 +231,9 @@ export class ProjectsController {
     @Body() body: { clientRating: number, teamRatings: Array<[string, number]> },
     @Headers('authorization') authHeader: string
   ) {
+    console.log({ body });
+    console.log({ projectId });
+    console.log({ authHeader });
     const token = this.extractToken(authHeader);
     return await this.projectsService.submitCoordinatorRatings(projectId, body, token);
   }
