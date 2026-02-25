@@ -88,7 +88,7 @@ services:
       - PHRASE=
       - DERIVE_PATH=//Alice
       - JWT_SECRET=virto-server-example-secret-key-change-in-production
-      - JWT_EXPIRES_IN=10m
+      - JWT_EXPIRES_IN=3600
       - NODE_NO_WARNINGS=1
       - MONGODB_URI=mongodb://admin:admin123@mongodb:27017/abako?authSource=admin
       - DEFAULT_RATINGS_CONTRACT=JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY

@@ -51,8 +51,8 @@ export class ConfigService {
     return this.envConfig['JWT_SECRET'] || process.env['JWT_SECRET'] || 'virto-server-example-secret-key-change-in-production';
   }
 
-  getJwtExpiresIn(): string {
-    return this.envConfig['JWT_EXPIRES_IN'] || process.env['JWT_EXPIRES_IN'] || '10m';
+  getJwtExpiresIn(): number {
+    return parseInt(this.envConfig['JWT_EXPIRES_IN'] || process.env['JWT_EXPIRES_IN'] || "3600", 10);
   }
 
   getDerivePath(): string {
