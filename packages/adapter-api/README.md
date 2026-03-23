@@ -72,6 +72,35 @@ When using Docker Compose, MongoDB is automatically configured with:
 
 The connection is established automatically when the services start.
 
+## Mock Mode (No Blockchain)
+
+For frontend development without the slow dev blockchain infrastructure, use the **mock-api** package. It replaces `virto-api` and `contracts-api` with a single in-memory Express server.
+
+### Setup
+
+```bash
+# Start the mock server
+cd packages/mock-api
+pnpm install
+pnpm start       # or: pnpm dev (watch mode)
+```
+
+Then configure your adapter-api `.env`:
+
+```bash
+FEDERATE_SERVER=http://localhost:4000/api
+SIGNING_SERVICE_URL=http://localhost:4000
+```
+
+Start adapter-api as usual — it will hit the mock instead of the blockchain services. MongoDB is still required.
+
+### What's mocked
+
+- **virto-api**: auth (WebAuthn flow), payments, memberships, balance, fund
+- **contracts-api**: project/calendar/ratings contract deploy, query, and call methods
+
+All state is in-memory and resets on restart. Contract interactions are stateful within a session (e.g. deploying a project then querying it returns consistent data).
+
 ## API Documentation
 
 Interactive API documentation is available at:
