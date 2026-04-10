@@ -73,6 +73,29 @@ const directPaths = [
   path.join(rootNodeModulesPath, '@virtonetwork/signer/package.json'),
 ];
 
+// Also search pnpm's .pnpm store structure where packages live under
+// .pnpm/@scope+name@version.../node_modules/@scope/name/
+const pnpmDir = path.join(rootNodeModulesPath, '.pnpm');
+if (fs.existsSync(pnpmDir)) {
+  try {
+    const pnpmEntries = fs.readdirSync(pnpmDir);
+    for (const entry of pnpmEntries) {
+      for (const pkg of packagesToFix) {
+        const shortName = pkg.split('/').pop();
+        if (entry.includes(shortName)) {
+          const [scope, name] = pkg.split('/');
+          const candidate = path.join(pnpmDir, entry, 'node_modules', scope, name, 'package.json');
+          if (fs.existsSync(candidate) && !allPaths.includes(candidate)) {
+            directPaths.push(candidate);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    // Ignore errors scanning .pnpm
+  }
+}
+
 directPaths.forEach(pkgPath => {
   if (fs.existsSync(pkgPath) && !allPaths.includes(pkgPath)) {
     allPaths.push(pkgPath);
