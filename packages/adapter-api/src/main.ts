@@ -6,8 +6,13 @@ import bodyParser from 'body-parser';
 import morgan from 'morgan';
 import { ConfigService } from './config/config.service';
 import { setupSwagger } from './config/swagger.config';
+import * as fs from 'fs';
+import * as path from 'path';
 
 async function bootstrap() {
+  // Ensure SQLite data directory exists
+  const dbPath = process.env.SQLITE_PATH || './data/abako.sqlite';
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const port = configService.getPort();

@@ -59,8 +59,8 @@ export class ConfigService {
     return this.envConfig['DERIVE_PATH'] || process.env['DERIVE_PATH'] || '//Alice';
   }
 
-  getMongodbUri(): string {
-    return this.envConfig['MONGODB_URI'] || process.env['MONGODB_URI'] || 'mongodb://admin:admin123@localhost:27017/abako?authSource=admin';
+  getSqlitePath(): string {
+    return this.envConfig['SQLITE_PATH'] || process.env['SQLITE_PATH'] || './data/abako.sqlite';
   }
 
   getDaoAddress(): string {

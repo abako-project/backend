@@ -1,26 +1,14 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule, getConnectionToken } from '@nestjs/mongoose';
-import { Connection } from 'mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { DevelopersController } from './developers.controller';
 import { DevelopersService } from './developers.service';
-import { Developer, DeveloperSchemaFactory } from '../../database/schemas/developer.schema';
-import { Project, ProjectSchema } from '../../database/schemas/project.schema';
+import { Developer } from '../../database/entities/developer.entity';
+import { Project } from '../../database/entities/project.entity';
+import { Milestone } from '../../database/entities/milestone.entity';
 
 @Module({
   imports: [
-    MongooseModule.forFeatureAsync([
-      {
-        name: Developer.name,
-        inject: [getConnectionToken()],
-        useFactory: (connection: Connection) => {
-          return DeveloperSchemaFactory(connection);
-        },
-      },
-    ]),
-
-    MongooseModule.forFeature([
-      { name: Project.name, schema: ProjectSchema },
-    ]),
+    TypeOrmModule.forFeature([Developer, Project, Milestone]),
   ],
   controllers: [DevelopersController],
   providers: [DevelopersService],

@@ -1,0 +1,58 @@
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+
+@Entity('developers')
+export class Developer {
+  @PrimaryGeneratedColumn('increment')
+  id: number;
+
+  @Column({ unique: true })
+  email: string;
+
+  @Column()
+  name: string;
+
+  @Column()
+  githubUsername: string;
+
+  @Column({ nullable: true })
+  portfolioUrl: string;
+
+  @Column({ nullable: true })
+  bio: string;
+
+  @Column({ nullable: true })
+  background: string;
+
+  @Column({ default: 'junior' })
+  proficiency: string;
+
+  @Column({ nullable: true })
+  location: string;
+
+  @Column()
+  availability: string;
+
+  @Column({ type: 'simple-json', default: '[]' })
+  languages: string[];
+
+  @Column({ type: 'simple-json', default: '[]' })
+  skills: string[];
+
+  @Column({ nullable: true })
+  availableHoursPerWeek: number;
+
+  @Column({ nullable: true })
+  role: string;
+
+  @Column({ type: 'blob', nullable: true })
+  imageData: Buffer;
+
+  @Column({ nullable: true })
+  imageMimeType: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+}

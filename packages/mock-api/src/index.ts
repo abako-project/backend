@@ -3,7 +3,7 @@ import { virtoRouter } from "./virto-mock.js";
 import { contractsRouter } from "./contracts-mock.js";
 
 const app = express();
-const PORT = parseInt(process.env.MOCK_PORT || "4000");
+const PORT = parseInt(process.env.MOCK_PORT || "4010");
 
 app.use(express.json());
 

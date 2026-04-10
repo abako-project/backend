@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Rating, RatingDocument } from '../../database/schemas/rating.schema';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Rating } from '../../database/entities/rating.entity';
 import {
   RatingResponse,
   DeveloperRatingsResponse,
@@ -11,7 +11,7 @@ import {
 @Injectable()
 export class RatingsService {
   constructor(
-    @InjectModel(Rating.name) private ratingModel: Model<RatingDocument>,
+    @InjectRepository(Rating) private ratingRepo: Repository<Rating>,
   ) { }
 
   async createRatings(
@@ -21,30 +21,28 @@ export class RatingsService {
     contractAddress?: string,
   ): Promise<Rating[]> {
     try {
-      const ratingDocuments = ratings.map(([developerId, rating]) => ({
-        projectId,
-        clientId,
-        developerId,
-        rating,
-        contractAddress,
-      }));
+      const ratingEntities = ratings.map(([developerId, rating]) =>
+        this.ratingRepo.create({
+          projectId,
+          clientId,
+          developerId,
+          rating,
+          contractAddress,
+        })
+      );
 
-      const createdRatings = await this.ratingModel.insertMany(ratingDocuments);
+      const createdRatings = await this.ratingRepo.save(ratingEntities);
       console.log(`Created ${createdRatings.length} ratings for project ${projectId}`);
 
       return createdRatings;
     } catch (error: any) {
       console.error('Error creating ratings:', error);
-      if (error.name === 'ValidationError') {
-        const messages = Object.values(error.errors).map((err: any) => err.message);
-        throw new BadRequestException(messages.join(', '));
-      }
       throw error;
     }
   }
 
   async getRatingsByClient(clientId: string): Promise<ClientRatingsResponse> {
-    const ratings = await this.ratingModel.find({ clientId }).exec();
+    const ratings = await this.ratingRepo.find({ where: { clientId } });
 
     return {
       clientId,
@@ -54,7 +52,7 @@ export class RatingsService {
   }
 
   async getRatingsByDeveloper(developerId: string): Promise<DeveloperRatingsResponse> {
-    const ratings = await this.ratingModel.find({ developerId }).exec();
+    const ratings = await this.ratingRepo.find({ where: { developerId } });
 
     if (ratings.length === 0) {
       return {
@@ -77,13 +75,13 @@ export class RatingsService {
   }
 
   async getRatingsByProject(projectId: string): Promise<RatingResponse[]> {
-    const ratings = await this.ratingModel.find({ projectId }).exec();
+    const ratings = await this.ratingRepo.find({ where: { projectId } });
     return ratings.map(r => this.mapToResponse(r));
   }
 
-  private mapToResponse(rating: RatingDocument): RatingResponse {
+  private mapToResponse(rating: Rating): RatingResponse {
     return {
-      id: (rating._id as any).toString(),
+      id: rating.id.toString(),
       projectId: rating.projectId,
       clientId: rating.clientId,
       developerId: rating.developerId,
@@ -94,4 +92,3 @@ export class RatingsService {
     };
   }
 }
-

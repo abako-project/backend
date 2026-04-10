@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { ConfigModule } from '../../config/config.module';
@@ -7,8 +7,8 @@ import { AuthModule } from '../auth/auth.module';
 import { DevelopersModule } from '../developers/developers.module';
 import { ClientsModule } from '../clients/clients.module';
 import { RatingsModule } from '../ratings/ratings.module';
-import { Project, ProjectSchema } from '../../database/schemas/project.schema';
-import { Milestone, MilestoneSchema } from '../../database/schemas/milestone.schema';
+import { Project } from '../../database/entities/project.entity';
+import { Milestone } from '../../database/entities/milestone.entity';
 
 @Module({
   imports: [
@@ -17,10 +17,7 @@ import { Milestone, MilestoneSchema } from '../../database/schemas/milestone.sch
     DevelopersModule,
     ClientsModule,
     RatingsModule,
-    MongooseModule.forFeature([
-      { name: Project.name, schema: ProjectSchema },
-      { name: Milestone.name, schema: MilestoneSchema },
-    ]),
+    TypeOrmModule.forFeature([Project, Milestone]),
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService],

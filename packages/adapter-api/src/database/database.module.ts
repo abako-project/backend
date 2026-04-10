@@ -1,18 +1,21 @@
 import { Module, Global } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '../config/config.service';
+import { User, Developer, Client, Project, Milestone, Rating } from './entities';
 
 @Global()
 @Module({
   imports: [
-    MongooseModule.forRootAsync({
+    TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        uri: configService.getMongodbUri(),
+      useFactory: (configService: ConfigService) => ({
+        type: 'better-sqlite3',
+        database: configService.getSqlitePath(),
+        entities: [User, Developer, Client, Project, Milestone, Rating],
+        synchronize: true,
       }),
     }),
   ],
-  exports: [MongooseModule],
+  exports: [TypeOrmModule],
 })
 export class DatabaseModule {}
-

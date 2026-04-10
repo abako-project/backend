@@ -4,7 +4,8 @@
   "description": "Mock server for virto-api and contracts-api (no blockchain required)",
   "scripts": {
     "start": "tsx src/index.ts",
-    "dev": "tsx watch src/index.ts"
+    "dev": "tsx watch src/index.ts",
+    "test": "tsx src/smoke-test.ts"
   },
   "dependencies": {
     "express": "^5.1.0"

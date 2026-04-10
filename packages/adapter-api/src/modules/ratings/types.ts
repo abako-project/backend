@@ -13,8 +13,8 @@ export class RatingResponse {
   developerId: string;
   rating: number;
   contractAddress?: string;
-  createdAt: number;
-  updatedAt: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export class DeveloperRatingsResponse {

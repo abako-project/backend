@@ -1,23 +1,23 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Client, ClientDocument } from '../../database/schemas/client.schema';
-import { Project, ProjectDocument } from '../../database/schemas/project.schema';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Client } from '../../database/entities/client.entity';
+import { Project } from '../../database/entities/project.entity';
 import { CreateClientRequest, UpdateClientRequest } from './types';
 
 @Injectable()
 export class ClientsService {
   constructor(
-    @InjectModel(Client.name) private clientModel: Model<ClientDocument>,
-    @InjectModel(Project.name) private projectModel: Model<ProjectDocument>,
+    @InjectRepository(Client) private clientRepo: Repository<Client>,
+    @InjectRepository(Project) private projectRepo: Repository<Project>,
   ) {}
 
   async findAll(): Promise<Client[]> {
-    return this.clientModel.find().exec();
+    return this.clientRepo.find();
   }
 
   async findOne(clientId: number): Promise<Client> {
-    const client = await this.clientModel.findOne({ id: clientId }).exec();
+    const client = await this.clientRepo.findOne({ where: { id: clientId } });
     if (!client) {
       throw new NotFoundException(`Client with id ${clientId} not found`);
     }
@@ -25,12 +25,12 @@ export class ClientsService {
   }
 
   async findByEmail(email: string): Promise<Client | null> {
-    return this.clientModel.findOne({ email }).exec();
+    return this.clientRepo.findOne({ where: { email } });
   }
 
   async create(data: CreateClientRequest): Promise<Client> {
     try {
-      const newClient = new this.clientModel({
+      const newClient = this.clientRepo.create({
         name: data.name,
         email: data.email,
         company: data.company,
@@ -40,11 +40,10 @@ export class ClientsService {
         location: data.location,
         languages: data.languages || [],
       });
-      return await newClient.save();
+      return await this.clientRepo.save(newClient);
     } catch (error: any) {
-      if (error.name === 'ValidationError') {
-        const messages = Object.values(error.errors).map((err: any) => err.message);
-        throw new BadRequestException(messages.join(', '));
+      if (error?.code === 'SQLITE_CONSTRAINT_NOTNULL' || error?.driverError?.code === 'SQLITE_CONSTRAINT_NOTNULL') {
+        throw new BadRequestException('Missing required fields');
       }
       throw error;
     }
@@ -53,46 +52,38 @@ export class ClientsService {
   async update(
     clientId: number,
     updateData: UpdateClientRequest,
-  ): Promise<ClientDocument> {
-    const client = await this.clientModel.findOne({ id: clientId }).exec();
-    
+  ): Promise<Client> {
+    const client = await this.clientRepo.findOne({ where: { id: clientId } });
+
     if (!client) {
       throw new NotFoundException(`Client with id ${clientId} not found`);
     }
 
-    try {
-      if (updateData.name !== undefined) client.name = updateData.name;
-      if (updateData.company !== undefined) client.company = updateData.company;
-      if (updateData.department !== undefined) client.department = updateData.department;
-      if (updateData.website !== undefined) client.website = updateData.website;
-      if (updateData.description !== undefined) client.description = updateData.description;
-      if (updateData.location !== undefined) client.location = updateData.location;
-      if (updateData.languages !== undefined) client.languages = updateData.languages;
+    if (updateData.name !== undefined) client.name = updateData.name;
+    if (updateData.company !== undefined) client.company = updateData.company;
+    if (updateData.department !== undefined) client.department = updateData.department;
+    if (updateData.website !== undefined) client.website = updateData.website;
+    if (updateData.description !== undefined) client.description = updateData.description;
+    if (updateData.location !== undefined) client.location = updateData.location;
+    if (updateData.languages !== undefined) client.languages = updateData.languages;
 
-      return await client.save();
-    } catch (error: any) {
-      if (error.name === 'ValidationError') {
-        const messages = Object.values(error.errors).map((err: any) => err.message);
-        throw new BadRequestException(messages.join(', '));
-      }
-      throw error;
-    }
+    return this.clientRepo.save(client);
   }
 
   async updateImage(
     clientId: number,
     imageData: Buffer,
     mimeType: string,
-  ): Promise<ClientDocument> {
-    const client = await this.clientModel.findOne({ id: clientId }).exec();
-    
+  ): Promise<Client> {
+    const client = await this.clientRepo.findOne({ where: { id: clientId } });
+
     if (!client) {
       throw new NotFoundException(`Client with id ${clientId} not found`);
     }
-    
+
     client.imageData = imageData;
     client.imageMimeType = mimeType;
-    return client.save();
+    return this.clientRepo.save(client);
   }
 
   async getImage(clientId: number): Promise<{ data: Buffer; mimeType: string }> {
@@ -107,23 +98,22 @@ export class ClientsService {
   }
 
   async getProjects(clientId: number): Promise<Project[]> {
-    return this.projectModel.find({ clientId }).exec();
+    return this.projectRepo.find({ where: { clientId: clientId.toString() } });
   }
 
   async getWithRelations(clientId: number): Promise<any> {
-    const client = await this.clientModel.findOne({ id: clientId }).exec();
-    
+    const client = await this.clientRepo.findOne({ where: { id: clientId } });
+
     if (!client) {
       throw new NotFoundException(`Client with id ${clientId} not found`);
     }
-    
-    const projects = await this.projectModel.find({ clientId }).exec();
+
+    const projects = await this.projectRepo.find({ where: { clientId: clientId.toString() } });
     const projectNames = projects.map(p => p.title);
 
     return {
-      ...client.toObject(),
+      ...client,
       projects: projectNames,
     };
   }
 }
-
