@@ -119,8 +119,16 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
   ];
 
   if (methodName === "assign_coordinator") {
-    // Special: executes immediately and returns coordinator
-    const coordinatorAddress = store.generateAddress();
+    // Return a registered user's address if any exist, otherwise generate one
+    let coordinatorAddress: string;
+    const registeredUsers = Array.from(store.users.values());
+    if (registeredUsers.length > 0) {
+      // Pick the last registered user (likely a worker, not the client)
+      const user = registeredUsers[registeredUsers.length - 1];
+      coordinatorAddress = user.address;
+    } else {
+      coordinatorAddress = store.generateAddress();
+    }
     if (info) {
       info.coordinator = coordinatorAddress;
       info.state = "CoordinatorAssigned";
@@ -361,5 +369,64 @@ contractsRouter.post("/ratings/deploy/v5", (_req, res) => {
     address: contract.address,
     inkVersion: "5",
     contractType: "ratings",
+  });
+});
+
+// ===================== BRAMP (payment ramp mock) =====================
+
+const brampUsers: Array<{ id: number; email: string }> = [];
+let brampUserCounter = 1;
+let brampDepositCounter = 1;
+let brampWithdrawalCounter = 1;
+
+contractsRouter.post("/users", (req, res) => {
+  const { email } = req.body;
+  const user = {
+    id: brampUserCounter++,
+    email,
+    balance: "0",
+    depositAddress: { address: store.generateAddress() },
+  };
+  brampUsers.push(user);
+  res.json(user);
+});
+
+contractsRouter.get("/users", (_req, res) => {
+  res.json(brampUsers);
+});
+
+contractsRouter.post("/deposit", (req, res) => {
+  const { userId, amount, toAddress } = req.body;
+  const depositId = brampDepositCounter++;
+  res.json({
+    message: "Deposit request created",
+    depositId,
+    instructions: {
+      amount,
+      bankAccount: "MOCK-BANK-1234567890",
+      reference: `DEP-${depositId}`,
+    },
+  });
+});
+
+contractsRouter.post("/deposit/:depositId/confirm", (req, res) => {
+  const depositId = parseInt(req.params.depositId);
+  res.json({
+    message: "Deposit confirmed",
+    depositId,
+    txHash: store.generateTxHash(),
+    status: "success",
+  });
+});
+
+contractsRouter.post("/withdrawal", (req, res) => {
+  const { userId, amount } = req.body;
+  res.json({
+    message: "Withdrawal created",
+    withdrawalId: brampWithdrawalCounter++,
+    userId,
+    amount,
+    status: "pending",
+    depositAddress: store.generateAddress(),
   });
 });

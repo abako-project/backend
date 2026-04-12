@@ -33,7 +33,7 @@ importers:
         specifier: ^11.0.1
         version: 11.0.1(@nestjs/common@11.1.18(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.18)(reflect-metadata@0.2.2)(rxjs@7.8.2)(typeorm@0.3.28(better-sqlite3@12.8.0)(mongodb@6.21.0(socks@2.8.7))(sqlite3@5.1.7)(ts-node@10.9.2(@types/node@22.19.17)(typescript@5.9.3)))
       '@virtonetwork/sdk':
-        specifier: ^0.0.4-alpha.40
+        specifier: 0.0.4-alpha.40
         version: 0.0.4-alpha.40(rxjs@7.8.2)
       better-sqlite3:
         specifier: ^12.8.0
@@ -9314,7 +9314,7 @@ snapshots:
 
   '@npmcli/fs@5.0.0':
     dependencies:
-      semver: 7.7.2
+      semver: 7.7.4
 
   '@npmcli/git@6.0.3':
     dependencies:
@@ -14831,7 +14831,7 @@ snapshots:
 
   npm-install-checks@8.0.0:
     dependencies:
-      semver: 7.7.2
+      semver: 7.7.4
 
   npm-normalize-package-bin@4.0.0: {}
 
@@ -14841,7 +14841,7 @@ snapshots:
     dependencies:
       hosted-git-info: 8.1.0
       proc-log: 5.0.0
-      semver: 7.7.2
+      semver: 7.7.4
       validate-npm-package-name: 6.0.2
 
   npm-package-arg@13.0.1:
