@@ -4,6 +4,7 @@ import { VersioningType } from '@nestjs/common';
 import cors from 'cors';
 import bodyParser from 'body-parser';
 import morgan from 'morgan';
+import http from 'http';
 import { ConfigService } from './config/config.service';
 import { setupSwagger } from './config/swagger.config';
 import * as fs from 'fs';
@@ -16,21 +17,45 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
   const configService = app.get(ConfigService);
   const port = configService.getPort();
-  
+
   // API Versioning
   app.enableVersioning({
     type: VersioningType.URI,
     defaultVersion: '1',
   });
-  
+
   // Middleware
   app.use(cors());
   app.use(bodyParser.json());
   app.use(morgan('dev'));
-  
+
   // Swagger UI
   setupSwagger(app);
-  
+
+  // In dev mode, proxy /api/* and contracts paths to mock-api
+  // so the frontend can point at adapter-api as the single entry point.
+  // Registered after init so it catches paths NestJS doesn't handle.
+  const mockUrl = process.env.FEDERATE_SERVER?.replace(/\/api$/, '');
+  if (process.env.USE_MOCK_AUTH === 'true' && mockUrl) {
+    const expressApp = app.getHttpAdapter().getInstance();
+    const proxyToMock = (req: any, res: any) => {
+      const target = new URL(req.originalUrl, mockUrl);
+      const proxyReq = http.request(target, { method: req.method, headers: req.headers }, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+        proxyRes.pipe(res);
+      });
+      proxyReq.on('error', () => res.status(502).json({ error: 'mock-api unavailable' }));
+      if (req.body && Object.keys(req.body).length > 0) {
+        proxyReq.write(JSON.stringify(req.body));
+      }
+      proxyReq.end();
+    };
+    expressApp.all('/api/{*path}', proxyToMock);
+    expressApp.all('/health', proxyToMock);
+    expressApp.all('/projects/{*path}', proxyToMock);
+    expressApp.all('/calendar/{*path}', proxyToMock);
+  }
+
   await app.listen(port);
   console.log(`
   Adapter API :${port}
