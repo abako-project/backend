@@ -1,3 +1,5 @@
 node_modules/
 log.txt
-*.logpackages/adapter-api/data/
+*.log
+.env
+packages/adapter-api/data/
