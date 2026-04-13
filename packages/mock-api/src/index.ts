@@ -14,11 +14,8 @@ app.use("/api", virtoRouter);
 app.use("/", contractsRouter);
 
 app.listen(PORT, () => {
-  console.log(`\n  Mock API running on http://localhost:${PORT}`);
-  console.log(`\n  Configure adapter-api with:`);
-  console.log(`    FEDERATE_SERVER=http://localhost:${PORT}/api`);
-  console.log(`    SIGNING_SERVICE_URL=http://localhost:${PORT}`);
-  console.log(`\n  Mocked services:`);
-  console.log(`    - virto-api (auth, payments, memberships)`);
-  console.log(`    - contracts-api (projects, calendar, ratings)\n`);
+  console.log(`
+  Mock API :${PORT}
+  Mocking virto-api, contracts-api, bramp
+`);
 });

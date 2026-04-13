@@ -11,7 +11,6 @@ export class ConfigService {
     const envFileExists = fs.existsSync(envFilePath);
 
     this.envConfig = dotenv.parse(envFileExists ? fs.readFileSync(envFilePath) : '');
-    console.log(this.envConfig);
   }
 
   get(key: string): string {

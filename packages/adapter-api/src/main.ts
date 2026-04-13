@@ -13,7 +13,7 @@ async function bootstrap() {
   // Ensure SQLite data directory exists
   const dbPath = process.env.SQLITE_PATH || './data/abako.sqlite';
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
   const configService = app.get(ConfigService);
   const port = configService.getPort();
   
@@ -32,9 +32,10 @@ async function bootstrap() {
   setupSwagger(app);
   
   await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
-  console.log(`API documentation UI: http://localhost:${port}/api-docs`);
-  console.log(`API JSON schema: http://localhost:${port}/api-docs/json`);
+  console.log(`
+  Adapter API :${port}
+  Docs     http://localhost:${port}/api-docs
+`);
 }
 
 bootstrap();
