@@ -5,8 +5,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev:mock": "cp -n packages/adapter-api/.env.mock packages/adapter-api/.env 2>/dev/null; concurrently -k -n mock,api -c blue,green \"pnpm --filter mock-api dev\" \"sleep 2 && pnpm --filter abako-adapter start:dev\"",
-    "test:mock": "concurrently -k -s first -n mock,test -c blue,yellow \"pnpm --filter mock-api start\" \"sleep 2 && cd packages/adapter-api && SQLITE_PATH=:memory: USE_MOCK_AUTH=true SIGNING_SERVICE_URL=http://localhost:4010 FEDERATE_SERVER=http://localhost:4010/api BRAMP_SERVICE_URL=http://localhost:4010 pnpm exec jest --config ./jest.config.js --runInBand --forceExit\"",
+    "setup": "./setup.sh",
+    "dev:mock": "cp -n packages/adapter-api/.env.mock packages/adapter-api/.env 2>/dev/null; concurrently --kill-others --kill-signal SIGKILL -g -n mock,api -c blue,green \"pnpm --filter mock-api dev\" \"sleep 2 && pnpm --filter abako-adapter start:dev\"",
+    "test:mock": "concurrently --kill-others --kill-others-on-fail --kill-signal SIGKILL -g -s first -n mock,test -c blue,yellow \"pnpm --filter mock-api start\" \"sleep 2 && cd packages/adapter-api && SQLITE_PATH=:memory: USE_MOCK_AUTH=true SIGNING_SERVICE_URL=http://localhost:4010 FEDERATE_SERVER=http://localhost:4010/api BRAMP_SERVICE_URL=http://localhost:4010 pnpm exec jest --config ./jest.config.js --runInBand --forceExit\"",
     "mock": "pnpm --filter mock-api dev",
     "mock:test": "pnpm --filter mock-api test",
     "test:e2e": "./infrastructure/run-e2e-tests.sh",
