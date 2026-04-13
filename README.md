@@ -1,308 +1,112 @@
-# Abako Backend - Monorepo
+# Abako Backend
 
-This is the backend monorepo for the Abako project (Abako), which includes all the APIs and services necessary for the system's operation.
+Monorepo for the Abako project backend.
 
+## Quick Start
 
+```bash
+pnpm run setup        # install dependencies + build native modules
+pnpm run dev:mock     # start the backend (mock-api + adapter-api)
+```
 
-> For detailed testing instructions, see [TESTING_GUIDE.md](./TESTING_GUIDE.md).
+API will be available at `http://localhost:4000`, docs at `http://localhost:4000/api-docs`.
+
+```bash
+pnpm run test:mock    # run all 87 tests
+```
+
+No MongoDB, Docker, or blockchain node required.
 
 ## Project Structure
 
 ```
 backend/
-├── packages/              # Main monorepo packages
-│   ├── adapter-api/      # Adapter API for integrations
-│   ├── contracts-api/    # API to interact with ink! contracts (papi-ink)
-│   └── virto-api/        # Main Virto API / VOS Mock (virto-demo)
-├── external/             # External dependencies as Git submodules
-│   └── subskribinto/     # Tool for blockchain transactions
-├── lerna.json            # Lerna configuration
-├── pnpm-workspace.yaml   # pnpm workspace configuration
-└── package.json          # Root dependencies
+├── packages/
+│   ├── adapter-api/      # Main NestJS API (auth, projects, clients, calendar, ratings)
+│   ├── mock-api/         # Mock server replacing blockchain services for dev/test
+│   ├── contracts-api/    # Ink! smart contract interactions (production)
+│   └── virto-api/        # Virto blockchain API (production)
+├── infrastructure/       # Docker Compose for full blockchain setup
+├── setup.sh              # One-command install
+└── package.json
 ```
-
-## External Dependencies Management
-
-External dependencies are now managed as **Git submodules** in the `external/` directory.
-
-### Initial setup
-
-When you clone this repository for the first time:
-
-```bash
-# Option 1: Clone with submodules
-git clone --recurse-submodules <repo-url>
-
-# Option 2: Initialize submodules after cloning
-git clone <repo-url>
-cd backend
-git submodule update --init --recursive
-```
-
-### Update submodules
-
-```bash
-# Update all submodules
-git submodule update --remote --merge
-
-# Update a specific submodule
-cd external/subskribinto
-git pull origin main
-cd ../..
-git add external/subskribinto
-git commit -m "Update subskribinto submodule"
-```
-
-For more details, see [external/README.md](./external/README.md).
-
-## Installation and Setup
-
-### Prerequisites
-
-- Node.js >= 22.x
-- pnpm >= 9.x
-- Docker and Docker Compose (for development/testing environments)
-- MongoDB >= 7.0 (automatically provided via Docker Compose)
-
-### Installation
-
-```bash
-# Install dependencies
-pnpm install
-
-# Install dependencies for all packages
-pnpm install --recursive
-```
-
-## Development
-
-### Available commands
-
-```bash
-# Run all packages in development mode
-pnpm run dev
-
-# Run a specific package
-pnpm --filter adapter-api dev
-pnpm --filter contracts-api dev
-pnpm --filter virto-api dev
-
-# Build all packages
-pnpm run build
-```
-
-### End-to-End (E2E) Tests
-
-E2E tests run complete flows against real infrastructure (Zombienet, contracts, APIs).
-
-**Important:** E2E tests require pre-built Docker images. The images must be built on a specific machine to ensure zombienet works correctly.
-
-#### Running E2E Tests
-
-```bash
-REGISTRY=bavb ./infrastructure/pull-images.sh
-
-VERBOSE_LEVEL=info ./infrastructure/run-e2e-tests.sh
-
-VERBOSE_LEVEL=all ./infrastructure/run-e2e-tests.sh
-```
-
-The `run-e2e-tests.sh` script will:
-- Check for required Docker images
-- Start infrastructure services using pre-built images
-- Wait for all services to be ready
-- Run the E2E tests automatically
-
-#### Building Images (for maintainers)
-
-If you need to build the images locally (e.g., on the machine where zombienet works correctly):
-
-```bash
-./infrastructure/build-images.sh
-
-REGISTRY=your-registry.com/namespace ./infrastructure/build-images.sh
-```
-
-#### Manual Test Execution
-
-If you prefer to run tests manually:
-
-```bash
-# Start infrastructure (if not running)
-npm run infra:up
-
-# Run tests from adapter-api package
-cd packages/adapter-api
-npm run test:e2e:all      # Run all tests
-npm run test:e2e:auth     # Authentication only
-npm run test:e2e:calendar # Calendar only
-npm run test:e2e           # Projects (complete flow)
-
-# Stop infrastructure
-npm run infra:down
-
-# View logs for a specific service
-./infrastructure/logs.sh zombienet
-./infrastructure/logs.sh contracts-api
-./infrastructure/logs.sh virto-api
-./infrastructure/logs.sh adapter-api
-```
-
-## Monorepo Management
-
-This project uses:
-- **Lerna**: For version management and publishing
-- **pnpm workspaces**: For shared dependency management
-- **Git submodules**: For external dependencies
-
-### Adding a new package
-
-```bash
-cd packages
-mkdir my-new-package
-cd my-new-package
-npm init -y
-# Configure your package...
-cd ../..
-pnpm install
-```
-
-### Package references
-
-Packages can reference each other using:
-
-```json
-{
-  "dependencies": {
-    "@abako-project/adapter-api": "workspace:*"
-  }
-}
-```
-
-### Working with submodules
-
-⚠️ **Important**: Do not modify submodules directly. If you need changes in a submodule:
-
-1. Make the changes in the original repository
-2. Create a PR in that repository
-3. Once merged, update the submodule here:
-   ```bash
-   cd external/<submodule>
-   git pull origin main
-   cd ../..
-   git add external/<submodule>
-   git commit -m "Update <submodule> to version X"
-   ```
-
-## Testing
-
-This project includes comprehensive testing documentation and end-to-end tests covering the complete project lifecycle.
-
-### Quick Test Run
-
-```bash
-# 1. Pull pre-built images (required)
-REGISTRY=your-registry.com/namespace ./infrastructure/pull-images.sh
-
-# 2. Run E2E tests
-VERBOSE_LEVEL=info ./infrastructure/run-e2e-tests.sh
-```
-
-Or manually:
-
-```bash
-# Start infrastructure
-./infrastructure/up.sh
-
-# Run all E2E tests
-cd packages/adapter-api
-npm run test:e2e:all
-```
-
-### Complete Testing Guide
-
-For detailed testing instructions, including:
-- Test environment setup
-- Module-by-module testing (Auth, Calendar, Projects)
-- Complete end-to-end flow examples
-- API reference with request/response examples
-- Troubleshooting guide
-
-See the **[Testing Guide](./TESTING_GUIDE.md)**.
-
-### Test Coverage
-
-The E2E tests cover:
-- ✅ WebAuthn authentication (Pass Pallet)
-- ✅ DAO membership registration (Communities)
-- ✅ Calendar contract deployment and worker registration
-- ✅ Availability management
-- ✅ Project contract deployment
-- ✅ Automatic coordinator assignment (matching algorithm)
-- ✅ Automatic team assignment (matching algorithm)
-- ✅ Scope proposal with milestones
-- ✅ Scope approval (governance)
-- ✅ Task completion (milestone-based payouts)
-- ✅ Project completion with ratings (reputation system)
 
 ## Architecture
 
-### Service Overview
-
 ```
-┌──────────────────────────────────────┐
-│       adapter-api (Port 4000)        │  ← Main API orchestrator
-│  ┌────────────┬──────────┬─────────┐ │
-│  │   Auth     │ Calendar │Projects │ │
-│  └────────────┴──────────┴─────────┘ │
-└───────┬──────────────────┬───────────┘
-        │                  │
-        │                  │
-        ▼                  ▼
-┌───────────────┐   ┌──────────────────┐
-│   virto-api   │   │  contracts-api   │
-│  (Port 3000)  │   │   (Port 3010)    │
-│               │   │                  │
-│ VOS Mock /    │   │ Ink! v5 SDK for  │
-│ federate_server│  │ smart contracts  │
-└───────┬───────┘   └────────┬─────────┘
-        │                    │
-        └────────┬───────────┘
-                 ▼
-        ┌─────────────────┐
-        │   Zombienet     │  ← Kreivo testnet
-        │  (Port 21000)   │     (Kusama)
-        └─────────────────┘
-        
-        ┌─────────────────┐
-        │    MongoDB      │  ← Database
-        │  (Port 27017)   │
-        └─────────────────┘
-                 ▲
-                 │
-    ┌────────────┘
-    │
-┌───┴────────────────┐
-│   adapter-api      │
-└────────────────────┘
+                   Frontend
+                      │
+                      ▼
+              adapter-api :4000        Main API (NestJS + SQLite)
+                 │        │
+       ┌─────────┘        └──────────┐
+       ▼                             ▼
+  FEDERATE_SERVER              SIGNING_SERVICE_URL
+       │                             │
+       ├── Mock mode ─── mock-api :4010 ──┤  (no blockchain)
+       │                                  │
+       ├── Production ── virto-api :3000  │
+       │                 contracts-api :3010
+       │                       │
+       └───────────────────────┘
+                      │
+               Kreivo blockchain
 ```
 
-### Key Components
+### Mock mode (default for development)
 
-- **adapter-api**: NestJS API that exposes REST endpoints for authentication, calendar management, and project operations. Connects to MongoDB for data persistence
-- **contracts-api**: Express service for interacting with Ink! v5 smart contracts using polkadot-api
-- **virto-api**: NestJS mock of Virto Operating System (VOS), handles Pass Pallet registration and Communities operations
-- **zombienet**: Local Kreivo parachain testnet for development and testing
-- **mongodb**: MongoDB 7.0 database for adapter-api data storage 
+`pnpm run dev:mock` starts:
+- **mock-api** on `:4010` — mocks virto-api, contracts-api, and bramp in a single process
+- **adapter-api** on `:4000` — the full NestJS API with SQLite and mock auth
 
-## License
+Set by `.env.mock` which configures `USE_MOCK_AUTH=true` and points service URLs at mock-api.
 
-MIT License - see LICENSE file for details
+### Production mode
 
-## Support
+Requires the full infrastructure (blockchain node, MongoDB replaced by SQLite):
 
-For issues, questions, or contributions:
-1. Check the [Testing Guide](./TESTING_GUIDE.md) troubleshooting section
-2. Review service logs: `./infrastructure/logs.sh <service>`
-3. Inspect contract metadata in `packages/contracts-api/.papi/contracts/`
-4. Review E2E tests in `packages/adapter-api/test/`
+```bash
+./infrastructure/up.sh      # start Zombienet + services via Docker
+pnpm --filter abako-adapter start:dev
+```
+
+The real `AuthService` uses `@virtonetwork/sdk` with WebSocket connection to the blockchain.
+`USE_MOCK_AUTH` must NOT be set in production.
+
+## Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `pnpm run setup` | Install all dependencies and build native modules |
+| `pnpm run dev:mock` | Start mock-api + adapter-api together |
+| `pnpm run test:mock` | Run all e2e tests against mock-api |
+| `pnpm run mock` | Start only mock-api (with hot reload) |
+| `pnpm run mock:test` | Run mock-api smoke tests |
+| `pnpm run infra:up` | Start full blockchain infrastructure |
+| `pnpm run infra:down` | Stop infrastructure |
+
+## Test Coverage
+
+The e2e test suite covers:
+- WebAuthn authentication (registration, connection)
+- Client and developer CRUD with image upload
+- Project deployment and lifecycle (deploy, coordinator, scope, team, completion)
+- Calendar contract (worker registration, availability)
+- DAO governance (remark referendums)
+- Ratings (client, coordinator, developer)
+- Bramp integration (deposits, withdrawals)
+
+## Environment Variables
+
+See `packages/adapter-api/.env.mock` for mock mode defaults, or `.env.template` for production.
+
+| Variable | Mock default | Description |
+|----------|-------------|-------------|
+| `PORT` | `4000` | Adapter API port |
+| `SIGNING_SERVICE_URL` | `http://localhost:4010` | Contracts API / mock-api |
+| `FEDERATE_SERVER` | `http://localhost:4010/api` | Virto API / mock-api |
+| `USE_MOCK_AUTH` | `true` | Use mock auth (no blockchain) |
+| `SQLITE_PATH` | `./data/abako.sqlite` | SQLite database path |
+| `BRAMP_SERVICE_URL` | `http://localhost:4010` | Bramp payment service / mock-api |
+| `JWT_SECRET` | (set in .env) | JWT signing secret |
+| `PROVIDER_URL` | (production only) | Blockchain WebSocket URL |
