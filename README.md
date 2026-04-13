@@ -17,6 +17,18 @@ pnpm run test:mock    # run all 87 tests
 
 No MongoDB, Docker, or blockchain node required.
 
+### Frontend integration
+
+In the frontend repo (`abako-web/frontend/`), create `.env.local`:
+
+```
+VITE_API_BASE_URL=http://localhost:4000
+VITE_USE_MOCK_AUTH=true
+VITE_CALENDAR_ADDRESS=mock-calendar-address
+```
+
+Then `npm run dev` — the frontend will use mock auth (no WebAuthn/blockchain).
+
 ## Project Structure
 
 ```

@@ -33,8 +33,6 @@ async function bootstrap() {
   setupSwagger(app);
 
   // In dev mode, proxy /api/* and contracts paths to mock-api
-  // so the frontend can point at adapter-api as the single entry point.
-  // Registered after init so it catches paths NestJS doesn't handle.
   const mockUrl = process.env.FEDERATE_SERVER?.replace(/\/api$/, '');
   if (process.env.USE_MOCK_AUTH === 'true' && mockUrl) {
     const expressApp = app.getHttpAdapter().getInstance();
@@ -50,6 +48,21 @@ async function bootstrap() {
       }
       proxyReq.end();
     };
+    // Proxy /adapter/* to self (strips prefix) and external mock paths to mock-api
+    const proxyToSelf = (req: any, res: any) => {
+      const stripped = req.originalUrl.replace(/^\/adapter/, '');
+      const target = new URL(stripped, `http://localhost:${port}`);
+      const proxyReq = http.request(target, { method: req.method, headers: req.headers }, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+        proxyRes.pipe(res);
+      });
+      proxyReq.on('error', () => res.status(502).json({ error: 'self-proxy failed' }));
+      if (req.body && Object.keys(req.body).length > 0) {
+        proxyReq.write(JSON.stringify(req.body));
+      }
+      proxyReq.end();
+    };
+    expressApp.all('/adapter/{*path}', proxyToSelf);
     expressApp.all('/api/{*path}', proxyToMock);
     expressApp.all('/health', proxyToMock);
     expressApp.all('/projects/{*path}', proxyToMock);
