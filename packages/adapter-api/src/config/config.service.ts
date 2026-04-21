@@ -51,7 +51,16 @@ export class ConfigService {
   }
 
   getJwtExpiresIn(): number {
-    return parseInt(this.envConfig['JWT_EXPIRES_IN'] || process.env['JWT_EXPIRES_IN'] || "3600", 10);
+    const raw = this.envConfig['JWT_EXPIRES_IN'] || process.env['JWT_EXPIRES_IN'] || '3600';
+    const match = raw.match(/^(\d+)\s*(s|m|h|d)?$/i);
+    if (!match) return 3600;
+    const value = parseInt(match[1], 10);
+    switch (match[2]?.toLowerCase()) {
+      case 'm': return value * 60;
+      case 'h': return value * 3600;
+      case 'd': return value * 86400;
+      default:  return value; // seconds or bare number
+    }
   }
 
   getDerivePath(): string {

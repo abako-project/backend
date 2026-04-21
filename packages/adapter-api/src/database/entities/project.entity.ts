@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, AfterLoad } from 'typeorm';
 
 @Entity('projects')
 export class Project {
@@ -58,6 +58,16 @@ export class Project {
 
   @Column({ type: 'varchar', nullable: true })
   creationError: string | null;
+
+  // The frontend uses `typeof field !== 'undefined'` to detect presence.
+  // Strip null values so they serialize as absent, not as `null`.
+  @AfterLoad()
+  stripNulls() {
+    if (this.creationError === null) delete (this as any).creationError;
+    if (this.coordinatorApprovalStatus === null) delete (this as any).coordinatorApprovalStatus;
+    if (this.coordinatorRejectionReason === null) delete (this as any).coordinatorRejectionReason;
+    if (this.proposalRejectionReason === null) delete (this as any).proposalRejectionReason;
+  }
 
   @CreateDateColumn()
   createdAt: Date;

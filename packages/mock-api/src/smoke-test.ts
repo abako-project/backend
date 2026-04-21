@@ -2,11 +2,13 @@
 import express from "express";
 import { virtoRouter } from "./virto-mock.js";
 import { contractsRouter } from "./contracts-mock.js";
+import { seedStore } from "./seed.js";
 
 const app = express();
 app.use(express.json());
 app.use("/api", virtoRouter);
 app.use("/", contractsRouter);
+seedStore();
 
 const PORT = 0; // random available port
 const server = app.listen(PORT, async () => {

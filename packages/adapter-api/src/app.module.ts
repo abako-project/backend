@@ -13,6 +13,7 @@ import { DevelopersModule } from './modules/developers/developers.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
 import { DaoModule } from './modules/dao/dao.module';
 import { RampModule } from './modules/ramps/ramps.module';
+import { SeedModule } from './modules/seed/seed.module';
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ dotenv.config();
     RatingsModule,
     DaoModule,
     RampModule,
+    SeedModule,
   ],
   controllers: [],
   providers: [],

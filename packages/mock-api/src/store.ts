@@ -1,4 +1,5 @@
 // In-memory state for mock services
+// Data structures mirror the ink! smart contracts in ../../../contracts/
 
 export interface MockUser {
   userId: string;
@@ -22,19 +23,59 @@ export interface MockMember {
   communityId: number;
 }
 
+// Mirrors contracts/projects Task
+export interface MockTask {
+  id: number;
+  complexity: { type: string; value: number }; // e.g. { type: "Days", value: 15 }
+  cost: string;
+  dependencies: number[];
+  completed: boolean;
+  status: MockTaskStatus;
+  assigned_to: string | null;
+}
+
+// Mirrors contracts/projects TaskStatus
+export type MockTaskStatus =
+  | { Pending: null }
+  | { Approved: number }   // block number
+  | { Rejected: number }
+  | { PendingReview: number };
+
+// Mirrors contracts/projects TeamMember
+export interface MockTeamMember {
+  account_id: string;
+  role: string;           // "Designer" | "Developer" | "Tester"
+  rating: number | null;  // 0-100, null until project completed
+}
+
+export interface MockProjectInfo {
+  name: string;
+  client: string;
+  dao_address: string;
+  coordinator: string | null;
+  state: string;       // Created | CoordinatorAssigned | ScopePendingClientApproval | ScopeAccepted | TeamAssigned | Completed
+  team: MockTeamMember[];
+  tasks: MockTask[];
+  scope: MockScope | null;
+  calendar_contract: string | null;
+  ratings_contract: string | null;
+  total_cost: number;
+  paid_amount: number;
+}
+
+// Mirrors contracts/projects ProjectScope
+export interface MockScope {
+  tasks: Array<[number, any, string, number[]]>;  // [id, complexity, cost, deps]
+  advance_payment_percentage: number;
+  document_hash: string;
+  state: string;
+}
+
 export interface MockContract {
   address: string;
   type: "projects" | "calendar" | "ratings";
   inkVersion: string;
-  projectInfo?: {
-    name: string;
-    client: string;
-    coordinator: string | null;
-    state: string;
-    team: any[];
-    tasks: any[];
-    scope: any;
-  };
+  projectInfo?: MockProjectInfo;
   calendarInfo?: {
     workers: Map<string, number>; // address -> availability hours
   };
@@ -129,6 +170,31 @@ class Store {
     return member;
   }
 
+  // Calendar helpers – used by project contract mock to find available workers
+  getCalendarContract(address: string | null): MockContract | undefined {
+    if (!address) {
+      // Find the first calendar contract
+      for (const c of this.contracts.values()) {
+        if (c.type === "calendar") return c;
+      }
+      return undefined;
+    }
+    const c = this.contracts.get(address);
+    return c?.type === "calendar" ? c : undefined;
+  }
+
+  getAvailableWorkers(calendarAddress: string | null, minHours: number): Array<{ worker: string; hours: number }> {
+    const cal = this.getCalendarContract(calendarAddress);
+    if (!cal?.calendarInfo) return [];
+    const result: Array<{ worker: string; hours: number }> = [];
+    for (const [addr, hours] of cal.calendarInfo.workers.entries()) {
+      if (hours >= minHours) result.push({ worker: addr, hours });
+    }
+    // Sort by hours descending (same as real contract)
+    result.sort((a, b) => b.hours - a.hours);
+    return result;
+  }
+
   // Contract methods
   deployContract(
     type: "projects" | "calendar" | "ratings",
@@ -146,11 +212,16 @@ class Store {
       contract.projectInfo = {
         name: params?.name || "Untitled",
         client: params?.client || "",
+        dao_address: params?.dao_address || "",
         coordinator: null,
         state: "Created",
         team: [],
         tasks: [],
         scope: null,
+        calendar_contract: params?.calendar_contract || null,
+        ratings_contract: params?.ratings_contract || null,
+        total_cost: 0,
+        paid_amount: 0,
       };
     } else if (type === "calendar") {
       contract.calendarInfo = {

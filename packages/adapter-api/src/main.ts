@@ -67,6 +67,7 @@ async function bootstrap() {
     expressApp.all('/health', proxyToMock);
     expressApp.all('/projects/{*path}', proxyToMock);
     expressApp.all('/calendar/{*path}', proxyToMock);
+    expressApp.all('/kreivo', proxyToMock);
   }
 
   await app.listen(port);
