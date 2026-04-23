@@ -66,6 +66,7 @@ async function bootstrap() {
     expressApp.all('/api/{*path}', proxyToMock);
     expressApp.all('/health', proxyToMock);
     expressApp.all('/auth/me', proxyToMock);
+    expressApp.all('/projects', proxyToMock);
     expressApp.all('/projects/{*path}', proxyToMock);
     expressApp.all('/calendar/{*path}', proxyToMock);
     expressApp.all('/kreivo', proxyToMock);
