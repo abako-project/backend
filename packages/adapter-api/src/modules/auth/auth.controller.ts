@@ -30,6 +30,43 @@ import {
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
+  @Get('me')
+  @ApiOperation({
+    summary: 'Get current user',
+    description: 'Returns the user identified by the session token. Replaces the pattern of caching login data in localStorage.',
+  })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'authorization',
+    description: 'Bearer token for authentication',
+    required: true,
+    schema: { type: 'string', example: 'Bearer <your-jwt-token>' },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Current user profile',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        address: { type: 'string' },
+        displayName: { type: 'string' },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: 'Unauthenticated' })
+  async getMe(@Headers('authorization') authHeader: string) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new HttpException({ error: 'Unauthenticated' }, HttpStatus.UNAUTHORIZED);
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+      return await this.authService.getCurrentUser(token);
+    } catch {
+      throw new HttpException({ error: 'Invalid token' }, HttpStatus.UNAUTHORIZED);
+    }
+  }
+
   @Get('check-registered/:userId')
   @ApiOperation({ 
     summary: 'Check if user is registered',

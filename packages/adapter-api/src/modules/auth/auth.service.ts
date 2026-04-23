@@ -141,6 +141,21 @@ export class AuthService {
     return userId;
   }
 
+  async getCurrentUser(token: string): Promise<{ id: string; address: string; displayName: string }> {
+    await this.ensureServerSDK();
+    const decoded = await this.serverSdk!.auth.decodeToken(token);
+    // @ts-ignore
+    const userId = decoded.userId as string;
+    // @ts-ignore
+    const address = decoded.address as string;
+    const local = userId?.split('@')[0] || userId || '';
+    return {
+      id: userId,
+      address,
+      displayName: local.charAt(0).toUpperCase() + local.slice(1),
+    };
+  }
+
   async sign(token: string, signRequest: SignRequest): Promise<AuthResponse> {
     try {
       await this.ensureServerSDK();
