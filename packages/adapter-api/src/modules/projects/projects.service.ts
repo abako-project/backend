@@ -10,6 +10,23 @@ import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneReques
 import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
 
+function milestoneStatsOf(milestones: Milestone[]): {
+  total: number;
+  completed: number;
+  inProgress: number;
+  pending: number;
+} {
+  let completed = 0;
+  let inProgress = 0;
+  let pending = 0;
+  for (const m of milestones) {
+    if (m.state === 'completed' || m.state === 'approved') completed += 1;
+    else if (m.state === 'task_in_progress' || m.state === 'in_progress' || m.state === 'pending_review') inProgress += 1;
+    else pending += 1;
+  }
+  return { total: milestones.length, completed, inProgress, pending };
+}
+
 @Injectable()
 export class ProjectsService {
 
@@ -1047,6 +1064,133 @@ export class ProjectsService {
     if (result.affected === 0) {
       throw new NotFoundException(`Milestone ${milestoneId} not found for project ${projectId}`);
     }
+  }
+
+  /**
+   * Dashboard list: all projects where the token's user is client, consultant,
+   * or assigned to a milestone. Lightweight — no contract queries.
+   */
+  async listForToken(
+    token: string,
+    filters: { role?: string; status?: string } = {}
+  ): Promise<{ projects: any[]; total: number }> {
+    const userId = await this.authService.getUserIdFromToken(token);
+    const [client, developer] = await Promise.all([
+      this.clientsService.findByEmail(userId),
+      this.developersService.findByEmail(userId),
+    ]);
+
+    const clientId = client?.id?.toString();
+    const developerId = developer?.id;
+
+    if (!clientId && !developerId) {
+      return { projects: [], total: 0 };
+    }
+
+    const qb = this.projectRepo.createQueryBuilder('p');
+    const ors: string[] = [];
+    const params: Record<string, any> = {};
+    if (clientId) {
+      ors.push('p.clientId = :clientId');
+      params.clientId = clientId;
+    }
+    if (developerId !== undefined) {
+      ors.push('p.consultantId = :consultantId');
+      params.consultantId = developerId.toString();
+      ors.push(
+        'p.contractAddress IN (SELECT m.contractAddress FROM milestones m WHERE m.developerId = :memberDevId)'
+      );
+      params.memberDevId = developerId;
+    }
+    qb.where(`(${ors.join(' OR ')})`, params);
+    if (filters.status) qb.andWhere('p.state = :status', { status: filters.status });
+    qb.orderBy('p.updatedAt', 'DESC');
+
+    const projects = await qb.getMany();
+
+    const contractAddresses = projects.map((p) => p.contractAddress).filter(Boolean) as string[];
+    const milestones = contractAddresses.length
+      ? await this.milestoneRepo
+          .createQueryBuilder('m')
+          .where('m.contractAddress IN (:...addrs)', { addrs: contractAddresses })
+          .getMany()
+      : [];
+    const milestonesByContract = new Map<string, Milestone[]>();
+    for (const m of milestones) {
+      const list = milestonesByContract.get(m.contractAddress) ?? [];
+      list.push(m);
+      milestonesByContract.set(m.contractAddress, list);
+    }
+
+    const entries = projects
+      .map((p) => {
+        let role: 'client' | 'consultant' | 'team' | null = null;
+        if (clientId && p.clientId === clientId) role = 'client';
+        else if (developerId !== undefined && p.consultantId === developerId.toString()) role = 'consultant';
+        else if (developerId !== undefined && (milestonesByContract.get(p.contractAddress) ?? [])
+          .some((m) => m.developerId === developerId)) role = 'team';
+        if (!role) return null;
+        if (filters.role && filters.role !== 'all' && filters.role !== role) return null;
+
+        const ms = milestonesByContract.get(p.contractAddress) ?? [];
+        return {
+          id: p.id,
+          contractAddress: p.contractAddress,
+          title: p.title,
+          state: p.state,
+          role,
+          counterpartId: role === 'client' ? p.consultantId : p.clientId,
+          milestoneStats: milestoneStatsOf(ms),
+          budget: p.budget,
+          updatedAt: p.updatedAt,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+
+    return { projects: entries, total: entries.length };
+  }
+
+  /**
+   * Dashboard detail: project + milestones from SQLite, gated by user's relation.
+   * Composed contract reads (team, scope, tasks) are available via the existing
+   * /:projectId/get_{project_info,team,scope_info,all_tasks} endpoints.
+   */
+  async getForToken(projectId: string, token: string): Promise<any> {
+    const userId = await this.authService.getUserIdFromToken(token);
+    const [client, developer, project] = await Promise.all([
+      this.clientsService.findByEmail(userId),
+      this.developersService.findByEmail(userId),
+      this.projectRepo.findOne({ where: { id: projectId } }),
+    ]);
+
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
+    }
+
+    const clientId = client?.id?.toString();
+    const developerId = developer?.id;
+
+    const milestones = project.contractAddress
+      ? await this.milestoneRepo.find({
+          where: { contractAddress: project.contractAddress },
+          order: { displayOrder: 'ASC' },
+        })
+      : [];
+
+    let role: 'client' | 'consultant' | 'team' | null = null;
+    if (clientId && project.clientId === clientId) role = 'client';
+    else if (developerId !== undefined && project.consultantId === developerId.toString()) role = 'consultant';
+    else if (developerId !== undefined && milestones.some((m) => m.developerId === developerId)) role = 'team';
+    if (!role) {
+      throw new HttpException({ error: 'Forbidden' }, HttpStatus.FORBIDDEN);
+    }
+
+    return {
+      ...project,
+      role,
+      milestones,
+      milestoneStats: milestoneStatsOf(milestones),
+    };
   }
 
   async getBalance(address: string, assetId: number = 1): Promise<{ balance: string; assetId: number }> {

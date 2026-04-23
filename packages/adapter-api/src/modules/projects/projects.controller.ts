@@ -24,6 +24,56 @@ export class ProjectsController {
     return authHeader.split(' ')[1];
   }
 
+  @Get()
+  @ApiOperation({
+    summary: "Get the authenticated user's projects",
+    description: 'Returns a lightweight list of projects where the session user is client, consultant, or a team member. Supports filters: role (client|consultant|team|all), status.',
+  })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'authorization',
+    description: 'Bearer token for authentication',
+    required: true,
+    schema: { type: 'string', example: 'Bearer <your-jwt-token>' },
+  })
+  @ApiQuery({ name: 'role', required: false, enum: ['client', 'consultant', 'team', 'all'] })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by project state' })
+  @ApiResponse({ status: 200, description: 'List of projects' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Invalid token' })
+  async listMine(
+    @Headers('authorization') authHeader: string,
+    @Query('role') role?: string,
+    @Query('status') status?: string,
+  ) {
+    const token = this.extractToken(authHeader);
+    return await this.projectsService.listForToken(token, { role, status });
+  }
+
+  @Get(':projectId')
+  @ApiOperation({
+    summary: 'Get project detail',
+    description: 'Returns project fields plus milestones from the database. Access is gated by the session user having a relation (client / consultant / team) to the project.',
+  })
+  @ApiParam({ name: 'projectId', type: 'string' })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'authorization',
+    description: 'Bearer token for authentication',
+    required: true,
+    schema: { type: 'string', example: 'Bearer <your-jwt-token>' },
+  })
+  @ApiResponse({ status: 200, description: 'Project detail with milestones' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Invalid token' })
+  @ApiResponse({ status: 403, description: 'Forbidden - user has no relation to this project' })
+  @ApiResponse({ status: 404, description: 'Project not found' })
+  async getProjectDetail(
+    @Param('projectId') projectId: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    const token = this.extractToken(authHeader);
+    return await this.projectsService.getForToken(projectId, token);
+  }
+
   @Post(':projectId/assign_coordinator')
   @ApiOperation({
     summary: 'Assign coordinator to project',
