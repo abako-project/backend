@@ -1,8 +1,67 @@
 // Mock routes for virto-api endpoints (mounted under /api)
 import { Router } from "express";
 import { store } from "./store.js";
+import {
+  canonicalMessage,
+  hexToBytes,
+  verifySignature,
+  BLOCKHASH_WINDOW,
+} from "./password.js";
 
 export const virtoRouter = Router();
+
+/** Mock JWT — header.payload.signature, payload carries {userId, address}. */
+function mockToken(userId: string, address: string): string {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({
+      userId,
+      address,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60,
+    })
+  ).toString("base64url");
+  return `${header}.${payload}.mocksig`;
+}
+
+/** Decode a mock JWT to its payload. Returns null if malformed. */
+function decodeMockToken(token: string): { userId?: string; address?: string } | null {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf-8"));
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+/** Validates a hex string of exactly `bytes` bytes. */
+function isHexOfLength(s: unknown, bytes: number): s is string {
+  if (typeof s !== "string") return false;
+  const stripped = s.startsWith("0x") ? s.slice(2) : s;
+  return stripped.length === bytes * 2 && /^[0-9a-fA-F]*$/.test(stripped);
+}
+const isHex32 = (s: unknown) => isHexOfLength(s, 32);
+const isHex64 = (s: unknown) => isHexOfLength(s, 64);
+
+function stripHex(s: string): string {
+  return s.startsWith("0x") ? s.slice(2) : s;
+}
+
+function verifyEdSig(
+  pubKeyHex: string,
+  message: Uint8Array,
+  signatureHex: string,
+): boolean {
+  try {
+    return verifySignature(
+      hexToBytes(stripHex(pubKeyHex)),
+      message,
+      hexToBytes(stripHex(signatureHex)),
+    );
+  } catch {
+    return false;
+  }
+}
 
 // Health
 virtoRouter.get("/health", (_req, res) => {
@@ -79,6 +138,201 @@ virtoRouter.get("/assertion", (req, res) => {
     },
     blockNumber: store.nextBlockNumber(),
   });
+});
+
+// ─────────────────── Email + Password (password-as-keypair) ───────────────────
+//
+// The chain (mocked here) stores only the user's password-derived ed25519
+// pubKey. To authenticate, the client signs a recent blockHash with the
+// matching privKey, which it re-derives from the password. Plain password
+// never leaves the client. See password.ts for the derivation, and
+// password-vectors.ts for cross-language test vectors.
+
+// GET /chain-head — current { blockNumber, blockHash }, used as the freshness
+// challenge. In the real flow the front reads this from chain via the SDK.
+virtoRouter.get("/chain-head", (_req, res) => {
+  const blockNumber = store.nextBlockNumber();
+  res.json({ blockNumber, blockHash: store.currentBlockHash() });
+});
+
+// POST /password-register — registers a password-derived pubKey for the user.
+//
+// Body: { userId, pubKey: hex32, blockHash, clientNonce, signature: hex64, address? }
+// The signature is over canonical("register" | userId | blockHash | nonce | pubKey)
+// using the privKey derived from the password — it's a proof of possession.
+// 200 → { ok, address, blockNumber, blockHash }
+// 400 malformed; 401 signature invalid; 409 already registered; 410 stale blockHash.
+virtoRouter.post("/password-register", (req, res) => {
+  const { userId, pubKey, blockHash, clientNonce, signature, address } = req.body ?? {};
+  if (
+    typeof userId !== "string" ||
+    !isHex32(pubKey) ||
+    typeof blockHash !== "string" ||
+    typeof clientNonce !== "string" ||
+    !isHex64(signature)
+  ) {
+    res.status(400).json({
+      error: "userId, pubKey (hex32), blockHash, clientNonce, signature (hex64) required",
+    });
+    return;
+  }
+
+  if (!store.isRecentBlockHash(blockHash, BLOCKHASH_WINDOW)) {
+    res.status(410).json({ ok: false, error: "blockHash outside freshness window" });
+    return;
+  }
+
+  const existing = store.users.get(userId);
+  if (existing?.pubKey) {
+    res.status(409).json({ error: "User already registered with a password" });
+    return;
+  }
+
+  const message = canonicalMessage({
+    label: "register",
+    userId,
+    blockHash,
+    clientNonce,
+    extra: stripHex(pubKey),
+  });
+  if (!verifyEdSig(pubKey, message, signature)) {
+    res.status(401).json({ ok: false, error: "Invalid signature" });
+    return;
+  }
+
+  const user = store.getOrCreateUser(userId);
+  if (typeof address === "string" && address.length > 0) user.address = address;
+  user.pubKey = stripHex(pubKey);
+  user.isMember = true;
+
+  res.json({
+    ok: true,
+    address: user.address,
+    blockNumber: store.nextBlockNumber(),
+    blockHash: store.currentBlockHash(),
+  });
+});
+
+// POST /password-connect — verifies a signature against the stored pubKey
+// and mints a JWT.
+//
+// Body: { userId, blockHash, clientNonce, signature: hex64 }
+// signature is over canonical("connect" | userId | blockHash | nonce).
+// 200 → { ok, token, publicKey, blockNumber }
+// 400 malformed; 401 invalid credentials (opaque); 410 stale blockHash.
+virtoRouter.post("/password-connect", (req, res) => {
+  const { userId, blockHash, clientNonce, signature } = req.body ?? {};
+  if (
+    typeof userId !== "string" ||
+    typeof blockHash !== "string" ||
+    typeof clientNonce !== "string" ||
+    !isHex64(signature)
+  ) {
+    res.status(400).json({ error: "userId, blockHash, clientNonce, signature (hex64) required" });
+    return;
+  }
+
+  if (!store.isRecentBlockHash(blockHash, BLOCKHASH_WINDOW)) {
+    res.status(410).json({ ok: false, error: "blockHash outside freshness window" });
+    return;
+  }
+
+  // Opaque 401 — never reveal whether the user exists vs. wrong signature.
+  const fail = () => res.status(401).json({ ok: false, error: "Invalid credentials" });
+  const user = store.users.get(userId);
+  if (!user?.pubKey) {
+    fail();
+    return;
+  }
+
+  const message = canonicalMessage({
+    label: "connect",
+    userId,
+    blockHash,
+    clientNonce,
+  });
+  if (!verifyEdSig(user.pubKey, message, signature)) {
+    fail();
+    return;
+  }
+
+  res.json({
+    ok: true,
+    token: mockToken(user.userId, user.address),
+    publicKey: user.address,
+    blockNumber: store.nextBlockNumber(),
+  });
+});
+
+// POST /change-password — proves possession of the current key AND of the new
+// key, then replaces the stored pubKey.
+//
+// Auth: Bearer <token>
+// Body: { blockHash, clientNonce, oldSignature: hex64, newPubKey: hex32, newSignature: hex64 }
+//   oldSignature signs canonical("change-password-old" | userId | bh | nonce | newPubKey)
+//   newSignature signs canonical("change-password-new" | userId | bh | nonce | newPubKey)
+// Both signatures bind to the new pubKey so neither can be substituted alone.
+// 200 → { ok }
+// 401 if token bad or any signature fails; 410 stale blockHash.
+virtoRouter.post("/change-password", (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) {
+    res.status(401).json({ error: "Missing bearer token" });
+    return;
+  }
+  const tokenPayload = decodeMockToken(auth.slice("Bearer ".length).trim());
+  const userId = tokenPayload?.userId;
+  const user = userId ? store.users.get(userId) : undefined;
+  if (!user?.pubKey) {
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+
+  const { blockHash, clientNonce, oldSignature, newPubKey, newSignature } = req.body ?? {};
+  if (
+    typeof blockHash !== "string" ||
+    typeof clientNonce !== "string" ||
+    !isHex64(oldSignature) ||
+    !isHex32(newPubKey) ||
+    !isHex64(newSignature)
+  ) {
+    res.status(400).json({
+      error: "blockHash, clientNonce, oldSignature (hex64), newPubKey (hex32), newSignature (hex64) required",
+    });
+    return;
+  }
+
+  if (!store.isRecentBlockHash(blockHash, BLOCKHASH_WINDOW)) {
+    res.status(410).json({ ok: false, error: "blockHash outside freshness window" });
+    return;
+  }
+
+  const newPubKeyStripped = stripHex(newPubKey);
+  const oldMessage = canonicalMessage({
+    label: "change-password-old",
+    userId: user.userId,
+    blockHash,
+    clientNonce,
+    extra: newPubKeyStripped,
+  });
+  const newMessage = canonicalMessage({
+    label: "change-password-new",
+    userId: user.userId,
+    blockHash,
+    clientNonce,
+    extra: newPubKeyStripped,
+  });
+
+  if (
+    !verifyEdSig(user.pubKey, oldMessage, oldSignature) ||
+    !verifyEdSig(newPubKey, newMessage, newSignature)
+  ) {
+    res.status(401).json({ ok: false, error: "Invalid signatures" });
+    return;
+  }
+
+  user.pubKey = newPubKeyStripped;
+  res.json({ ok: true });
 });
 
 // Check if user is registered

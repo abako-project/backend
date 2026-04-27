@@ -141,6 +141,47 @@ export class AuthService {
     return userId;
   }
 
+  /**
+   * Forward a JSON request to the federate-server. Used by the password
+   * endpoints — these are thin pass-throughs because all the protocol-level
+   * crypto (argon2id, ed25519, signing) lives on the client. The
+   * federate-server is the verifier; adapter-api just relays.
+   *
+   * Returns the parsed body plus the upstream HTTP status so the controller
+   * can rethrow it as-is (401 stays 401, 410 stays 410, etc.).
+   */
+  private async forwardToFederate(
+    path: string,
+    body: unknown,
+    bearer?: string,
+  ): Promise<{ status: number; body: any }> {
+    const url = `${this.configService.getFederateServer()}${path}`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    let parsed: any = null;
+    try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+    return { status: response.status, body: parsed };
+  }
+
+  passwordRegister(body: unknown): Promise<{ status: number; body: any }> {
+    return this.forwardToFederate('/password-register', body);
+  }
+
+  passwordConnect(body: unknown): Promise<{ status: number; body: any }> {
+    return this.forwardToFederate('/password-connect', body);
+  }
+
+  changePassword(token: string, body: unknown): Promise<{ status: number; body: any }> {
+    return this.forwardToFederate('/change-password', body, token);
+  }
+
   async getCurrentUser(token: string): Promise<{ id: string; address: string; displayName: string }> {
     await this.ensureServerSDK();
     const decoded = await this.serverSdk!.auth.decodeToken(token);

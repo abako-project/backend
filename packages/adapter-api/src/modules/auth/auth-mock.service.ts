@@ -146,6 +146,48 @@ export class MockAuthService {
     }
   }
 
+  async getCurrentUser(token: string): Promise<{ id: string; address: string; displayName: string }> {
+    const { userId, address } = this.decodeToken(token);
+    const local = userId?.split('@')[0] || userId || '';
+    return {
+      id: userId,
+      address,
+      displayName: local.charAt(0).toUpperCase() + local.slice(1),
+    };
+  }
+
+  /** Thin pass-through to the federate-server (mock-api in dev). */
+  private async forwardToFederate(
+    path: string,
+    body: unknown,
+    bearer?: string,
+  ): Promise<{ status: number; body: any }> {
+    const url = `${this.federateServer}${path}`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    const text = await response.text();
+    let parsed: any = null;
+    try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+    return { status: response.status, body: parsed };
+  }
+
+  passwordRegister(body: unknown): Promise<{ status: number; body: any }> {
+    return this.forwardToFederate('/password-register', body);
+  }
+
+  passwordConnect(body: unknown): Promise<{ status: number; body: any }> {
+    return this.forwardToFederate('/password-connect', body);
+  }
+
+  changePassword(token: string, body: unknown): Promise<{ status: number; body: any }> {
+    return this.forwardToFederate('/change-password', body, token);
+  }
+
   private createToken(userId: string, address: string): string {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const now = Math.floor(Date.now() / 1000);

@@ -1,11 +1,20 @@
 // In-memory state for mock services
 // Data structures mirror the ink! smart contracts in ../../../contracts/
 
+import { createHash } from "node:crypto";
+
 export interface MockUser {
   userId: string;
   address: string;
   credentialId: string;
   isMember: boolean;
+  /**
+   * Password-derived ed25519 public key, hex-encoded (32 bytes).
+   * Set when the user registers via email+password. The matching private key
+   * lives only on the user's device, derived deterministically from the
+   * password via argon2id (see password.ts).
+   */
+  pubKey?: string;
 }
 
 export interface MockPayment {
@@ -95,9 +104,41 @@ class Store {
   private membershipCounter = 1;
   private contractCounter = 1;
   private blockNumber = 1000;
+  private blockHashes = new Map<number, string>();
+
+  /** Deterministic block hash from a block number. */
+  private hashFor(n: number): string {
+    return "0x" + createHash("sha256").update(`mock-block:${n}`).digest("hex");
+  }
 
   nextBlockNumber(): number {
-    return ++this.blockNumber;
+    this.blockNumber += 1;
+    this.blockHashes.set(this.blockNumber, this.hashFor(this.blockNumber));
+    // Bound memory: keep only the recent window.
+    const cutoff = this.blockNumber - 200;
+    for (const k of this.blockHashes.keys()) {
+      if (k < cutoff) this.blockHashes.delete(k);
+    }
+    return this.blockNumber;
+  }
+
+  /** Hash of the current head — what /password-connect submits as the challenge. */
+  currentBlockHash(): string {
+    if (!this.blockHashes.has(this.blockNumber)) {
+      this.blockHashes.set(this.blockNumber, this.hashFor(this.blockNumber));
+    }
+    return this.blockHashes.get(this.blockNumber)!;
+  }
+
+  /** Is this hash within the ±windowSize-block freshness window? */
+  isRecentBlockHash(hash: string, windowSize: number): boolean {
+    const lo = Math.max(1, this.blockNumber - windowSize);
+    const hi = this.blockNumber + windowSize;
+    for (let n = lo; n <= hi; n++) {
+      if (!this.blockHashes.has(n)) this.blockHashes.set(n, this.hashFor(n));
+      if (this.blockHashes.get(n) === hash) return true;
+    }
+    return false;
   }
 
   generateAddress(): string {
