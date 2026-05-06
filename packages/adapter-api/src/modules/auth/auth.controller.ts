@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Headers,
+  HttpCode,
   HttpStatus,
   HttpException,
 } from '@nestjs/common';
@@ -29,6 +30,110 @@ import {
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
+
+  @Post('password-register')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Register a user with email + password',
+    description:
+      "Registers a password-derived ed25519 pubKey. The body is forwarded to the federate-server (mock or real) — adapter-api does no ed25519 math itself. The client computes the keypair locally; see mock-api/src/password.ts and password-vectors.ts.",
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        userId: { type: 'string', example: 'alice@example.com' },
+        pubKey: { type: 'string', description: 'hex32 ed25519 pubKey' },
+        blockHash: { type: 'string', description: 'recent block hash from chain' },
+        clientNonce: { type: 'string', description: 'hex16+ random nonce' },
+        signature: { type: 'string', description: 'hex64 ed25519 sig over the canonical register message' },
+        address: { type: 'string', nullable: true },
+      },
+      required: ['userId', 'pubKey', 'blockHash', 'clientNonce', 'signature'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Registered' })
+  @ApiResponse({ status: 400, description: 'Malformed' })
+  @ApiResponse({ status: 401, description: 'Signature does not verify' })
+  @ApiResponse({ status: 409, description: 'User already has password credentials' })
+  @ApiResponse({ status: 410, description: 'blockHash outside the freshness window' })
+  async passwordRegister(@Body() body: any) {
+    const r = await this.authService.passwordRegister(body);
+    if (r.status >= 400) throw new HttpException(r.body, r.status);
+    return r.body;
+  }
+
+  @Post('password-connect')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Log in with email + password',
+    description:
+      'Verifies an ed25519 signature against the stored pubKey and mints a JWT with the same shape as the WebAuthn flow.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        userId: { type: 'string', example: 'alice@example.com' },
+        blockHash: { type: 'string' },
+        clientNonce: { type: 'string' },
+        signature: { type: 'string', description: 'hex64' },
+      },
+      required: ['userId', 'blockHash', 'clientNonce', 'signature'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Authenticated; returns { token, publicKey, ... }' })
+  @ApiResponse({ status: 400, description: 'Malformed' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials (opaque)' })
+  @ApiResponse({ status: 410, description: 'blockHash outside the freshness window' })
+  async passwordConnect(@Body() body: any) {
+    const r = await this.authService.passwordConnect(body);
+    if (r.status >= 400) throw new HttpException(r.body, r.status);
+    return r.body;
+  }
+
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Change a user password',
+    description:
+      'Bearer-authenticated. Both signatures (oldSignature with the current key, newSignature with the new key) bind to newPubKey via the canonical message so the operation is atomic.',
+  })
+  @ApiBearerAuth()
+  @ApiHeader({
+    name: 'authorization',
+    description: 'Bearer token from password-connect',
+    required: true,
+    schema: { type: 'string', example: 'Bearer <jwt>' },
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        blockHash: { type: 'string' },
+        clientNonce: { type: 'string' },
+        oldSignature: { type: 'string', description: 'hex64, signed with the current privKey' },
+        newPubKey: { type: 'string', description: 'hex32 new ed25519 pubKey' },
+        newSignature: { type: 'string', description: 'hex64, signed with the new privKey' },
+      },
+      required: ['blockHash', 'clientNonce', 'oldSignature', 'newPubKey', 'newSignature'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Password changed' })
+  @ApiResponse({ status: 401, description: 'Invalid token or signature' })
+  @ApiResponse({ status: 410, description: 'blockHash outside the freshness window' })
+  async changePassword(
+    @Headers('authorization') authHeader: string,
+    @Body() body: any,
+  ) {
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new HttpException({ error: 'Missing bearer token' }, HttpStatus.UNAUTHORIZED);
+    }
+    const token = authHeader.slice('Bearer '.length).trim();
+    const r = await this.authService.changePassword(token, body);
+    if (r.status >= 400) throw new HttpException(r.body, r.status);
+    return r.body;
+  }
 
   @Get('me')
   @ApiOperation({
