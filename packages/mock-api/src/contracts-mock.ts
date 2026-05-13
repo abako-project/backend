@@ -5,6 +5,27 @@ import { store, MockTask, MockTeamMember } from "./store.js";
 
 export const contractsRouter = Router();
 
+function availabilityToHours(availability: any): number {
+  if (typeof availability === "number") return availability;
+  if (typeof availability === "string") {
+    if (availability === "FullTime") return 40;
+    if (availability === "PartTime") return 20;
+    return 0;
+  }
+  if (availability && typeof availability === "object") {
+    if (typeof availability.WeeklyHours === "number") return availability.WeeklyHours;
+    if (availability.type === "WeeklyHours") return Number(availability.value ?? 0);
+    if (availability.type === "FullTime") return 40;
+    if (availability.type === "PartTime") return 20;
+  }
+  return 0;
+}
+
+function positiveIntegerOrDefault(value: any, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 // --- Health ---
 contractsRouter.get("/health", (_req, res) => {
   res.json({
@@ -90,6 +111,7 @@ contractsRouter.get("/projects/query/:contractAddress/:methodName", (req, res) =
           advance_payment_percentage: info.scope.advance_payment_percentage,
           total_cost: info.total_cost,
           paid_amount: info.paid_amount,
+          team_size: info.scope.team_size,
         };
       }
       break;
@@ -199,7 +221,10 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
         case "assign_team": {
           // Query calendar for workers with 15+ hours (mirrors real contract)
           const available = store.getAvailableWorkers(info.calendar_contract, 15);
-          const idealSize = req.body.data?.ideal_team_size || req.body.data?._team_size || 3;
+          const idealSize = positiveIntegerOrDefault(
+            req.body.data?.ideal_team_size ?? req.body.data?._team_size ?? info.scope?.team_size,
+            1
+          );
 
           // Filter out coordinator and client
           const candidates = available.filter(
@@ -259,6 +284,7 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
             advance_payment_percentage: advancePct,
             document_hash: docHash,
             state: "Proposed",
+            team_size: positiveIntegerOrDefault(req.body.data?.team_size, 1),
           };
 
           info.state = "ScopePendingClientApproval";
@@ -456,12 +482,7 @@ contractsRouter.post("/calendar/call/:contractAddress/:methodName", (req, res) =
     // Returns encoded data for signing (worker sets own availability)
     const caller = req.body.caller;
     const availability = req.body.data?.availability ?? 0;
-    // Convert AvailabilityLevel to hours (mirrors real contract)
-    const hours = typeof availability === "object"
-      ? availability.WeeklyHours ?? 0
-      : typeof availability === "string"
-        ? availability === "FullTime" ? 40 : availability === "PartTime" ? 20 : 0
-        : availability;
+    const hours = availabilityToHours(availability);
     if (cal && caller) {
       cal.workers.set(caller, hours);
     }
@@ -509,11 +530,7 @@ contractsRouter.post("/calendar/call/:contractAddress/:methodName", (req, res) =
   if (methodName === "admin_set_worker_availability") {
     const worker = req.body.data?.worker;
     const availability = req.body.data?.availability ?? 0;
-    const hours = typeof availability === "object"
-      ? availability.WeeklyHours ?? 0
-      : typeof availability === "string"
-        ? availability === "FullTime" ? 40 : availability === "PartTime" ? 20 : 0
-        : availability;
+    const hours = availabilityToHours(availability);
     if (cal && worker) {
       cal.workers.set(worker, hours);
     }

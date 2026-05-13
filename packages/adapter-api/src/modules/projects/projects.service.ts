@@ -7,7 +7,7 @@ import { DevelopersService } from '../developers/developers.service';
 import { ClientsService } from '../clients/clients.service';
 import { RatingsService } from '../ratings/ratings.service';
 import { EventsService } from '../events/events.service';
-import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneRequest, UpdateMilestoneRequest, CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CoordinatorApprovalRequest } from './types';
+import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneRequest, UpdateMilestoneRequest, CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CoordinatorApprovalRequest, ApproveScopeRequest } from './types';
 import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
 
@@ -119,6 +119,59 @@ export class ProjectsService {
     }
   }
 
+  private parsePositiveInteger(value: unknown, fieldName: string): number {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new HttpException(
+        `${fieldName} must be a positive integer`,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+    return parsed;
+  }
+
+  private resolveScopeProposalTeamSize(milestones: Milestone[]): number {
+    const profiles = new Set(
+      milestones.map((milestone) => {
+        const availability = milestone.neededFullTimeDeveloper
+          ? 'fulltime'
+          : milestone.neededPartTimeDeveloper
+            ? 'parttime'
+            : milestone.neededHourlyDeveloper
+              ? `hourly:${milestone.neededHours ?? ''}`
+              : 'unspecified';
+        const skills = [...(milestone.skills || [])]
+          .map((skill) => skill.trim().toLowerCase())
+          .filter(Boolean)
+          .sort()
+          .join(',');
+
+        return [
+          milestone.role?.trim().toLowerCase() || 'role-unspecified',
+          milestone.proficiency?.trim().toLowerCase() || 'proficiency-unspecified',
+          availability,
+          skills,
+        ].join('|');
+      })
+    );
+
+    return this.parsePositiveInteger(profiles.size, 'scope.team_size');
+  }
+
+  private async getTeamSizeFromScope(contractAddress: string): Promise<number> {
+    const scopeInfo = await this.callReadMethod(contractAddress, 'get_scope_info');
+    const teamSize = scopeInfo?.response?.team_size ?? scopeInfo?.response?.teamSize;
+
+    if (teamSize === undefined || teamSize === null) {
+      throw new HttpException(
+        'Cannot assign team automatically because scope.team_size is missing',
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    return this.parsePositiveInteger(teamSize, 'scope.team_size');
+  }
+
   async assignCoordinator(projectId: string, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const result = await this.callPreSignedWriteMethod(contractAddress, 'assign_coordinator', {});
@@ -154,7 +207,8 @@ export class ProjectsService {
 
   async assignTeam(projectId: string, body: { _team_size: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    const assignResult = await this.callWriteMethod(contractAddress, 'assign_team', { _team_size: body._team_size }, authToken);
+    const teamSize = this.parsePositiveInteger(body._team_size, '_team_size');
+    const assignResult = await this.callWriteMethod(contractAddress, 'assign_team', { _team_size: teamSize }, authToken);
 
     // Update project state to 'team_assigned' and milestones to 'task_in_progress' when team is assigned
     if (assignResult && assignResult.success) {
@@ -257,17 +311,26 @@ export class ProjectsService {
     tasks: Array<[number, any, string, number[]]>;
     advance_payment_percentage: number;
     document_hash: string;
+    team_size?: number;
   }, authToken: string): Promise<any> {
     return this.callWriteMethod(contractAddress, 'propose_scope', body, authToken);
   }
 
-  async approveScope(projectId: string, body: { approved_task_ids: number[] }, authToken: string): Promise<any> {
+  async approveScope(projectId: string, body: ApproveScopeRequest, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const project = await this.projectRepo.findOne({ where: { id: projectId } });
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
+    const approvedTaskIds = Array.isArray(body.approved_task_ids) ? body.approved_task_ids : [];
+    if (approvedTaskIds.length === 0) {
+      throw new HttpException('approved_task_ids must contain at least one task ID', HttpStatus.BAD_REQUEST);
+    }
+
+    const teamSize = await this.getTeamSizeFromScope(contractAddress);
     const approveResult = await this.callWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids, value: (project.budget || 0).toString() }, authToken);
+    let assignTeamResult: any = null;
+    let assignTeamError: string | undefined;
 
     // Update project state from 'scope_proposed' to 'scope_accepted' when scope is approved
     if (approveResult && approveResult.success) {
@@ -290,9 +353,26 @@ export class ProjectsService {
       } catch (error) {
         console.error(`Error updating project state for ${projectId} after scope approval:`, error);
       }
+
+      try {
+        assignTeamResult = await this.assignTeam(projectId, { _team_size: teamSize }, authToken);
+      } catch (error) {
+        assignTeamError = error instanceof Error ? error.message : 'Unknown team assignment error';
+        console.error(`Error automatically assigning team for project ${projectId} after scope approval:`, error);
+
+      }
     }
 
-    return approveResult;
+    return {
+      ...approveResult,
+      autoAssignTeam: {
+        triggered: Boolean(approveResult && approveResult.success),
+        success: Boolean(assignTeamResult && assignTeamResult.success),
+        teamSize,
+        result: assignTeamResult,
+        error: assignTeamError,
+      },
+    };
   }
 
   async rejectScope(projectId: string, body: ScopeRejectRequest, authToken: string): Promise<any> {
@@ -362,6 +442,8 @@ export class ProjectsService {
         console.log(`Milestone created: ${milestone.id} - ${milestone.title}`);
       }
 
+      const teamSize = this.resolveScopeProposalTeamSize(createdMilestones);
+
       // Convert milestones to tasks for the contract
       const tasks: Array<[number, any, string, number[]]> = createdMilestones.map(milestone => [
         milestone.id!, // task id from milestone id
@@ -377,6 +459,7 @@ export class ProjectsService {
         tasks,
         advance_payment_percentage: approvalData.advance_payment_percentage,
         document_hash: approvalData.document_hash,
+        team_size: teamSize,
       }, authToken);
 
       console.log('Scope proposed successfully');

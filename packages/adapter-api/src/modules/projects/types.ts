@@ -36,6 +36,7 @@ export interface ProjectScope {
   tasks: Record<number, Task>;
   advance_payment_percentage: number;
   revisions: ScopeRevision[];
+  team_size?: number;
 }
 
 export interface Project {
@@ -158,6 +159,10 @@ export interface UpdateProposalRequest {
 
 export interface ScopeRejectRequest {
   clientResponse?: string;
+}
+
+export interface ApproveScopeRequest {
+  approved_task_ids: number[];
 }
 
 export interface MilestoneRejectRequest {

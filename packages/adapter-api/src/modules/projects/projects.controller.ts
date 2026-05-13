@@ -10,7 +10,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
-import { CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CreateMilestoneRequest, UpdateMilestoneRequest, MilestoneRejectRequest } from './types';
+import { CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CreateMilestoneRequest, UpdateMilestoneRequest, MilestoneRejectRequest, ApproveScopeRequest } from './types';
 
 @ApiTags('Projects')
 @Controller({ path: 'projects', version: '1' })
@@ -375,7 +375,7 @@ export class ProjectsController {
   @Post(':projectId/approve_scope')
   @ApiOperation({
     summary: 'Approve project scope',
-    description: 'Approves specific tasks from the proposed project scope'
+    description: 'Approves specific tasks from the proposed project scope and triggers team assignment automatically using the team_size already defined in the scope.'
   })
   @ApiParam({
     name: 'projectId',
@@ -420,7 +420,7 @@ export class ProjectsController {
   })
   async approveScope(
     @Param('projectId') projectId: string,
-    @Body() body: { approved_task_ids: number[] },
+    @Body() body: ApproveScopeRequest,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);

@@ -1019,6 +1019,12 @@ describe('Projects Module E2E Tests', () => {
 
           expect(response.body).toHaveProperty('success');
           expect(response.body.success).toBe(true);
+          expect(response.body).toHaveProperty('autoAssignTeam');
+          expect(response.body.autoAssignTeam).toMatchObject({
+            triggered: true,
+            success: true,
+            teamSize: approvedTaskIds.length,
+          });
           console.info(`✅ Approved scope with ${approvedTaskIds.length} task(s): [${approvedTaskIds.join(', ')}]`);
 
           // Wait for the transaction to be processed and contract state to update to ScopeAccepted
