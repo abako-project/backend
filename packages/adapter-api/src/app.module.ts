@@ -14,6 +14,7 @@ import { RatingsModule } from './modules/ratings/ratings.module';
 import { DaoModule } from './modules/dao/dao.module';
 import { RampModule } from './modules/ramps/ramps.module';
 import { SeedModule } from './modules/seed/seed.module';
+import { EventsModule } from './modules/events/events.module';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ dotenv.config();
     RatingsModule,
     DaoModule,
     RampModule,
+    EventsModule,
     SeedModule,
   ],
   controllers: [],
@@ -41,4 +43,4 @@ dotenv.config();
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) { }
-} 
+}

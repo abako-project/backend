@@ -7,6 +7,7 @@ import { AuthModule } from '../auth/auth.module';
 import { DevelopersModule } from '../developers/developers.module';
 import { ClientsModule } from '../clients/clients.module';
 import { RatingsModule } from '../ratings/ratings.module';
+import { EventsModule } from '../events/events.module';
 import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
 
@@ -17,6 +18,7 @@ import { Milestone } from '../../database/entities/milestone.entity';
     DevelopersModule,
     ClientsModule,
     RatingsModule,
+    EventsModule,
     TypeOrmModule.forFeature([Project, Milestone]),
   ],
   controllers: [ProjectsController],
