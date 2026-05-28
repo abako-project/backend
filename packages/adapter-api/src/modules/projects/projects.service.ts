@@ -6,6 +6,7 @@ import { AuthService } from '../auth/auth.service';
 import { DevelopersService } from '../developers/developers.service';
 import { ClientsService } from '../clients/clients.service';
 import { RatingsService } from '../ratings/ratings.service';
+import { EventsService } from '../events/events.service';
 import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneRequest, UpdateMilestoneRequest, CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CoordinatorApprovalRequest } from './types';
 import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
@@ -37,6 +38,7 @@ export class ProjectsService {
     private readonly developersService: DevelopersService,
     private readonly clientsService: ClientsService,
     private readonly ratingsService: RatingsService,
+    private readonly eventsService: EventsService,
     @InjectRepository(Project) private projectRepo: Repository<Project>,
     @InjectRepository(Milestone) private milestoneRepo: Repository<Milestone>,
   ) { }
@@ -173,6 +175,16 @@ export class ProjectsService {
             console.log(`Milestone ${milestone.id} state updated to 'task_in_progress' for project ${projectId}`);
           }
         }
+
+        this.eventsService.publishProjectEvent('project.team_assigned', {
+          projectId,
+          contractAddress,
+          state: 'team_assigned',
+          data: {
+            teamSize: body._team_size,
+            updatedMilestones: milestones.length,
+          },
+        });
       } catch (error) {
         console.error(`Error updating project and milestones state for ${projectId} after team assignment:`, error);
       }
@@ -266,6 +278,15 @@ export class ProjectsService {
           await this.projectRepo.save(project);
           console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_accepted' after scope approval`);
         }
+
+        this.eventsService.publishProjectEvent('project.scope_approved', {
+          projectId,
+          contractAddress,
+          state: 'scope_accepted',
+          data: {
+            approvedTaskIds: body.approved_task_ids,
+          },
+        });
       } catch (error) {
         console.error(`Error updating project state for ${projectId} after scope approval:`, error);
       }
@@ -291,6 +312,14 @@ export class ProjectsService {
 
     await this.projectRepo.save(project);
     console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_rejected' after scope rejection`);
+    this.eventsService.publishProjectEvent('project.scope_rejected', {
+      projectId,
+      contractAddress: project.contractAddress,
+      state: project.state,
+      data: {
+        clientResponse: body.clientResponse,
+      },
+    });
 
     return { success: true };
   }
@@ -356,6 +385,15 @@ export class ProjectsService {
       project.coordinatorApprovalStatus = 'approved';
       project.state = 'scope_proposed';
       await this.projectRepo.save(project);
+      this.eventsService.publishProjectEvent('project.scope_proposed', {
+        projectId,
+        contractAddress,
+        state: 'scope_proposed',
+        data: {
+          milestoneCount: createdMilestones.length,
+          advancePaymentPercentage: approvalData.advance_payment_percentage,
+        },
+      });
 
       return {
         success: true,
