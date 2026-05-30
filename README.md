@@ -12,7 +12,7 @@ pnpm run dev:mock     # start the backend (mock-api + adapter-api)
 API will be available at `http://localhost:4000`, docs at `http://localhost:4000/api-docs`.
 
 ```bash
-pnpm run test:mock    # run all 87 tests
+pnpm run test:mock    # run all 89 tests
 ```
 
 No MongoDB, Docker, or blockchain node required.
@@ -84,6 +84,21 @@ pnpm --filter abako-adapter start:dev
 
 The real `AuthService` uses `@virtonetwork/sdk` with WebSocket connection to the blockchain.
 `USE_MOCK_AUTH` must NOT be set in production.
+
+## Identity Model
+
+Client and developer profiles use `userId` as the primary auth identifier. `email` is optional contact data and remains supported as a legacy lookup fallback, so older email-only profile creation still maps the email value into `userId`.
+
+New integrations should send `userId` when creating client or developer profiles. Do not require users to provide an email address unless the product flow specifically needs one as contact data.
+
+## Pending Decisions
+
+The following items are intentionally not part of the current email-requirement change:
+
+- Partial registration: define the lifecycle for incomplete profiles, including `pending_registration`, `waiting_approval`, and `member` transitions.
+- DAO approval: define who can approve registration, how rejected/expired registrations behave, and which API endpoints own those transitions.
+- Assignment algorithm skills: define required versus optional skills and how they are weighted with availability, rating, and assignment history.
+- Assignment observability: decide whether assignment responses should expose selected/skipped reasons for debugging and user-facing transparency.
 
 ## Available Scripts
 
