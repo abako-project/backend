@@ -78,6 +78,7 @@ export interface MockScope {
   advance_payment_percentage: number;
   document_hash: string;
   state: string;
+  team_size: number;
 }
 
 export interface MockContract {

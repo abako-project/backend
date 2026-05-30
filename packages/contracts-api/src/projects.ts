@@ -313,6 +313,10 @@ export class ProjectsService {
         if (methodName === 'propose_scope' || methodName === 'approve_scope') {
           console.log(`[callMethod] Starting data conversion for ${methodName}`)
           contractData = this.convertNumbersToBigInt(contractData, methodName)
+          if (methodName === 'propose_scope' && contractData.team_size !== undefined) {
+            const { team_size, ...chainContractData } = contractData
+            contractData = chainContractData
+          }
           console.log(`[callMethod] Final contract data after conversion:`, contractData)
         }
 
