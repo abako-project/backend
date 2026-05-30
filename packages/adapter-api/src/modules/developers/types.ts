@@ -9,7 +9,8 @@ export enum DeveloperAvailability {
 
 export interface Developer {
   id: number;
-  email: string;
+  userId?: string | null;
+  email?: string | null;
   name: string;
   githubUsername: string;
   portfolioUrl?: string;
@@ -30,7 +31,8 @@ export interface Developer {
 
 
 export interface CreateDeveloperRequest {
-    email: string;
+    userId?: string;
+    email?: string;
     name: string;
     githubUsername: string;
     portfolioUrl?: string;
@@ -38,6 +40,8 @@ export interface CreateDeveloperRequest {
   }
   
   export interface UpdateDeveloperRequest {
+    userId?: string;
+    email?: string;
     name: string;
     githubUsername: string;
     portfolioUrl?: string;

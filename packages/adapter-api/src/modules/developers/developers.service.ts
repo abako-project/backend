@@ -30,10 +30,32 @@ export class DevelopersService {
     return this.developerRepo.findOne({ where: { email } });
   }
 
+  async findByUserIdentifier(identifier: string): Promise<Developer | null> {
+    return this.developerRepo.findOne({
+      where: [
+        { userId: identifier },
+        { email: identifier },
+      ],
+    });
+  }
+
+  private normalizeOptionalText(value: string | undefined): string | null {
+    const normalized = value?.trim();
+    return normalized ? normalized : null;
+  }
+
   async create(data: CreateDeveloperRequest): Promise<Developer> {
     try {
+      const email = this.normalizeOptionalText(data.email);
+      const userId = this.normalizeOptionalText(data.userId) ?? email;
+
+      if (!userId) {
+        throw new BadRequestException('Missing required field: userId or email');
+      }
+
       const newDeveloper = this.developerRepo.create({
-        email: data.email,
+        userId,
+        email,
         name: data.name,
         githubUsername: data.githubUsername,
         portfolioUrl: data.portfolioUrl,
@@ -60,6 +82,8 @@ export class DevelopersService {
       throw new NotFoundException(`Developer with id ${developerId} not found`);
     }
 
+    if (updateData.userId !== undefined) developer.userId = this.normalizeOptionalText(updateData.userId);
+    if (updateData.email !== undefined) developer.email = this.normalizeOptionalText(updateData.email);
     developer.name = updateData.name;
     developer.githubUsername = updateData.githubUsername;
     if (updateData.portfolioUrl !== undefined) developer.portfolioUrl = updateData.portfolioUrl;
@@ -72,6 +96,10 @@ export class DevelopersService {
     developer.languages = updateData.languages;
     developer.skills = updateData.skills;
     if (updateData.availableHoursPerWeek !== undefined) developer.availableHoursPerWeek = updateData.availableHoursPerWeek;
+
+    if (!developer.userId && !developer.email) {
+      throw new BadRequestException('Developer must have either userId or email');
+    }
 
     return this.developerRepo.save(developer);
   }

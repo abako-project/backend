@@ -26,14 +26,15 @@ export class ClientsController {
   @Post()
   @ApiOperation({ 
     summary: 'Create client profile',
-    description: 'Creates a new client profile with user account. Requires: image (profile), company name, name, department, company website, description, and location.'
+    description: 'Creates a new client profile with user account. Requires userId or email, plus company name, name, department, company website, description, and location.'
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        email: { type: 'string', format: 'email', example: 'client@example.com' },
+        userId: { type: 'string', example: 'client-123', description: 'Authentication user identifier. Email is no longer required.' },
+        email: { type: 'string', format: 'email', nullable: true, example: 'client@example.com' },
         name: { type: 'string', example: 'John Doe' },
         company: { type: 'string', example: 'Acme Corp' },
         department: { type: 'string', example: 'Engineering' },
@@ -48,7 +49,7 @@ export class ClientsController {
         },
         image: { type: 'string', format: 'binary', description: 'Profile image' }
       },
-      required: ['email', 'name', 'company', 'department', 'website', 'description', 'location']
+      required: ['name', 'company', 'department', 'website', 'description', 'location']
     }
   })
   @ApiResponse({ status: 201, description: 'Client created successfully' })
@@ -101,6 +102,8 @@ export class ClientsController {
     schema: {
       type: 'object',
       properties: {
+        userId: { type: 'string', example: 'client-123' },
+        email: { type: 'string', format: 'email', nullable: true, example: 'client@example.com' },
         name: { type: 'string', example: 'John Doe' },
         company: { type: 'string', example: 'Acme Corp' },
         department: { type: 'string', example: 'Engineering' },
@@ -161,4 +164,3 @@ export class ClientsController {
     return { projects };
   }
 }
-

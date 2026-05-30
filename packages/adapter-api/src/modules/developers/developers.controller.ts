@@ -24,20 +24,21 @@ export class DevelopersController {
   @Post()
   @ApiOperation({ 
     summary: 'Create developer profile',
-    description: 'Creates a new developer profile with user account. Requires: profile image, name, email, github username, and optional portfolio.'
+    description: 'Creates a new developer profile with user account. Requires userId or email, plus name, github username, and optional portfolio.'
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
-        email: { type: 'string', format: 'email', example: 'developer@example.com' },
+        userId: { type: 'string', example: 'developer-123', description: 'Authentication user identifier. Email is no longer required.' },
+        email: { type: 'string', format: 'email', nullable: true, example: 'developer@example.com' },
         name: { type: 'string', example: 'Jane Smith' },
         githubUsername: { type: 'string', example: 'janesmith' },
         portfolioUrl: { type: 'string', example: 'https://portfolio.com' },
         image: { type: 'string', format: 'binary', description: 'Profile image' }
       },
-      required: ['email', 'name', 'githubUsername']
+      required: ['name', 'githubUsername']
     }
   })
   @ApiResponse({ status: 201, description: 'Developer created successfully' })
@@ -90,6 +91,8 @@ export class DevelopersController {
     schema: {
       type: 'object',
       properties: {
+        userId: { type: 'string', example: 'developer-123' },
+        email: { type: 'string', format: 'email', nullable: true, example: 'developer@example.com' },
         name: { type: 'string', example: 'Jane Smith' },
         githubUsername: { type: 'string', example: 'janesmith' },
         portfolioUrl: { type: 'string', example: 'https://portfolio.com' },
@@ -189,4 +192,3 @@ export class DevelopersController {
     return { milestones };
   }
 }
-

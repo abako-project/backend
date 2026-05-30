@@ -28,11 +28,33 @@ export class ClientsService {
     return this.clientRepo.findOne({ where: { email } });
   }
 
+  async findByUserIdentifier(identifier: string): Promise<Client | null> {
+    return this.clientRepo.findOne({
+      where: [
+        { userId: identifier },
+        { email: identifier },
+      ],
+    });
+  }
+
+  private normalizeOptionalText(value: string | undefined): string | null {
+    const normalized = value?.trim();
+    return normalized ? normalized : null;
+  }
+
   async create(data: CreateClientRequest): Promise<Client> {
     try {
+      const email = this.normalizeOptionalText(data.email);
+      const userId = this.normalizeOptionalText(data.userId) ?? email;
+
+      if (!userId) {
+        throw new BadRequestException('Missing required field: userId or email');
+      }
+
       const newClient = this.clientRepo.create({
         name: data.name,
-        email: data.email,
+        userId,
+        email,
         company: data.company,
         department: data.department,
         website: data.website,
@@ -60,12 +82,18 @@ export class ClientsService {
     }
 
     if (updateData.name !== undefined) client.name = updateData.name;
+    if (updateData.userId !== undefined) client.userId = this.normalizeOptionalText(updateData.userId);
+    if (updateData.email !== undefined) client.email = this.normalizeOptionalText(updateData.email);
     if (updateData.company !== undefined) client.company = updateData.company;
     if (updateData.department !== undefined) client.department = updateData.department;
     if (updateData.website !== undefined) client.website = updateData.website;
     if (updateData.description !== undefined) client.description = updateData.description;
     if (updateData.location !== undefined) client.location = updateData.location;
     if (updateData.languages !== undefined) client.languages = updateData.languages;
+
+    if (!client.userId && !client.email) {
+      throw new BadRequestException('Client must have either userId or email');
+    }
 
     return this.clientRepo.save(client);
   }
