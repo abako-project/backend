@@ -1,6 +1,7 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '../../config/config.service';
 import { AuthService } from '../auth/auth.service';
+import { DevelopersService } from '../developers/developers.service';
 import {
   ExtrinsicResponse,
   SetAvailabilityRequest,
@@ -15,17 +16,41 @@ export class CalendarService {
   constructor(
     private readonly configService: ConfigService,
     private readonly authService: AuthService,
+    private readonly developersService: DevelopersService,
   ) { }
+
+  private async getWorkerProfile(worker: string): Promise<Record<string, any>> {
+    try {
+      const federateServerUrl = this.configService.getFederateServer();
+      const response = await fetch(
+        `${federateServerUrl}/get-user-id-by-address?address=${encodeURIComponent(worker)}`,
+      );
+      if (!response.ok) return {};
+      const { userId } = await response.json() as { userId?: string };
+      if (!userId) return {};
+      const developer = await this.developersService.findByUserIdentifier(userId);
+      if (!developer) return {};
+      return {
+        user_id: developer.userId,
+        name: developer.name,
+        is_coordinator: developer.isCoordinator,
+        skill_ids: developer.skills,
+      };
+    } catch {
+      return {};
+    }
+  }
 
   async registerWorker(
     contractAddress: string,
     body: RegisterWorkerRequest,
     authToken: string
   ): Promise<any> {
+    const profile = await this.getWorkerProfile(body.worker);
     return this.callPreSignedWriteMethod(
       contractAddress,
       'register_worker',
-      { worker: body.worker }
+      { worker: body.worker, ...profile }
     );
   }
 
@@ -49,10 +74,14 @@ export class CalendarService {
     body: RegisterWorkersRequest,
     authToken: string
   ): Promise<any> {
+    const workerProfiles = await Promise.all(body.workers.map(async (worker) => ({
+      worker,
+      ...(await this.getWorkerProfile(worker)),
+    })));
     return this.callPreSignedWriteMethod(
       contractAddress,
       'register_workers',
-      { workers: body.workers }
+      { workers: body.workers, worker_profiles: workerProfiles }
     );
   }
 
@@ -251,4 +280,3 @@ export class CalendarService {
     }
   }
 }
-

@@ -39,13 +39,16 @@ export class Developer {
   languages: string[];
 
   @Column({ type: 'simple-json', default: '[]' })
-  skills: string[];
+  skills: number[];
 
   @Column({ nullable: true })
   availableHoursPerWeek: number;
 
   @Column({ nullable: true })
   role: string;
+
+  @Column({ default: false })
+  isCoordinator: boolean;
 
   @Column({ type: 'blob', nullable: true })
   imageData: Buffer;

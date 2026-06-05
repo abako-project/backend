@@ -5,10 +5,13 @@ import { DevelopersService } from './developers.service';
 import { Developer } from '../../database/entities/developer.entity';
 import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
+import { MilestoneAssignment } from '../../database/entities/milestone-assignment.entity';
+import { SkillsModule } from '../skills/skills.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Developer, Project, Milestone]),
+    TypeOrmModule.forFeature([Developer, Project, Milestone, MilestoneAssignment]),
+    SkillsModule,
   ],
   controllers: [DevelopersController],
   providers: [DevelopersService],
