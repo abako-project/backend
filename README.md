@@ -91,15 +91,6 @@ Client and developer profiles use `userId` as the primary auth identifier. `emai
 
 New integrations should send `userId` when creating client or developer profiles. Do not require users to provide an email address unless the product flow specifically needs one as contact data.
 
-## Pending Decisions
-
-The following items are intentionally not part of the current email-requirement change:
-
-- Partial registration: define the lifecycle for incomplete profiles, including `pending_registration`, `waiting_approval`, and `member` transitions.
-- DAO approval: define who can approve registration, how rejected/expired registrations behave, and which API endpoints own those transitions.
-- Assignment algorithm skills: define required versus optional skills and how they are weighted with availability, rating, and assignment history.
-- Assignment observability: decide whether assignment responses should expose selected/skipped reasons for debugging and user-facing transparency.
-
 ## Available Scripts
 
 | Script | Description |
