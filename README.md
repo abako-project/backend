@@ -91,6 +91,17 @@ Client and developer profiles use `userId` as the primary auth identifier. `emai
 
 New integrations should send `userId` when creating client or developer profiles. Do not require users to provide an email address unless the product flow specifically needs one as contact data.
 
+## Assignment Workflow
+
+- Project deployment triggers coordinator assignment. The mock contract randomly selects a registered coordinator with availability above zero; ratings are not used.
+- Coordinators propose milestones with assignment slots. Each slot contains a stable `assignmentKey`, required `hours`, and catalog `skillIds`; roles and skill names are not stored in assignment payloads.
+- Scope approval plans the whole team for every approved milestone. Repeated assignment keys reuse the same eligible worker when possible, then selection prefers existing project members before choosing randomly from the global worker pool.
+- Scope approval activates only the first milestone and reserves only its hours. Later assignments do not consume availability until their milestone becomes active.
+- Client acceptance of a delivered milestone activates the next milestone. If a planned worker lacks availability, that slot is reassigned from the project team first, then the global pool.
+- Activation is atomic. When no valid workers are available, the call fails without activating the milestone or accepting the previous one, and the client can retry later.
+- Availability covers the next 12 weeks, defaults to zero, and is capped at 60 hours per week. `PermanentWeeklyHours: 40` keeps future weeks at 40 hours as the window advances.
+- Mock workers, skills, and weekly availability are stored in SQLite. The production smart contract is expected to own equivalent vectors and assignment logic.
+
 ## Available Scripts
 
 | Script | Description |
@@ -125,6 +136,7 @@ See `packages/adapter-api/.env.mock` for mock mode defaults, or `.env.template` 
 | `FEDERATE_SERVER` | `http://localhost:4010/api` | Virto API / mock-api |
 | `USE_MOCK_AUTH` | `true` | Use mock auth (no blockchain) |
 | `SQLITE_PATH` | `./data/abako.sqlite` | SQLite database path |
+| `MOCK_SQLITE_PATH` | `./data/mock-registry.sqlite` | Mock worker, skill, and availability registry |
 | `BRAMP_SERVICE_URL` | `http://localhost:4010` | Bramp payment service / mock-api |
 | `JWT_SECRET` | (set in .env) | JWT signing secret |
 | `PROVIDER_URL` | (production only) | Blockchain WebSocket URL |

@@ -3,6 +3,7 @@ import express from "express";
 import { virtoRouter } from "./virto-mock.js";
 import { contractsRouter } from "./contracts-mock.js";
 import { seedStore } from "./seed.js";
+import { SEED } from "./seed.js";
 
 const app = express();
 app.use(express.json());
@@ -70,14 +71,99 @@ const server = app.listen(PORT, async () => {
   // Projects
   console.log("\nProjects:");
   await test("constructors", "GET", "/projects/constructors", undefined, r => Array.isArray(r.constructors));
-  const proj = await test("deploy v5", "POST", "/projects/deploy/v5", { name: "Test", client: userAddr?.address }, r => r.success && !!r.address);
+  const proj = await test("deploy v5", "POST", "/projects/deploy/v5", {
+    name: "Test",
+    client: userAddr?.address,
+    calendar_contract: SEED.contracts.calendar,
+  }, r => r.success && !!r.address);
   const pAddr = proj?.address;
   await test("query project info", "GET", `/projects/query/${pAddr}/get_project_info`, undefined, r => r.response?.name === "Test");
   await test("assign coordinator", "POST", `/projects/call/${pAddr}/assign_coordinator`, {}, r => !!r.coordinator);
-  await test("assign team", "POST", `/projects/call/${pAddr}/assign_team`, { data: { ideal_team_size: 2 } }, r => !!r.encodedData);
-  await test("query team", "GET", `/projects/query/${pAddr}/get_team`, undefined, r => Array.isArray(r.response));
-  await test("propose scope", "POST", `/projects/call/${pAddr}/propose_scope`, { data: { tasks: [[0, 1, 100, []]], advance_payment_percentage: 10 } }, r => !!r.encodedData);
-  await test("query tasks", "GET", `/projects/query/${pAddr}/get_all_tasks`, undefined, r => Array.isArray(r.response));
+  await test("propose scope", "POST", `/projects/call/${pAddr}/propose_scope`, {
+    data: {
+      tasks: [[1, 1, 100, []], [2, 1, 100, [1]]],
+      advance_payment_percentage: 10,
+      assignment_requirements: [
+        {
+          task_id: 1,
+          requirements: [{
+            assignment_key: "developer-1",
+            hours: 10,
+            skill_ids: [5],
+          }, {
+            assignment_key: "developer-2",
+            hours: 10,
+            skill_ids: [5],
+          }],
+        },
+        {
+          task_id: 2,
+          requirements: [{
+            assignment_key: "developer-1",
+            hours: 20,
+            skill_ids: [5],
+          }],
+        },
+      ],
+    },
+  }, r => !!r.encodedData);
+  const availabilityBefore = await test(
+    "snapshot worker availability",
+    "GET",
+    `/calendar/query/${SEED.contracts.calendar}/get_all_workers_availability`,
+    undefined,
+    r => Array.isArray(r.response),
+  );
+  await test("approve scope and assign team", "POST", `/projects/call/${pAddr}/approve_scope`, {
+    data: { approved_task_ids: [1, 2] },
+  }, r => !!r.encodedData);
+  await test("query team", "GET", `/projects/query/${pAddr}/get_team`, undefined, r => Array.isArray(r.response) && r.response.length === 2);
+  const plannedTasks = await test(
+    "query planned milestone assignments",
+    "GET",
+    `/projects/query/${pAddr}/get_all_tasks`,
+    undefined,
+    r => Array.isArray(r.response) &&
+      r.response[0]?.assignments?.length === 2 &&
+      r.response[1]?.assignments?.length === 1 &&
+      "Active" in r.response[0].status &&
+      "Approved" in r.response[1].status &&
+      r.response[0].assignments[0].account_id === r.response[1].assignments[0].account_id,
+  );
+  const assignedAddress = plannedTasks?.response?.[0]?.assignments?.[0]?.account_id;
+  const backupAddress = plannedTasks?.response?.[0]?.assignments?.[1]?.account_id;
+  const previousHours = availabilityBefore?.response?.find(
+    (worker: any) => worker.worker === assignedAddress,
+  )?.total_hours;
+  await test(
+    "reserve milestone hours",
+    "GET",
+    `/calendar/query/${SEED.contracts.calendar}/get_availability_calendar?worker=${assignedAddress}`,
+    undefined,
+    r => Array.isArray(r.response) &&
+      r.response.length === 12 &&
+      r.response.reduce((sum: number, week: any) => sum + week.hours, 0) === previousHours - 10,
+  );
+  const backupHoursBefore = availabilityBefore?.response?.find(
+    (worker: any) => worker.worker === backupAddress,
+  )?.total_hours;
+  await test("make planned worker unavailable", "POST", `/calendar/call/${SEED.contracts.calendar}/admin_set_worker_availability`, {
+    data: { worker: assignedAddress, availability: 0 },
+  }, r => r.success);
+  await test("submit first milestone", "POST", `/projects/call/${pAddr}/submit_task_for_review`, {
+    data: { task_id: 1 },
+  }, r => !!r.encodedData);
+  await test("accept first milestone and activate second", "POST", `/projects/call/${pAddr}/complete_task`, {
+    data: { task_id: 1 },
+  }, r => !!r.encodedData);
+  await test("reassign active slot from existing project team", "GET", `/projects/query/${pAddr}/get_all_tasks`, undefined, r => (
+    r.response?.[1]?.assignments?.[0]?.account_id === backupAddress &&
+    "Active" in r.response[1].status
+  ));
+  await test("reserve second milestone only after activation", "GET", `/calendar/query/${SEED.contracts.calendar}/get_availability_calendar?worker=${backupAddress}`, undefined, r => (
+    Array.isArray(r.response) &&
+    r.response.reduce((sum: number, week: any) => sum + week.hours, 0) === backupHoursBefore - 30
+  ));
 
   // Calendar
   console.log("\nCalendar:");
@@ -86,6 +172,8 @@ const server = app.listen(PORT, async () => {
   await test("register worker", "POST", `/calendar/call/${cAddr}/register_worker`, { data: { worker: "w1" } }, r => r.success);
   await test("set availability", "POST", `/calendar/call/${cAddr}/set_availability`, { caller: "w1", data: { availability: 40 } }, r => !!r.encodedData);
   await test("query availability", "GET", `/calendar/query/${cAddr}/get_availability_hours?worker=w1`, undefined, r => r.response === 40);
+  await test("query 12-week calendar", "GET", `/calendar/query/${cAddr}/get_availability_calendar?worker=w1`, undefined, r => r.response?.length === 12);
+  await test("reject availability over weekly cap", "POST", `/calendar/call/${cAddr}/set_availability`, { caller: "w1", data: { availability: 61 } }, r => r.success === false);
   await test("query workers", "GET", `/calendar/query/${cAddr}/get_registered_workers`, undefined, r => Array.isArray(r.response));
 
   // Ratings

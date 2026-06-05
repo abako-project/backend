@@ -41,19 +41,31 @@ export interface MockTask {
   completed: boolean;
   status: MockTaskStatus;
   assigned_to: string | null;
+  requirements: MockRequirement[];
+  assignments: MockAssignment[];
+}
+
+export interface MockRequirement {
+  assignment_key: string;
+  hours: number;
+  skill_ids: number[];
+}
+
+export interface MockAssignment extends MockRequirement {
+  account_id: string;
 }
 
 // Mirrors contracts/projects TaskStatus
 export type MockTaskStatus =
   | { Pending: null }
   | { Approved: number }   // block number
+  | { Active: number }
   | { Rejected: number }
   | { PendingReview: number };
 
 // Mirrors contracts/projects TeamMember
 export interface MockTeamMember {
   account_id: string;
-  role: string;           // "Designer" | "Developer" | "Tester"
   rating: number | null;  // 0-100, null until project completed
 }
 
@@ -87,7 +99,7 @@ export interface MockContract {
   inkVersion: string;
   projectInfo?: MockProjectInfo;
   calendarInfo?: {
-    workers: Map<string, number>; // address -> availability hours
+    workers: Set<string>;
   };
   ratingsInfo?: {
     ratings: Array<{ target: string; rating: number; category: string }>;
@@ -225,16 +237,10 @@ class Store {
     return c?.type === "calendar" ? c : undefined;
   }
 
-  getAvailableWorkers(calendarAddress: string | null, minHours: number): Array<{ worker: string; hours: number }> {
+  getRegisteredWorkers(calendarAddress: string | null): string[] {
     const cal = this.getCalendarContract(calendarAddress);
     if (!cal?.calendarInfo) return [];
-    const result: Array<{ worker: string; hours: number }> = [];
-    for (const [addr, hours] of cal.calendarInfo.workers.entries()) {
-      if (hours >= minHours) result.push({ worker: addr, hours });
-    }
-    // Sort by hours descending (same as real contract)
-    result.sort((a, b) => b.hours - a.hours);
-    return result;
+    return [...cal.calendarInfo.workers];
   }
 
   // Contract methods
@@ -267,7 +273,7 @@ class Store {
       };
     } else if (type === "calendar") {
       contract.calendarInfo = {
-        workers: new Map(),
+        workers: new Set(),
       };
     } else if (type === "ratings") {
       contract.ratingsInfo = {
