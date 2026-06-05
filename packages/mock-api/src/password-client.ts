@@ -3,8 +3,8 @@
 // Front-end developers consume this API:
 //
 //     const client = new PasswordAuthClient("http://localhost:4010");
-//     await client.register("alice@example.com", "hunter2");
-//     const { token } = await client.login("alice@example.com", "hunter2");
+//     await client.register("alice", "hunter2");
+//     const { token } = await client.login("alice", "hunter2");
 //     await client.changePassword(token, "hunter2", "tr0ub4dor&3");
 //
 // The keypair derivation (argon2id → ed25519) is hidden inside.

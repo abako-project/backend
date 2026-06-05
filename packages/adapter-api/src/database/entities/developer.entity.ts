@@ -5,8 +5,11 @@ export class Developer {
   @PrimaryGeneratedColumn('increment')
   id: number;
 
-  @Column({ unique: true })
-  email: string;
+  @Column({ type: 'text', unique: true, nullable: true })
+  userId: string | null;
+
+  @Column({ type: 'text', unique: true, nullable: true })
+  email: string | null;
 
   @Column()
   name: string;

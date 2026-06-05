@@ -29,7 +29,7 @@ GET    /v1/auth/check-registered/:userId
 # Create a client profile
 curl -X POST http://localhost:3000/v1/clients \
   -H "Content-Type: application/json" \
-  -d '{"email":"client@example.com","name":"John Doe",...}'
+  -d '{"userId":"client-123","email":"client@example.com","name":"John Doe",...}'
 
 # Get all developers
 curl http://localhost:3000/v1/developers

@@ -34,7 +34,7 @@ export class AuthController {
   @Post('password-register')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Register a user with email + password',
+    summary: 'Register a user with userId + password',
     description:
       "Registers a password-derived ed25519 pubKey. The body is forwarded to the federate-server (mock or real) — adapter-api does no ed25519 math itself. The client computes the keypair locally; see mock-api/src/password.ts and password-vectors.ts.",
   })
@@ -42,7 +42,7 @@ export class AuthController {
     schema: {
       type: 'object',
       properties: {
-        userId: { type: 'string', example: 'alice@example.com' },
+        userId: { type: 'string', example: 'alice' },
         pubKey: { type: 'string', description: 'hex32 ed25519 pubKey' },
         blockHash: { type: 'string', description: 'recent block hash from chain' },
         clientNonce: { type: 'string', description: 'hex16+ random nonce' },
@@ -66,7 +66,7 @@ export class AuthController {
   @Post('password-connect')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Log in with email + password',
+    summary: 'Log in with userId + password',
     description:
       'Verifies an ed25519 signature against the stored pubKey and mints a JWT with the same shape as the WebAuthn flow.',
   })
@@ -74,7 +74,7 @@ export class AuthController {
     schema: {
       type: 'object',
       properties: {
-        userId: { type: 'string', example: 'alice@example.com' },
+        userId: { type: 'string', example: 'alice' },
         blockHash: { type: 'string' },
         clientNonce: { type: 'string' },
         signature: { type: 'string', description: 'hex64' },

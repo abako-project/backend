@@ -15,7 +15,7 @@ export const appRouter = Router();
 // ───────────────── auth ─────────────────
 
 /**
- * Mock auth: the session "token" is just the userId (email).
+ * Mock auth: the session "token" is just the userId.
  * Accepted in priority order:
  *   1. Authorization: Bearer <userId>
  *   2. X-User-Id: <userId>

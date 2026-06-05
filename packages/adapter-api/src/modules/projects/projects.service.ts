@@ -78,7 +78,7 @@ export class ProjectsService {
 
   private async getUserIdFromAddress(
     address: string,
-    findByEmailFn: (email: string) => Promise<{ id?: number } | null>,
+    findByIdentifierFn: (identifier: string) => Promise<{ id?: number } | null>,
     entityType: string
   ): Promise<number | null> {
     try {
@@ -104,11 +104,10 @@ export class ProjectsService {
         return null;
       }
 
-      // Find entity by email (userId is the email)
-      const entity = await findByEmailFn(userId);
+      const entity = await findByIdentifierFn(userId);
 
       if (!entity) {
-        console.warn(`Could not find ${entityType} for user email: ${userId}`);
+        console.warn(`Could not find ${entityType} for user identifier: ${userId}`);
         return null;
       }
 
@@ -182,7 +181,7 @@ export class ProjectsService {
       if (project) {
         const developerId = await this.getUserIdFromAddress(
           result.coordinator,
-          (email) => this.developersService.findByEmail(email),
+          (identifier) => this.developersService.findByUserIdentifier(identifier),
           'developer'
         );
 
@@ -268,7 +267,7 @@ export class ProjectsService {
             for (const [accountId, rating] of body.ratings) {
               const developerId = await this.getUserIdFromAddress(
                 accountId,
-                (email: string) => this.developersService.findByEmail(email),
+                (identifier: string) => this.developersService.findByUserIdentifier(identifier),
                 'developer'
               );
               if (developerId) {
@@ -577,7 +576,7 @@ export class ProjectsService {
           for (const [accountId, rating] of body.teamRatings) {
             const developerId = await this.getUserIdFromAddress(
               accountId,
-              (email: string) => this.developersService.findByEmail(email),
+              (identifier: string) => this.developersService.findByUserIdentifier(identifier),
               'developer'
             );
             if (developerId) {
@@ -610,7 +609,7 @@ export class ProjectsService {
       try {
         const project = await this.projectRepo.findOne({ where: { id: projectId } });
         const userId = await this.authService.getUserIdFromToken(authToken);
-        const developer = await this.developersService.findByEmail(userId);
+        const developer = await this.developersService.findByUserIdentifier(userId);
 
         if (project && project.consultantId && developer && developer.id) {
           await this.ratingsService.createRatings(
@@ -679,7 +678,7 @@ export class ProjectsService {
   private async getDeveloperIdFromAddress(address: string): Promise<number | null> {
     return this.getUserIdFromAddress(
       address,
-      (email: string) => this.developersService.findByEmail(email),
+      (identifier: string) => this.developersService.findByUserIdentifier(identifier),
       'developer'
     );
   }
@@ -758,7 +757,7 @@ export class ProjectsService {
       const calendarContract = proposalData.calendarContract || defaultCalendarContract;
 
       const userId = await this.authService.getUserIdFromToken(authToken);
-      const client = await this.clientsService.findByEmail(userId);
+      const client = await this.clientsService.findByUserIdentifier(userId);
 
       if (!client || !client.id) {
         throw new HttpException(
@@ -1197,8 +1196,8 @@ export class ProjectsService {
   ): Promise<{ projects: any[]; total: number }> {
     const userId = await this.authService.getUserIdFromToken(token);
     const [client, developer] = await Promise.all([
-      this.clientsService.findByEmail(userId),
-      this.developersService.findByEmail(userId),
+      this.clientsService.findByUserIdentifier(userId),
+      this.developersService.findByUserIdentifier(userId),
     ]);
 
     const clientId = client?.id?.toString();
@@ -1279,8 +1278,8 @@ export class ProjectsService {
   async getForToken(projectId: string, token: string): Promise<any> {
     const userId = await this.authService.getUserIdFromToken(token);
     const [client, developer, project] = await Promise.all([
-      this.clientsService.findByEmail(userId),
-      this.developersService.findByEmail(userId),
+      this.clientsService.findByUserIdentifier(userId),
+      this.developersService.findByUserIdentifier(userId),
       this.projectRepo.findOne({ where: { id: projectId } }),
     ]);
 

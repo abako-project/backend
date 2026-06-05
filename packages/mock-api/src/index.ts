@@ -1,4 +1,5 @@
 import express from "express";
+import { createServer } from "node:http";
 import { virtoRouter } from "./virto-mock.js";
 import { contractsRouter } from "./contracts-mock.js";
 import { kreivoRouter } from "./kreivo-mock.js";
@@ -26,7 +27,9 @@ app.use("/", appRouter);
 // Populate in-memory store with realistic test data
 seedStore();
 
-app.listen(PORT, () => {
+const server = createServer(app);
+
+server.listen(PORT, () => {
   console.log(`
   Mock API :${PORT}
   Mocking virto-api, contracts-api, bramp

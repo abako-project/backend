@@ -43,6 +43,7 @@ export class SeedService implements OnModuleInit {
   private async seed() {
     // ── Clients ──────────────────────────────────────────────────────
     const alice = await this.clientRepo.save(this.clientRepo.create({
+      userId: 'alice@example.com',
       email: 'alice@example.com',
       name: 'Alice Johnson',
       company: 'Acme DeFi',
@@ -54,6 +55,7 @@ export class SeedService implements OnModuleInit {
     }));
 
     const bob = await this.clientRepo.save(this.clientRepo.create({
+      userId: 'bob@example.com',
       email: 'bob@example.com',
       name: 'Bob Martinez',
       company: 'ChainGuard',
@@ -66,6 +68,7 @@ export class SeedService implements OnModuleInit {
 
     // ── Developers ──────────────────────────────────────────────────
     const carol = await this.developerRepo.save(this.developerRepo.create({
+      userId: 'carol@example.com',
       email: 'carol@example.com',
       name: 'Carol Chen',
       githubUsername: 'carolchen',
@@ -82,6 +85,7 @@ export class SeedService implements OnModuleInit {
     }));
 
     const dave = await this.developerRepo.save(this.developerRepo.create({
+      userId: 'dave@example.com',
       email: 'dave@example.com',
       name: 'Dave Kim',
       githubUsername: 'davekim',
@@ -98,6 +102,7 @@ export class SeedService implements OnModuleInit {
     }));
 
     const eve = await this.developerRepo.save(this.developerRepo.create({
+      userId: 'eve@example.com',
       email: 'eve@example.com',
       name: 'Eve Santos',
       githubUsername: 'evesantos',

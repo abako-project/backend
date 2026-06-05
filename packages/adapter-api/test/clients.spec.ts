@@ -50,7 +50,7 @@ describe('Clients Module E2E Tests', () => {
       console.log('Creating client profile...');
 
       const clientData = {
-        email: `client-${Date.now()}@example.com`,
+        userId: `client-${Date.now()}`,
         name: 'John Client',
         company: 'Acme Corporation',
         department: 'Engineering',
@@ -91,6 +91,7 @@ describe('Clients Module E2E Tests', () => {
 
       expect(response.body).toHaveProperty('client');
       expect(response.body.client).toHaveProperty('id', clientId);
+      expect(response.body.client).toHaveProperty('userId');
       expect(response.body.client).toHaveProperty('name');
       expect(response.body.client).toHaveProperty('email');
       expect(response.body.client).toHaveProperty('company');
@@ -189,7 +190,7 @@ describe('Clients Module E2E Tests', () => {
     it('should return 404 for client without image', async () => {
       // Create a new client without image
       const newClientData = {
-        email: `client-no-image-${Date.now()}@example.com`,
+        userId: `client-no-image-${Date.now()}`,
         name: 'Client No Image',
         company: 'Test Company',
         department: 'Test Department',
@@ -229,11 +230,35 @@ describe('Clients Module E2E Tests', () => {
   });
 
   describe('Client Validation', () => {
+    it('should create client with legacy email-only identifier', async () => {
+      const legacyData = {
+        email: `legacy-client-${Date.now()}@example.com`,
+        name: 'Legacy Client',
+        company: 'Legacy Company',
+        department: 'Test Department',
+        website: 'https://legacy.example.com',
+        description: 'Legacy email-only profile',
+        location: 'Test Location',
+      };
+
+      const response = await request(app.getHttpServer())
+        .post('/v1/clients')
+        .send(legacyData)
+        .expect(201);
+
+      const getResponse = await request(app.getHttpServer())
+        .get(`/v1/clients/${response.body.clientId}`)
+        .expect(200);
+
+      expect(getResponse.body.client).toHaveProperty('userId', legacyData.email);
+      expect(getResponse.body.client).toHaveProperty('email', legacyData.email);
+    });
+
     it('should fail to create client with missing required fields', async () => {
       const invalidData = {
         name: 'Incomplete Client',
         company: 'Test Company',
-        // Missing email, department, website, description, and location
+        // Missing userId/email, department, website, description, and location
       };
 
       const response = await request(app.getHttpServer())
@@ -269,4 +294,3 @@ describe('Clients Module E2E Tests', () => {
     });
   });
 });
-

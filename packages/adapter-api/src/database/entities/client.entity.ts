@@ -8,8 +8,11 @@ export class Client {
   @Column()
   name: string;
 
-  @Column({ unique: true })
-  email: string;
+  @Column({ type: 'text', unique: true, nullable: true })
+  userId: string | null;
+
+  @Column({ type: 'text', unique: true, nullable: true })
+  email: string | null;
 
   @Column()
   company: string;

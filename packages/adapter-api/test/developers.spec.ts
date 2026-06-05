@@ -50,7 +50,7 @@ describe('Developers Module E2E Tests', () => {
       console.log('Creating developer profile...');
 
       const developerData = {
-        email: `dev-${Date.now()}@example.com`,
+        userId: `dev-${Date.now()}`,
         name: 'John Developer',
         githubUsername: 'johndeveloper',
         portfolioUrl: 'https://johndeveloper.dev',
@@ -88,6 +88,7 @@ describe('Developers Module E2E Tests', () => {
 
       expect(response.body).toHaveProperty('developer');
       expect(response.body.developer).toHaveProperty('id', developerId);
+      expect(response.body.developer).toHaveProperty('userId');
       expect(response.body.developer).toHaveProperty('name');
       expect(response.body.developer).toHaveProperty('email');
       expect(response.body.developer).toHaveProperty('githubUsername');
@@ -190,7 +191,7 @@ describe('Developers Module E2E Tests', () => {
     it('should return 404 for developer without image', async () => {
       // Create a new developer without image
       const newDeveloperData = {
-        email: `dev-no-image-${Date.now()}@example.com`,
+        userId: `dev-no-image-${Date.now()}`,
         name: 'Developer No Image',
         githubUsername: 'devnoimage',
       };
@@ -237,10 +238,30 @@ describe('Developers Module E2E Tests', () => {
   });
 
   describe('Developer Validation', () => {
+    it('should create developer with legacy email-only identifier', async () => {
+      const legacyData = {
+        email: `legacy-dev-${Date.now()}@example.com`,
+        name: 'Legacy Developer',
+        githubUsername: `legacydev${Date.now()}`,
+      };
+
+      const createResponse = await request(app.getHttpServer())
+        .post('/v1/developers')
+        .send(legacyData)
+        .expect(201);
+
+      const getResponse = await request(app.getHttpServer())
+        .get(`/v1/developers/${createResponse.body.developerId}`)
+        .expect(200);
+
+      expect(getResponse.body.developer).toHaveProperty('userId', legacyData.email);
+      expect(getResponse.body.developer).toHaveProperty('email', legacyData.email);
+    });
+
     it('should fail to create developer with missing required fields', async () => {
       const invalidData = {
         name: 'Incomplete Developer',
-        // Missing email and githubUsername
+        // Missing userId/email and githubUsername
       };
 
       const response = await request(app.getHttpServer())
@@ -279,4 +300,3 @@ describe('Developers Module E2E Tests', () => {
     });
   });
 });
-
