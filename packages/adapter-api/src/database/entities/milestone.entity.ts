@@ -1,11 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
-export interface MilestoneRequirement {
-  assignmentKey: string;
-  hours: number;
-  skillIds: number[];
-}
-
 @Entity('milestones')
 @Index(['contractAddress'])
 export class Milestone {
@@ -27,11 +21,29 @@ export class Milestone {
   @Column({ nullable: true })
   deliveryDate: number;
 
+  @Column({ nullable: true })
+  role: string;
+
+  @Column({ nullable: true })
+  proficiency: string;
+
   @Column({ default: 0 })
   displayOrder: number;
 
   @Column()
   contractAddress: string;
+
+  @Column({ default: false })
+  neededFullTimeDeveloper: boolean;
+
+  @Column({ default: false })
+  neededPartTimeDeveloper: boolean;
+
+  @Column({ default: false })
+  neededHourlyDeveloper: boolean;
+
+  @Column({ nullable: true })
+  neededHours: number;
 
   @Column({ nullable: true })
   developerId: number;
@@ -43,7 +55,7 @@ export class Milestone {
   rejectionReason: string;
 
   @Column({ type: 'simple-json', default: '[]' })
-  requirements: MilestoneRequirement[];
+  skills: string[];
 
   @CreateDateColumn()
   createdAt: Date;

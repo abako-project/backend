@@ -1,6 +1,6 @@
 import { Injectable, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ConfigService } from '../../config/config.service';
 import { AuthService } from '../auth/auth.service';
 import { DevelopersService } from '../developers/developers.service';
@@ -10,9 +10,6 @@ import { EventsService } from '../events/events.service';
 import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneRequest, UpdateMilestoneRequest, CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CoordinatorApprovalRequest, ApproveScopeRequest } from './types';
 import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
-import { MilestoneAssignment } from '../../database/entities/milestone-assignment.entity';
-import { Developer } from '../../database/entities/developer.entity';
-import { SkillsService } from '../skills/skills.service';
 
 function milestoneStatsOf(milestones: Milestone[]): {
   total: number;
@@ -42,10 +39,8 @@ export class ProjectsService {
     private readonly clientsService: ClientsService,
     private readonly ratingsService: RatingsService,
     private readonly eventsService: EventsService,
-    private readonly skillsService: SkillsService,
     @InjectRepository(Project) private projectRepo: Repository<Project>,
     @InjectRepository(Milestone) private milestoneRepo: Repository<Milestone>,
-    @InjectRepository(MilestoneAssignment) private milestoneAssignmentRepo: Repository<MilestoneAssignment>,
   ) { }
 
   /**
@@ -81,10 +76,11 @@ export class ProjectsService {
     return project.contractAddress;
   }
 
-  private async getUserIdentifierFromAddress(
+  private async getUserIdFromAddress(
     address: string,
+    findByIdentifierFn: (identifier: string) => Promise<{ id?: number } | null>,
     entityType: string
-  ): Promise<string | null> {
+  ): Promise<number | null> {
     try {
       const federateServerUrl = this.configService.getFederateServer();
       const url = `${federateServerUrl}/get-user-id-by-address?address=${encodeURIComponent(address)}`;
@@ -100,34 +96,9 @@ export class ProjectsService {
       }
 
       const responseData = await response.json() as { userId?: string };
-      return responseData.userId || null;
-    } catch (error) {
-      console.error(`Error getting user identifier from address ${address}:`, error);
-      return null;
-    }
-  }
 
-  private async getAddressForUserIdentifier(userId: string | null | undefined): Promise<string | null> {
-    if (!userId) return null;
-    try {
-      const federateServerUrl = this.configService.getFederateServer();
-      const url = `${federateServerUrl}/get-user-address?userId=${encodeURIComponent(userId)}`;
-      const response = await fetch(url, { method: "GET" });
-      if (!response.ok) return null;
-      const responseData = await response.json() as { address?: string };
-      return responseData.address || null;
-    } catch {
-      return null;
-    }
-  }
+      const { userId } = responseData;
 
-  private async getUserIdFromAddress(
-    address: string,
-    findByIdentifierFn: (identifier: string) => Promise<{ id?: number } | null>,
-    entityType: string
-  ): Promise<number | null> {
-    try {
-      const userId = await this.getUserIdentifierFromAddress(address, entityType);
       if (!userId) {
         console.warn(`No userId returned for ${entityType} address: ${address}`);
         return null;
@@ -147,17 +118,6 @@ export class ProjectsService {
     }
   }
 
-  private async getDeveloperFromAddress(address: string): Promise<Developer | null> {
-    const userId = await this.getUserIdentifierFromAddress(address, 'developer');
-    if (!userId) return null;
-    return this.developersService.findByUserIdentifier(userId);
-  }
-
-  private async getAddressForDeveloperId(developerId: number): Promise<string | null> {
-    const developer = await this.developersService.findOne(developerId).catch(() => null);
-    return this.getAddressForUserIdentifier(developer?.userId || developer?.email);
-  }
-
   private parsePositiveInteger(value: unknown, fieldName: string): number {
     const parsed = Number(value);
     if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -169,78 +129,69 @@ export class ProjectsService {
     return parsed;
   }
 
-  private async normalizeRequirements(
-    requirements: CreateMilestoneRequest['requirements'],
-  ): Promise<CreateMilestoneRequest['requirements']> {
-    if (!Array.isArray(requirements) || requirements.length === 0) {
+  private resolveScopeProposalTeamSize(milestones: Milestone[]): number {
+    const profiles = new Set(
+      milestones.map((milestone) => {
+        const availability = milestone.neededFullTimeDeveloper
+          ? 'fulltime'
+          : milestone.neededPartTimeDeveloper
+            ? 'parttime'
+            : milestone.neededHourlyDeveloper
+              ? `hourly:${milestone.neededHours ?? ''}`
+              : 'unspecified';
+        const skills = [...(milestone.skills || [])]
+          .map((skill) => skill.trim().toLowerCase())
+          .filter(Boolean)
+          .sort()
+          .join(',');
+
+        return [
+          milestone.role?.trim().toLowerCase() || 'role-unspecified',
+          milestone.proficiency?.trim().toLowerCase() || 'proficiency-unspecified',
+          availability,
+          skills,
+        ].join('|');
+      })
+    );
+
+    return this.parsePositiveInteger(profiles.size, 'scope.team_size');
+  }
+
+  private async getTeamSizeFromScope(contractAddress: string): Promise<number> {
+    const scopeInfo = await this.callReadMethod(contractAddress, 'get_scope_info');
+    const teamSize = scopeInfo?.response?.team_size ?? scopeInfo?.response?.teamSize;
+
+    if (teamSize === undefined || teamSize === null) {
       throw new HttpException(
-        'Milestone requirements must contain at least one assignment slot',
-        HttpStatus.BAD_REQUEST,
+        'Cannot assign team automatically because scope.team_size is missing',
+        HttpStatus.BAD_REQUEST
       );
     }
 
-    const keys = new Set<string>();
-    const normalized: CreateMilestoneRequest['requirements'] = [];
-    for (const requirement of requirements) {
-      const assignmentKey = requirement.assignmentKey?.trim().toLowerCase();
-      if (!assignmentKey) {
-        throw new HttpException('assignmentKey is required', HttpStatus.BAD_REQUEST);
-      }
-      if (keys.has(assignmentKey)) {
-        throw new HttpException(
-          `Duplicate assignmentKey "${assignmentKey}" in milestone`,
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-      keys.add(assignmentKey);
-      const skillIds = await this.skillsService.validateIds(requirement.skillIds || []);
-      if (skillIds.length === 0) {
-        throw new HttpException(
-          `Requirement "${assignmentKey}" must contain at least one skill ID`,
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-      normalized.push({
-        assignmentKey,
-        hours: this.parsePositiveInteger(requirement.hours, `${assignmentKey}.hours`),
-        skillIds,
-      });
-    }
-    return normalized;
+    return this.parsePositiveInteger(teamSize, 'scope.team_size');
   }
 
   async assignCoordinator(projectId: string, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    const project = await this.projectRepo.findOne({ where: { id: projectId } });
-
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
-
     const result = await this.callPreSignedWriteMethod(contractAddress, 'assign_coordinator', {});
 
-    if (result && result.success) {
-      const assignedAccountId = result.coordinator;
-      const developerId = await this.getUserIdFromAddress(
-        assignedAccountId,
-        (identifier) => this.developersService.findByUserIdentifier(identifier),
-        'developer'
-      );
+    if (result && result.success && result.coordinator) {
+      const project = await this.projectRepo.findOne({ where: { id: projectId } });
 
-      if (developerId) {
-        project.consultantId = developerId.toString();
-        await this.projectRepo.save(project);
-        this.eventsService.publishProjectEvent('project.coordinator_assigned', {
-          projectId,
-          contractAddress,
-          data: {
-            developerId,
-            accountId: assignedAccountId,
-          },
-        });
-        console.log(`Coordinator ${assignedAccountId} (developer ID: ${developerId}) assigned to project ${projectId} (${contractAddress})`);
-      } else {
-        console.warn(`Could not find developer ID for coordinator address ${assignedAccountId}. Project ${projectId} will not have consultantId set.`);
+      if (project) {
+        const developerId = await this.getUserIdFromAddress(
+          result.coordinator,
+          (identifier) => this.developersService.findByUserIdentifier(identifier),
+          'developer'
+        );
+
+        if (developerId) {
+          project.consultantId = developerId.toString();
+          await this.projectRepo.save(project);
+          console.log(`Coordinator ${result.coordinator} (developer ID: ${developerId}) assigned to project ${projectId} (${contractAddress})`);
+        } else {
+          console.warn(`Could not find developer ID for coordinator address ${result.coordinator}. Project ${projectId} will not have consultantId set.`);
+        }
       }
     } else {
       console.error('Error assigning coordinator:', result);
@@ -253,103 +204,43 @@ export class ProjectsService {
     return result;
   }
 
-  private async syncTeamAssignments(project: Project, contractAddress: string): Promise<{
-    team: any[];
-    tasks: any[];
-    selectedDeveloperIds: number[];
-  }> {
-    const teamResponse = await this.callReadMethod(contractAddress, 'get_team');
-    const tasksResponse = await this.callReadMethod(contractAddress, 'get_all_tasks');
-    const team = Array.isArray(teamResponse.response) ? teamResponse.response : [];
-    const tasks = Array.isArray(tasksResponse.response) ? tasksResponse.response : [];
-    const approvedTasks = tasks.filter((task) => task?.status && 'Approved' in task.status);
-    const unassignedTasks = approvedTasks.filter((task) => (
-      !Array.isArray(task.assignments) || task.assignments.length === 0
-    ));
-    if (team.length === 0 || unassignedTasks.length > 0) {
-      throw new HttpException(
-        'Contract did not assign every approved milestone',
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-    const milestones = await this.milestoneRepo.find({
-      where: { contractAddress },
-      order: { displayOrder: 'ASC' },
-    });
-    const milestoneById = new Map(milestones.map((milestone) => [milestone.id, milestone]));
-    const developerByAddress = new Map<string, Developer>();
-
-    for (const member of team) {
-      const accountId = String(member?.account_id || member?.accountId || '');
-      if (!accountId) continue;
-      const developer = await this.getDeveloperFromAddress(accountId);
-      if (developer?.id) developerByAddress.set(accountId, developer);
-    }
-
-    await this.milestoneAssignmentRepo.delete({ projectId: project.id });
-    for (const task of tasks) {
-      const milestone = milestoneById.get(Number(task.id));
-      if (!milestone) continue;
-      const assignments = Array.isArray(task.assignments) ? task.assignments : [];
-
-      for (const [index, assignment] of assignments.entries()) {
-        const accountId = String(assignment.account_id || '');
-        if (!accountId) continue;
-        let developer = developerByAddress.get(accountId);
-        if (!developer) {
-          developer = await this.getDeveloperFromAddress(accountId) || undefined;
-          if (developer?.id) developerByAddress.set(accountId, developer);
-        }
-        if (!developer?.id) continue;
-        await this.milestoneAssignmentRepo.save(this.milestoneAssignmentRepo.create({
-          projectId: project.id,
-          contractAddress,
-          milestoneId: milestone.id,
-          developerId: developer.id,
-          accountId,
-          assignmentKey: String(assignment.assignment_key),
-          hours: Number(assignment.hours),
-        }));
-        if (index === 0) milestone.developerId = developer.id;
-      }
-
-      if (task.completed) milestone.state = 'completed';
-      else if (task.status && 'Active' in task.status) milestone.state = 'task_in_progress';
-      else if (task.status && 'PendingReview' in task.status) milestone.state = 'in_review';
-      else milestone.state = 'pending';
-      await this.milestoneRepo.save(milestone);
-    }
-
-    project.state = 'team_assigned';
-    await this.projectRepo.save(project);
-    const selectedDeveloperIds = [...new Set(
-      [...developerByAddress.values()].map((developer) => developer.id),
-    )];
-    this.eventsService.publishProjectEvent('project.team_assigned', {
-      projectId: project.id,
-      contractAddress,
-      state: project.state,
-      data: {
-        teamSize: team.length,
-        selectedDeveloperIds,
-      },
-    });
-
-    return { team, tasks, selectedDeveloperIds };
-  }
-
-  async assignTeam(projectId: string, _body: { _team_size?: number } | undefined, authToken: string): Promise<any> {
+  async assignTeam(projectId: string, body: { _team_size: number }, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
-    const project = await this.projectRepo.findOne({ where: { id: projectId } });
+    const teamSize = this.parsePositiveInteger(body._team_size, '_team_size');
+    const assignResult = await this.callWriteMethod(contractAddress, 'assign_team', { _team_size: teamSize }, authToken);
 
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
-
-    const assignResult = await this.callWriteMethod(contractAddress, 'assign_team', {}, authToken);
+    // Update project state to 'team_assigned' and milestones to 'task_in_progress' when team is assigned
     if (assignResult && assignResult.success) {
-      const synced = await this.syncTeamAssignments(project, contractAddress);
-      return { ...assignResult, assignment: synced };
+      try {
+        const project = await this.projectRepo.findOne({ where: { id: projectId } });
+        if (project && project.state === 'scope_accepted') {
+          project.state = 'team_assigned';
+          await this.projectRepo.save(project);
+          console.log(`Project ${projectId} state updated from 'scope_accepted' to 'team_assigned' after team assignment`);
+        }
+
+        // Update all milestones to 'task_in_progress' when team is assigned
+        const milestones = await this.milestoneRepo.find({ where: { contractAddress } });
+        for (const milestone of milestones) {
+          if (milestone.state === 'pending' || milestone.state === 'in_review') {
+            milestone.state = 'task_in_progress';
+            await this.milestoneRepo.save(milestone);
+            console.log(`Milestone ${milestone.id} state updated to 'task_in_progress' for project ${projectId}`);
+          }
+        }
+
+        this.eventsService.publishProjectEvent('project.team_assigned', {
+          projectId,
+          contractAddress,
+          state: 'team_assigned',
+          data: {
+            teamSize: body._team_size,
+            updatedMilestones: milestones.length,
+          },
+        });
+      } catch (error) {
+        console.error(`Error updating project and milestones state for ${projectId} after team assignment:`, error);
+      }
     }
 
     return assignResult;
@@ -420,14 +311,6 @@ export class ProjectsService {
     advance_payment_percentage: number;
     document_hash: string;
     team_size?: number;
-    assignment_requirements: Array<{
-      task_id: number;
-      requirements: Array<{
-        assignment_key: string;
-        hours: number;
-        skill_ids: number[];
-      }>;
-    }>;
   }, authToken: string): Promise<any> {
     return this.callWriteMethod(contractAddress, 'propose_scope', body, authToken);
   }
@@ -443,8 +326,9 @@ export class ProjectsService {
       throw new HttpException('approved_task_ids must contain at least one task ID', HttpStatus.BAD_REQUEST);
     }
 
+    const teamSize = await this.getTeamSizeFromScope(contractAddress);
     const approveResult = await this.callWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids, value: (project.budget || 0).toString() }, authToken);
-    let assignmentResult: any = null;
+    let assignTeamResult: any = null;
     let assignTeamError: string | undefined;
 
     // Update project state from 'scope_proposed' to 'scope_accepted' when scope is approved
@@ -470,10 +354,11 @@ export class ProjectsService {
       }
 
       try {
-        assignmentResult = await this.syncTeamAssignments(project, contractAddress);
+        assignTeamResult = await this.assignTeam(projectId, { _team_size: teamSize }, authToken);
       } catch (error) {
         assignTeamError = error instanceof Error ? error.message : 'Unknown team assignment error';
-        console.error(`Error syncing contract team assignment for project ${projectId} after scope approval:`, error);
+        console.error(`Error automatically assigning team for project ${projectId} after scope approval:`, error);
+
       }
     }
 
@@ -481,9 +366,9 @@ export class ProjectsService {
       ...approveResult,
       autoAssignTeam: {
         triggered: Boolean(approveResult && approveResult.success),
-        success: Boolean(assignmentResult && assignmentResult.team.length > 0),
-        teamSize: assignmentResult?.team?.length || 0,
-        result: assignmentResult,
+        success: Boolean(assignTeamResult && assignTeamResult.success),
+        teamSize,
+        result: assignTeamResult,
         error: assignTeamError,
       },
     };
@@ -556,11 +441,7 @@ export class ProjectsService {
         console.log(`Milestone created: ${milestone.id} - ${milestone.title}`);
       }
 
-      const teamSize = new Set(
-        createdMilestones.flatMap((milestone) => (
-          milestone.requirements.map((requirement) => requirement.assignmentKey)
-        )),
-      ).size;
+      const teamSize = this.resolveScopeProposalTeamSize(createdMilestones);
 
       // Convert milestones to tasks for the contract
       const tasks: Array<[number, any, string, number[]]> = createdMilestones.map(milestone => [
@@ -578,14 +459,6 @@ export class ProjectsService {
         advance_payment_percentage: approvalData.advance_payment_percentage,
         document_hash: approvalData.document_hash,
         team_size: teamSize,
-        assignment_requirements: createdMilestones.map((milestone) => ({
-          task_id: milestone.id,
-          requirements: milestone.requirements.map((requirement) => ({
-            assignment_key: requirement.assignmentKey,
-            hours: requirement.hours,
-            skill_ids: requirement.skillIds,
-          })),
-        })),
       }, authToken);
 
       console.log('Scope proposed successfully');
@@ -645,9 +518,19 @@ export class ProjectsService {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const completeResult = await this.callWriteMethod(contractAddress, 'complete_task', { task_id: body.task_id }, authToken);
 
-    if (completeResult?.success) {
-      const project = await this.projectRepo.findOne({ where: { id: projectId } });
-      if (project) await this.syncTeamAssignments(project, contractAddress);
+    // Update milestone state in database to 'completed'
+    try {
+      const milestone = await this.milestoneRepo.findOne({ where: { contractAddress, id: body.task_id } });
+      if (milestone) {
+        milestone.state = 'completed';
+        await this.milestoneRepo.save(milestone);
+        console.log(`Milestone ${body.task_id} marked as completed for project ${projectId}`);
+      } else {
+        console.warn(`Milestone ${body.task_id} not found in database for project ${projectId}, contract address ${contractAddress}`);
+      }
+    } catch (error) {
+      console.error(`Error updating milestone state for task ${body.task_id} in project ${projectId}:`, error);
+      // Don't throw - the contract call succeeded, database update is secondary
     }
 
     return completeResult;
@@ -809,10 +692,9 @@ export class ProjectsService {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const taskResponse = await this.callReadMethod(contractAddress, 'get_task', { task_id: taskId });
     const milestone = await this.milestoneRepo.findOne({ where: { contractAddress, id: taskId } });
-    const assignments = await this.milestoneAssignmentRepo.find({ where: { contractAddress, milestoneId: taskId } });
     return {
       ...taskResponse,
-      milestone: milestone ? { ...milestone, assignments } as any : undefined,
+      milestone: milestone ? { ...milestone } : undefined,
     };
   }
 
@@ -830,20 +712,10 @@ export class ProjectsService {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const tasksResponse = await this.callReadMethod(contractAddress, 'get_all_tasks');
     const milestones = await this.milestoneRepo.find({ where: { contractAddress }, order: { displayOrder: 'ASC' } });
-    const assignments = await this.milestoneAssignmentRepo.find({ where: { contractAddress } });
-    const assignmentsByMilestone = new Map<number, MilestoneAssignment[]>();
-    for (const assignment of assignments) {
-      const list = assignmentsByMilestone.get(assignment.milestoneId) ?? [];
-      list.push(assignment);
-      assignmentsByMilestone.set(assignment.milestoneId, list);
-    }
 
     const enrichedMilestones = await Promise.all(
       milestones.map(async (milestone) => {
-        const milestoneObj = {
-          ...milestone,
-          assignments: assignmentsByMilestone.get(milestone.id) ?? [],
-        };
+        const milestoneObj = { ...milestone };
 
         if (tasksResponse.success && Array.isArray(tasksResponse.response)) {
           const task = tasksResponse.response.find((t: any) => t.id === milestone.id);
@@ -1193,38 +1065,6 @@ export class ProjectsService {
     }
   }
 
-  private async callCalendarReadMethod(
-    contractAddress: string,
-    method: string,
-    params?: Record<string, any>
-  ): Promise<QueryResponse> {
-    try {
-      const signingServiceUrl = this.configService.getSigningServiceUrl();
-      let url = `${signingServiceUrl}/calendar/query/${contractAddress}/${method}`;
-      if (params) {
-        const searchParams = new URLSearchParams();
-        Object.entries(params).forEach(([key, value]) => {
-          searchParams.append(key, String(value));
-        });
-        url += `?${searchParams.toString()}`;
-      }
-
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      return await response.json() as QueryResponse;
-    } catch (error) {
-      throw new HttpException(
-        `Error calling calendar read method ${method}: ${error.message}`,
-        HttpStatus.INTERNAL_SERVER_ERROR
-      );
-    }
-  }
-
   async saveProject(contractAddress: string, projectData: Partial<Project>): Promise<Project> {
     const existingProject = await this.projectRepo.findOne({ where: { contractAddress } });
     if (existingProject) {
@@ -1249,7 +1089,26 @@ export class ProjectsService {
     if (updateData.budget !== undefined) project.budget = updateData.budget;
     if (updateData.deliveryTime !== undefined) project.deliveryTime = updateData.deliveryTime;
 
-    return this.projectRepo.save(project);
+    const savedProject = await this.projectRepo.save(project);
+
+    // If project has contractAddress but no consultantId, try to assign coordinator in background
+    if (savedProject.contractAddress && !savedProject.consultantId && authToken) {
+      this.assignCoordinatorInBackground(projectId, authToken).catch((error) => {
+        console.error(`[Background] Error assigning coordinator to project ${projectId} during update:`, error);
+      });
+    }
+
+    return savedProject;
+  }
+
+  private async assignCoordinatorInBackground(projectId: string, authToken: string): Promise<void> {
+    try {
+      console.log(`[Background] Attempting to assign coordinator to project ${projectId}...`);
+      await this.assignCoordinator(projectId, authToken);
+      console.log(`[Background] Coordinator assigned successfully to project ${projectId}`);
+    } catch (error) {
+      console.error(`[Background] Failed to assign coordinator to project ${projectId}:`, error);
+    }
   }
 
   async createMilestone(contractAddress: string, milestoneData: CreateMilestoneRequest): Promise<Milestone> {
@@ -1259,7 +1118,6 @@ export class ProjectsService {
     });
 
     const displayOrder = highestMilestone ? highestMilestone.displayOrder + 1 : 0;
-    const requirements = await this.normalizeRequirements(milestoneData.requirements);
 
     const newMilestone = this.milestoneRepo.create({
       contractAddress,
@@ -1267,7 +1125,13 @@ export class ProjectsService {
       description: milestoneData.description,
       budget: milestoneData.budget,
       deliveryTime: milestoneData.deliveryTime,
-      requirements,
+      role: milestoneData.role,
+      proficiency: milestoneData.proficiency,
+      skills: milestoneData.skills || [],
+      neededFullTimeDeveloper: milestoneData.availability === 'fulltime',
+      neededPartTimeDeveloper: milestoneData.availability === 'parttime',
+      neededHourlyDeveloper: milestoneData.availability === 'hourly',
+      neededHours: milestoneData.neededHours,
       displayOrder,
       state: 'pending',
     });
@@ -1301,7 +1165,14 @@ export class ProjectsService {
     if (updateData.description !== undefined) milestone.description = updateData.description;
     milestone.budget = updateData.budget;
     milestone.deliveryTime = updateData.deliveryTime;
-    milestone.requirements = await this.normalizeRequirements(updateData.requirements);
+    if (updateData.role !== undefined) milestone.role = updateData.role;
+    if (updateData.proficiency !== undefined) milestone.proficiency = updateData.proficiency;
+    if (updateData.skills !== undefined) milestone.skills = updateData.skills;
+
+    milestone.neededFullTimeDeveloper = updateData.availability === 'fulltime';
+    milestone.neededPartTimeDeveloper = updateData.availability === 'parttime';
+    milestone.neededHourlyDeveloper = updateData.availability === 'hourly';
+    if (updateData.neededHours !== undefined) milestone.neededHours = updateData.neededHours;
 
     return this.milestoneRepo.save(milestone);
   }
@@ -1370,15 +1241,6 @@ export class ProjectsService {
       list.push(m);
       milestonesByContract.set(m.contractAddress, list);
     }
-    const assignments = contractAddresses.length
-      ? await this.milestoneAssignmentRepo.find({ where: { contractAddress: In(contractAddresses) } })
-      : [];
-    const assignmentsByContract = new Map<string, MilestoneAssignment[]>();
-    for (const assignment of assignments) {
-      const list = assignmentsByContract.get(assignment.contractAddress) ?? [];
-      list.push(assignment);
-      assignmentsByContract.set(assignment.contractAddress, list);
-    }
 
     const entries = projects
       .map((p) => {
@@ -1387,8 +1249,6 @@ export class ProjectsService {
         else if (developerId !== undefined && p.consultantId === developerId.toString()) role = 'consultant';
         else if (developerId !== undefined && (milestonesByContract.get(p.contractAddress) ?? [])
           .some((m) => m.developerId === developerId)) role = 'team';
-        else if (developerId !== undefined && (assignmentsByContract.get(p.contractAddress) ?? [])
-          .some((assignment) => assignment.developerId === developerId)) role = 'team';
         if (!role) return null;
         if (filters.role && filters.role !== 'all' && filters.role !== role) return null;
 
@@ -1436,33 +1296,19 @@ export class ProjectsService {
           order: { displayOrder: 'ASC' },
         })
       : [];
-    const assignments = project.contractAddress
-      ? await this.milestoneAssignmentRepo.find({ where: { contractAddress: project.contractAddress } })
-      : [];
 
     let role: 'client' | 'consultant' | 'team' | null = null;
     if (clientId && project.clientId === clientId) role = 'client';
     else if (developerId !== undefined && project.consultantId === developerId.toString()) role = 'consultant';
     else if (developerId !== undefined && milestones.some((m) => m.developerId === developerId)) role = 'team';
-    else if (developerId !== undefined && assignments.some((assignment) => assignment.developerId === developerId)) role = 'team';
     if (!role) {
       throw new HttpException({ error: 'Forbidden' }, HttpStatus.FORBIDDEN);
-    }
-
-    const assignmentsByMilestone = new Map<number, MilestoneAssignment[]>();
-    for (const assignment of assignments) {
-      const list = assignmentsByMilestone.get(assignment.milestoneId) ?? [];
-      list.push(assignment);
-      assignmentsByMilestone.set(assignment.milestoneId, list);
     }
 
     return {
       ...project,
       role,
-      milestones: milestones.map((milestone) => ({
-        ...milestone,
-        assignments: assignmentsByMilestone.get(milestone.id) ?? [],
-      })),
+      milestones,
       milestoneStats: milestoneStatsOf(milestones),
     };
   }

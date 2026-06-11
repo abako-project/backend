@@ -23,8 +23,6 @@ describe('Projects Module E2E Tests', () => {
   let workerOneAccountId: string;
   let workerTwoAccountId: string;
   let workerThreeAccountId: string;
-  let workerOneDeveloperId: number;
-  let workerTwoDeveloperId: number;
   let projectId: string;
   let contractAddress: string;
   let rejectedProjectId: string;
@@ -239,33 +237,7 @@ describe('Projects Module E2E Tests', () => {
         expect(response.body).toHaveProperty('developerId');
         expect(response.body.message).toBe('Developer profile created successfully');
 
-        workerOneDeveloperId = response.body.developerId;
-
-        await request(app.getHttpServer())
-          .put(`/v1/developers/${workerOneDeveloperId}`)
-          .send({
-            email: workerOneUserId,
-            name: 'Projects Test Worker One',
-            githubUsername: 'testworkerone',
-            portfolioUrl: 'https://testworkerone.dev',
-            bio: 'Coordinator profile for projects E2E tests',
-            background: 'Project coordination and full-stack delivery',
-            proficiency: 'senior',
-            role: 'Full Stack',
-            location: 'Test Location',
-            availability: 'FullTime',
-            languages: ['ENG'],
-            skills: ['Rust', 'Javascript', 'PostgreSQL'],
-            availableHoursPerWeek: 40,
-          })
-          .expect(200);
-
-        await request(app.getHttpServer())
-          .put(`/v1/developers/${workerOneDeveloperId}/coordinator-eligibility`)
-          .send({ isCoordinator: true })
-          .expect(200);
-
-        console.info(`✅ Registered worker as developer with ID: ${workerOneDeveloperId}`);
+        console.info(`✅ Registered worker as developer with ID: ${response.body.developerId}`);
       });
 
       it('should register worker two', async () => {
@@ -306,28 +278,7 @@ describe('Projects Module E2E Tests', () => {
         expect(response.body).toHaveProperty('developerId');
         expect(response.body.message).toBe('Developer profile created successfully');
 
-        workerTwoDeveloperId = response.body.developerId;
-
-        await request(app.getHttpServer())
-          .put(`/v1/developers/${workerTwoDeveloperId}`)
-          .send({
-            email: workerTwoUserId,
-            name: 'Projects Test Worker Two',
-            githubUsername: 'testworkertwo',
-            portfolioUrl: 'https://testworkertwo.dev',
-            bio: 'Team developer profile for projects E2E tests',
-            background: 'Full-stack delivery',
-            proficiency: 'senior',
-            role: 'Full Stack',
-            location: 'Test Location',
-            availability: 'WeeklyHours',
-            languages: ['ENG'],
-            skills: ['Rust', 'Javascript', 'PostgreSQL'],
-            availableHoursPerWeek: 30,
-          })
-          .expect(200);
-
-        console.info(`✅ Registered worker two as developer with ID: ${workerTwoDeveloperId}`);
+        console.info(`✅ Registered worker two as developer with ID: ${response.body.developerId}`);
       });
 
       // it('should register worker three', async () => {
@@ -911,11 +862,10 @@ describe('Projects Module E2E Tests', () => {
                   budget: 3000,
                   deliveryTime: 15,
                   deliveryDate: '2024-12-15',
-                  requirements: [{
-                    assignmentKey: 'developer-1',
-                    hours: 40,
-                    skillIds: [1, 6, 11],
-                  }],
+                  role: 'Backend Developer',
+                  proficiency: 'Senior',
+                  skills: ['Rust', 'Javascript', 'PostgreSQL'],
+                  availability: 'fulltime'
                 },
                 // {
                 //   title: 'Milestone 2: Frontend Development',
@@ -987,11 +937,10 @@ describe('Projects Module E2E Tests', () => {
 
             expect(response.body.milestones[0]).toHaveProperty('title', 'Milestone 1: Backend Development');
             expect(response.body.milestones[0]).toHaveProperty('budget', 3000);
-            expect(response.body.milestones[0].requirements).toEqual([{
-              assignmentKey: 'developer-1',
-              hours: 40,
-              skillIds: [1, 6, 11],
-            }]);
+            expect(response.body.milestones[0]).toHaveProperty('role', 'Backend Developer');
+            expect(response.body.milestones[0]).toHaveProperty('proficiency', 'Senior');
+            expect(response.body.milestones[0].skills).toEqual(['Rust', 'Javascript', 'PostgreSQL']);
+            expect(response.body.milestones[0]).toHaveProperty('neededFullTimeDeveloper', true);
             // expect(response.body.milestones[1]).toHaveProperty('title', 'Milestone 2: Frontend Development');
             // expect(response.body.milestones[1]).toHaveProperty('budget', 2000);
             // expect(response.body.milestones[1]).toHaveProperty('role', 'UX Designer');

@@ -85,7 +85,7 @@ function milestoneStats(info: MockProjectInfo) {
   let pending = 0;
   for (const t of info.tasks) {
     if (t.completed) completed += 1;
-    else if ("PendingReview" in t.status || "Active" in t.status) inProgress += 1;
+    else if ("PendingReview" in t.status || "Approved" in t.status) inProgress += 1;
     else pending += 1;
   }
   return { total: info.tasks.length, completed, inProgress, pending };
@@ -96,6 +96,7 @@ function teamSummary(info: MockProjectInfo) {
     count: info.team.length,
     members: info.team.map((m) => ({
       ...(userSummaryByAddress(m.account_id) ?? { address: m.account_id, id: null, displayName: m.account_id }),
+      role: m.role,
     })),
   };
 }
@@ -197,6 +198,7 @@ appRouter.get("/projects/:id", (req, res) => {
     totals: { totalCost: info.total_cost, paidAmount: info.paid_amount },
     team: info.team.map((m) => ({
       ...(userSummaryByAddress(m.account_id) ?? { address: m.account_id, id: null, displayName: m.account_id }),
+      role: m.role,
       rating: m.rating,
     })),
     milestones: info.tasks.map(serializeMilestone),

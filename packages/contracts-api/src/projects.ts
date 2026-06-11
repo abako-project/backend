@@ -320,11 +320,6 @@ export class ProjectsService {
           console.log(`[callMethod] Final contract data after conversion:`, contractData)
         }
 
-        if (methodName === 'assign_team') {
-          const idealTeamSize = contractData.ideal_team_size ?? contractData._team_size;
-          contractData = { ideal_team_size: idealTeamSize };
-        }
-
         const txResponse = await contract.query(methodName as any, {
           origin: caller || adminPublicAddress,
           data: contractData,

@@ -121,7 +121,7 @@ export class ProjectsController {
   @Post(':projectId/assign_team')
   @ApiOperation({
     summary: 'Assign team to project',
-    description: 'Compatibility endpoint that asks the project contract to assign workers from approved milestone requirements. Scope approval normally triggers this internally.'
+    description: 'Assigns a team with specified size to the project contract'
   })
   @ApiParam({
     name: 'projectId',
@@ -138,7 +138,19 @@ export class ProjectsController {
       example: 'Bearer <your-jwt-token>'
     }
   })
-  @ApiBody({ schema: { type: 'object', additionalProperties: false } })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        _team_size: {
+          type: 'number',
+          description: 'Number of team members to assign',
+          example: 5
+        }
+      },
+      required: ['_team_size']
+    }
+  })
   @ApiResponse({
     status: 200,
     description: 'Team assigned successfully'
@@ -157,7 +169,7 @@ export class ProjectsController {
   })
   async assignTeam(
     @Param('projectId') projectId: string,
-    @Body() body: { _team_size?: number },
+    @Body() body: { _team_size: number },
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
@@ -1129,21 +1141,23 @@ export class ProjectsController {
               description: { type: 'string', example: 'Complete UI/UX design' },
               budget: { type: 'number', example: 5000 },
               deliveryTime: { type: 'number', example: 15 },
-              requirements: {
+              role: { type: 'string', example: 'Frontend Developer' },
+              proficiency: { type: 'string', example: 'Senior' },
+              skills: {
                 type: 'array',
-                items: {
-                  type: 'object',
-                  properties: {
-                    assignmentKey: { type: 'string', example: 'developer-1' },
-                    hours: { type: 'number', example: 160 },
-                    skillIds: {
-                      type: 'array',
-                      items: { type: 'number' },
-                      example: [4, 7]
-                    }
-                  },
-                  required: ['assignmentKey', 'hours', 'skillIds']
-                }
+                items: { type: 'string' },
+                example: ['React', 'TypeScript', 'CSS']
+              },
+              availability: {
+                type: 'string',
+                enum: ['fulltime', 'parttime', 'hourly'],
+                description: 'Developer availability type',
+                example: 'fulltime'
+              },
+              neededHours: {
+                type: 'number',
+                description: 'Number of hours needed (required when availability is "hourly")',
+                example: 20
               }
             }
           }
@@ -1298,20 +1312,35 @@ export class ProjectsController {
           description: 'Delivery time in days',
           example: 15
         },
-        requirements: {
+        role: {
+          type: 'string',
+          description: 'Required role for the milestone',
+          example: 'Frontend Developer'
+        },
+        proficiency: {
+          type: 'string',
+          description: 'Required proficiency level',
+          example: 'Senior'
+        },
+        skills: {
           type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              assignmentKey: { type: 'string', example: 'designer-1' },
-              hours: { type: 'number', example: 80 },
-              skillIds: { type: 'array', items: { type: 'number' }, example: [20, 21] }
-            },
-            required: ['assignmentKey', 'hours', 'skillIds']
-          }
+          items: { type: 'string' },
+          description: 'Required skills',
+          example: ['React', 'TypeScript', 'CSS']
+        },
+        availability: {
+          type: 'string',
+          enum: ['fulltime', 'parttime', 'hourly'],
+          description: 'Developer availability type',
+          example: 'fulltime'
+        },
+        neededHours: {
+          type: 'number',
+          description: 'Number of hours needed (required when availability is "hourly")',
+          example: 20
         }
       },
-      required: ['title', 'budget', 'deliveryTime', 'requirements']
+      required: ['title', 'budget', 'deliveryTime', 'availability']
     }
   })
   @ApiResponse({

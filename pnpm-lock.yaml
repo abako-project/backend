@@ -335,16 +335,10 @@ importers:
       '@noble/hashes':
         specifier: ^2.2.0
         version: 2.2.0
-      better-sqlite3:
-        specifier: ^12.8.0
-        version: 12.8.0
       express:
         specifier: ^5.1.0
         version: 5.2.1
     devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.13
-        version: 7.6.13
       '@types/express':
         specifier: ^5.0.3
         version: 5.0.6
