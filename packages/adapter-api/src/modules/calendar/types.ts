@@ -1,14 +1,21 @@
 // Availability levels based on smart contract
 export enum AvailabilityLevel {
   NotAvailable = 'NotAvailable',
-  PartTime = 'PartTime',
   FullTime = 'FullTime',
-  WeeklyHours = 'WeeklyHours'
+  WeeklyHours = 'WeeklyHours',
+  PermanentWeeklyHours = 'PermanentWeeklyHours',
 }
+
+export type AvailabilityInput =
+  | AvailabilityLevel.FullTime
+  | { WeeklyHours: number }
+  | { PermanentWeeklyHours: number }
+  | { type: 'WeeklyHours' | 'PermanentWeeklyHours'; value: number }
+  | { weeks: number[]; permanentWeeklyHours?: number };
 
 // Request types
 export interface SetAvailabilityRequest {
-  availability: AvailabilityLevel | { WeeklyHours: number };
+  availability: AvailabilityInput;
 }
 
 export interface RegisterWorkerRequest {
@@ -21,7 +28,7 @@ export interface RegisterWorkersRequest {
 
 export interface AdminSetWorkerAvailabilityRequest {
   worker: string;
-  availability: AvailabilityLevel | { WeeklyHours: number };
+  availability: AvailabilityInput;
 }
 
 export interface IsAvailableQuery {
@@ -58,4 +65,3 @@ export interface DeployResponse {
   inkVersion: string;
   contractType: string;
 }
-
