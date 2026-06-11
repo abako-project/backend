@@ -21,9 +21,8 @@ export interface Developer {
   location: string;
   availability: DeveloperAvailability;
   languages: string[];
-  skills: number[];
+  skills: string[];
   availableHoursPerWeek?: number;
-  isCoordinator?: boolean;
   proficiencyId?: number;
   createdAt: number;
   updatedAt: number;
@@ -53,11 +52,7 @@ export interface CreateDeveloperRequest {
     location: string;
     availability: DeveloperAvailability;
     languages: string[];
-    skills: Array<number | string>;
+    skills: string[];
     availableHoursPerWeek?: number;
     image?: File; // multipart/form-data
   }
-
-export interface UpdateCoordinatorEligibilityRequest {
-  isCoordinator: boolean;
-}

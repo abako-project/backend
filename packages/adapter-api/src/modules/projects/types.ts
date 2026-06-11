@@ -1,5 +1,6 @@
 export interface TeamMember {
   account_id: string;
+  role: string;
   rating?: number;
   task_id?: number;
 }
@@ -115,11 +116,11 @@ export interface CreateMilestoneRequest {
   description?: string;
   budget: number;
   deliveryTime: number;
-  requirements: Array<{
-    assignmentKey: string;
-    hours: number;
-    skillIds: number[];
-  }>;
+  role?: string;
+  proficiency?: string;
+  skills?: string[];
+  availability: 'fulltime' | 'parttime' | 'hourly';
+  neededHours?: number;
 }
 
 export interface UpdateMilestoneRequest {
@@ -127,11 +128,11 @@ export interface UpdateMilestoneRequest {
   description?: string;
   budget: number;
   deliveryTime: number;
-  requirements: Array<{
-    assignmentKey: string;
-    hours: number;
-    skillIds: number[];
-  }>;
+  role?: string;
+  proficiency?: string;
+  skills?: string[];
+  availability: 'fulltime' | 'parttime' | 'hourly';
+  neededHours?: number;
 }
 
 export interface CreateProposalRequest {

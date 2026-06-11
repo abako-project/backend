@@ -10,8 +10,6 @@ import { RatingsModule } from '../ratings/ratings.module';
 import { EventsModule } from '../events/events.module';
 import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
-import { MilestoneAssignment } from '../../database/entities/milestone-assignment.entity';
-import { SkillsModule } from '../skills/skills.module';
 
 @Module({
   imports: [
@@ -21,8 +19,7 @@ import { SkillsModule } from '../skills/skills.module';
     ClientsModule,
     RatingsModule,
     EventsModule,
-    SkillsModule,
-    TypeOrmModule.forFeature([Project, Milestone, MilestoneAssignment]),
+    TypeOrmModule.forFeature([Project, Milestone]),
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService],

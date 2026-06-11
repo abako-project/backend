@@ -14,7 +14,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { DevelopersService } from './developers.service';
-import { CreateDeveloperRequest, UpdateCoordinatorEligibilityRequest, UpdateDeveloperRequest } from './types';
+import { CreateDeveloperRequest, UpdateDeveloperRequest } from './types';
 
 @ApiTags('developers')
 @Controller({ path: 'developers', version: '1' })
@@ -103,7 +103,7 @@ export class DevelopersController {
         location: { type: 'string', example: 'San Francisco, USA' },
         availability: { type: 'string', enum: ['NotAvailable', 'PartTime', 'FullTime', 'WeeklyHours'], example: 'FullTime' },
         languages: { type: 'array', items: { type: 'string' }, example: ['English', 'Spanish'] },
-        skills: { type: 'array', items: { type: 'number' }, example: [5, 8, 11] },
+        skills: { type: 'array', items: { type: 'string' }, example: ['React', 'Node.js', 'TypeScript'] },
         availableHoursPerWeek: { type: 'number', example: 40 },
         image: { type: 'string', format: 'binary', description: 'Profile image' }
       },
@@ -130,38 +130,6 @@ export class DevelopersController {
     return {
       message: 'Developer updated successfully',
       developerId: developer.id,
-    };
-  }
-
-  @Put(':developerId/coordinator-eligibility')
-  @ApiOperation({
-    summary: 'Set developer coordinator eligibility',
-    description: 'Marks whether a developer can be selected by automatic coordinator assignment.'
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        isCoordinator: { type: 'boolean', example: true }
-      },
-      required: ['isCoordinator']
-    }
-  })
-  @ApiResponse({ status: 200, description: 'Coordinator eligibility updated successfully' })
-  @ApiResponse({ status: 404, description: 'Developer not found' })
-  async updateCoordinatorEligibility(
-    @Param('developerId', ParseIntPipe) developerId: number,
-    @Body() body: UpdateCoordinatorEligibilityRequest,
-  ) {
-    const developer = await this.developersService.updateCoordinatorEligibility(
-      developerId,
-      body.isCoordinator,
-    );
-
-    return {
-      message: 'Coordinator eligibility updated successfully',
-      developerId: developer.id,
-      isCoordinator: developer.isCoordinator,
     };
   }
 

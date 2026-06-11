@@ -4,9 +4,7 @@ import { Repository, In } from 'typeorm';
 import { Developer } from '../../database/entities/developer.entity';
 import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
-import { MilestoneAssignment } from '../../database/entities/milestone-assignment.entity';
 import { CreateDeveloperRequest, UpdateDeveloperRequest } from './types';
-import { SkillsService } from '../skills/skills.service';
 
 @Injectable()
 export class DevelopersService {
@@ -14,8 +12,6 @@ export class DevelopersService {
     @InjectRepository(Developer) private developerRepo: Repository<Developer>,
     @InjectRepository(Project) private projectRepo: Repository<Project>,
     @InjectRepository(Milestone) private milestoneRepo: Repository<Milestone>,
-    @InjectRepository(MilestoneAssignment) private milestoneAssignmentRepo: Repository<MilestoneAssignment>,
-    private readonly skillsService: SkillsService,
   ) {}
 
   async findAll(): Promise<Developer[]> {
@@ -98,27 +94,13 @@ export class DevelopersService {
     developer.location = updateData.location;
     developer.availability = updateData.availability;
     developer.languages = updateData.languages;
-    developer.skills = await this.skillsService.resolveReferences(updateData.skills);
+    developer.skills = updateData.skills;
     if (updateData.availableHoursPerWeek !== undefined) developer.availableHoursPerWeek = updateData.availableHoursPerWeek;
 
     if (!developer.userId && !developer.email) {
       throw new BadRequestException('Developer must have either userId or email');
     }
 
-    return this.developerRepo.save(developer);
-  }
-
-  async updateCoordinatorEligibility(
-    developerId: number,
-    isCoordinator: boolean,
-  ): Promise<Developer> {
-    const developer = await this.developerRepo.findOne({ where: { id: developerId } });
-
-    if (!developer) {
-      throw new NotFoundException(`Developer with id ${developerId} not found`);
-    }
-
-    developer.isCoordinator = Boolean(isCoordinator);
     return this.developerRepo.save(developer);
   }
 
@@ -154,16 +136,7 @@ export class DevelopersService {
   }
 
   async getMilestones(developerId: number): Promise<any[]> {
-    const assignments = await this.milestoneAssignmentRepo.find({ where: { developerId } });
-    const assignedMilestoneIds = assignments.map((assignment) => assignment.milestoneId);
-    const milestones = assignedMilestoneIds.length > 0
-      ? await this.milestoneRepo.find({
-          where: [
-            { developerId },
-            { id: In(assignedMilestoneIds) },
-          ],
-        })
-      : await this.milestoneRepo.find({ where: { developerId } });
+    const milestones = await this.milestoneRepo.find({ where: { developerId } });
 
     const contractAddresses = [...new Set(milestones.map(m => m.contractAddress))];
     const projects = contractAddresses.length > 0
