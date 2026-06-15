@@ -1,4 +1,4 @@
-import { Controller, MessageEvent, Query, Sse } from '@nestjs/common';
+import { BadRequestException, Controller, MessageEvent, Query, Sse } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Observable } from 'rxjs';
 import { EventsService } from './events.service';
@@ -11,26 +11,22 @@ export class EventsController {
   @Sse()
   @ApiOperation({
     summary: 'Subscribe to backend events',
-    description: 'Server-Sent Events stream for project lifecycle updates. The current frontend does not consume this yet; it is exposed for future realtime UI updates.',
+    description: 'Server-Sent Events stream for updates affecting one wallet address.',
   })
   @ApiQuery({
-    name: 'projectId',
-    required: false,
-    description: 'Optional project ID filter',
-  })
-  @ApiQuery({
-    name: 'type',
-    required: false,
-    description: 'Optional event type filter, for example project.team_assigned',
+    name: 'userId',
+    required: true,
+    description: 'Wallet address receiving affected-user events',
   })
   @ApiResponse({
     status: 200,
     description: 'SSE stream',
   })
-  stream(
-    @Query('projectId') projectId?: string,
-    @Query('type') type?: string,
-  ): Observable<MessageEvent> {
-    return this.eventsService.stream({ projectId, type });
+  stream(@Query('userId') userId?: string): Observable<MessageEvent> {
+    const normalizedUserId = userId?.trim();
+    if (!normalizedUserId) {
+      throw new BadRequestException('userId is required');
+    }
+    return this.eventsService.stream(normalizedUserId);
   }
 }
