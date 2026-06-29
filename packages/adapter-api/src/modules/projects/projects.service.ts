@@ -271,7 +271,7 @@ export class ProjectsService {
         const recipients = project
           ? await this.getProjectEventRecipients(project, teamAddresses)
           : teamAddresses;
-        this.eventsService.publishProjectEvent('project.team_assigned', {
+        await this.eventsService.publishProjectEvent('project.team_assigned', {
           projectId,
           contractAddress,
           state: 'team_assigned',
@@ -384,7 +384,7 @@ export class ProjectsService {
         }
 
         const recipients = await this.getProjectEventRecipients(updatedProject || project);
-        this.eventsService.publishProjectEvent('project.scope_approved', {
+        await this.eventsService.publishProjectEvent('project.scope_approved', {
           projectId,
           contractAddress,
           state: 'scope_accepted',
@@ -435,7 +435,7 @@ export class ProjectsService {
     await this.projectRepo.save(project);
     console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_rejected' after scope rejection`);
     const recipients = await this.getProjectEventRecipients(project);
-    this.eventsService.publishProjectEvent('project.scope_rejected', {
+    await this.eventsService.publishProjectEvent('project.scope_rejected', {
       projectId,
       contractAddress: project.contractAddress,
       state: project.state,
@@ -512,7 +512,7 @@ export class ProjectsService {
       project.state = 'scope_proposed';
       await this.projectRepo.save(project);
       const recipients = await this.getProjectEventRecipients(project);
-      this.eventsService.publishProjectEvent('project.scope_proposed', {
+      await this.eventsService.publishProjectEvent('project.scope_proposed', {
         projectId,
         contractAddress,
         state: 'scope_proposed',

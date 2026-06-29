@@ -12,7 +12,7 @@ pnpm run dev:mock     # start the backend (mock-api + adapter-api)
 API will be available at `http://localhost:4000`, docs at `http://localhost:4000/api-docs`.
 
 ```bash
-pnpm run test:mock    # run all 89 tests
+pnpm run test:mock    # run all 95 tests
 ```
 
 No MongoDB, Docker, or blockchain node required.
@@ -34,7 +34,7 @@ Then `npm run dev` — the frontend will use mock auth (no WebAuthn/blockchain).
 ```
 backend/
 ├── packages/
-│   ├── adapter-api/      # Main NestJS API (auth, projects, clients, calendar, ratings)
+│   ├── adapter-api/      # Main NestJS API (auth, projects, notifications, calendar, ratings)
 │   ├── mock-api/         # Mock server replacing blockchain services for dev/test
 │   ├── contracts-api/    # Ink! smart contract interactions (production)
 │   └── virto-api/        # Virto blockchain API (production)
@@ -90,6 +90,12 @@ The real `AuthService` uses `@virtonetwork/sdk` with WebSocket connection to the
 Client and developer profiles use `userId` as the primary auth identifier. `email` is optional contact data and remains supported as a legacy lookup fallback, so older email-only profile creation still maps the email value into `userId`.
 
 New integrations should send `userId` when creating client or developer profiles. Do not require users to provide an email address unless the product flow specifically needs one as contact data.
+
+## Notifications
+
+`adapter-api` stores notifications per wallet address and exposes an authenticated SSE stream for live updates. Frontends load existing notifications with `GET /v1/notifications`, create a one-use SSE cookie with `POST /v1/events/session`, and then open `GET /v1/events` with `EventSource`.
+
+The full handshake, event shapes, read-state sync, and multi-device behavior are documented in `packages/adapter-api/README.md`.
 
 ## Available Scripts
 

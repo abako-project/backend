@@ -16,5 +16,5 @@ fi
 echo "
   Ready! Run:
     pnpm run dev:mock     Start the backend
-    pnpm run test:mock    Run tests (87)
+    pnpm run test:mock    Run tests (90)
 "

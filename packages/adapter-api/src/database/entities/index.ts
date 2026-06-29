@@ -4,3 +4,4 @@ export { Client } from './client.entity';
 export { Project } from './project.entity';
 export { Milestone } from './milestone.entity';
 export { Rating } from './rating.entity';
+export { Notification } from './notification.entity';

@@ -25,7 +25,15 @@ async function bootstrap() {
   });
 
   // Middleware
-  app.use(cors());
+  const corsOrigin = configService.getCorsOrigin();
+  if (corsOrigin) {
+    app.use(cors({
+      origin: corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean),
+      credentials: true,
+    }));
+  } else {
+    app.use(cors());
+  }
   app.use(bodyParser.json());
   app.use(morgan('dev'));
 
