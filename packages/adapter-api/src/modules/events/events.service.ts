@@ -17,17 +17,17 @@ export interface ProjectEvent {
   data: ProjectEventPayload;
 }
 
-export interface ProjectEventFilter {
-  projectId?: string;
-  type?: string;
+interface RoutedProjectEvent {
+  event: ProjectEvent;
+  userIds: Set<string>;
 }
 
 @Injectable()
 export class EventsService {
-  private readonly events$ = new Subject<ProjectEvent>();
+  private readonly events$ = new Subject<RoutedProjectEvent>();
   private sequence = 0;
 
-  stream(filterOptions: ProjectEventFilter = {}): Observable<MessageEvent> {
+  stream(userId: string): Observable<MessageEvent> {
     const connected: MessageEvent = {
       type: 'connected',
       data: {
@@ -37,8 +37,8 @@ export class EventsService {
     };
 
     return merge(of(connected), this.events$.pipe(
-      filter((event) => this.matchesFilter(event, filterOptions)),
-      map((event): MessageEvent => ({
+      filter((routedEvent) => routedEvent.userIds.has(userId)),
+      map(({ event }): MessageEvent => ({
         id: event.id,
         type: event.type,
         data: event,
@@ -46,7 +46,11 @@ export class EventsService {
     ));
   }
 
-  publishProjectEvent(type: string, payload: ProjectEventPayload): ProjectEvent {
+  publishProjectEvent(
+    type: string,
+    payload: ProjectEventPayload,
+    userIds: Array<string | null | undefined>,
+  ): ProjectEvent {
     const event: ProjectEvent = {
       id: `${Date.now()}-${++this.sequence}`,
       type,
@@ -55,13 +59,10 @@ export class EventsService {
       data: payload,
     };
 
-    this.events$.next(event);
+    this.events$.next({
+      event,
+      userIds: new Set(userIds.map((userId) => userId?.trim()).filter(Boolean) as string[]),
+    });
     return event;
-  }
-
-  private matchesFilter(event: ProjectEvent, filterOptions: ProjectEventFilter): boolean {
-    if (filterOptions.projectId && event.projectId !== filterOptions.projectId) return false;
-    if (filterOptions.type && event.type !== filterOptions.type) return false;
-    return true;
   }
 }

@@ -158,6 +158,39 @@ export class ProjectsService {
     return this.getAddressForUserIdentifier(developer?.userId || developer?.email);
   }
 
+  private async getWalletAddress(userId: string | null | undefined): Promise<string | null> {
+    if (!userId) return null;
+    if (!userId.includes('@')) return userId;
+
+    try {
+      const federateServerUrl = this.configService.getFederateServer();
+      const url = `${federateServerUrl}/get-user-address?userId=${encodeURIComponent(userId)}`;
+      const response = await fetch(url, { method: 'GET' });
+      if (!response.ok) return null;
+      const data = await response.json() as { address?: string };
+      return data.address || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async getProjectEventRecipients(
+    project: Project,
+    teamAddresses: string[] = [],
+  ): Promise<string[]> {
+    const [client, coordinator] = await Promise.all([
+      this.clientsService.findOne(Number(project.clientId)).catch(() => null),
+      project.consultantId
+        ? this.developersService.findOne(Number(project.consultantId)).catch(() => null)
+        : null,
+    ]);
+    const profileAddresses = await Promise.all([
+      this.getWalletAddress(client?.userId || client?.email),
+      this.getWalletAddress(coordinator?.userId || coordinator?.email),
+    ]);
+    return [...new Set([...profileAddresses, ...teamAddresses].filter(Boolean) as string[])];
+  }
+
   private parsePositiveInteger(value: unknown, fieldName: string): number {
     const parsed = Number(value);
     if (!Number.isInteger(parsed) || parsed <= 0) {
@@ -230,6 +263,7 @@ export class ProjectsService {
       if (developerId) {
         project.consultantId = developerId.toString();
         await this.projectRepo.save(project);
+        const recipients = await this.getProjectEventRecipients(project, [assignedAccountId]);
         this.eventsService.publishProjectEvent('project.coordinator_assigned', {
           projectId,
           contractAddress,
@@ -237,7 +271,7 @@ export class ProjectsService {
             developerId,
             accountId: assignedAccountId,
           },
-        });
+        }, recipients);
         console.log(`Coordinator ${assignedAccountId} (developer ID: ${developerId}) assigned to project ${projectId} (${contractAddress})`);
       } else {
         console.warn(`Could not find developer ID for coordinator address ${assignedAccountId}. Project ${projectId} will not have consultantId set.`);
@@ -325,6 +359,10 @@ export class ProjectsService {
     const selectedDeveloperIds = [...new Set(
       [...developerByAddress.values()].map((developer) => developer.id),
     )];
+    const teamAddresses = team
+      .map((member: any) => member?.account_id || member?.accountId)
+      .filter(Boolean);
+    const recipients = await this.getProjectEventRecipients(project, teamAddresses);
     this.eventsService.publishProjectEvent('project.team_assigned', {
       projectId: project.id,
       contractAddress,
@@ -333,7 +371,7 @@ export class ProjectsService {
         teamSize: team.length,
         selectedDeveloperIds,
       },
-    });
+    }, recipients);
 
     return { team, tasks, selectedDeveloperIds };
   }
@@ -450,13 +488,14 @@ export class ProjectsService {
     // Update project state from 'scope_proposed' to 'scope_accepted' when scope is approved
     if (approveResult && approveResult.success) {
       try {
-        const project = await this.projectRepo.findOne({ where: { id: projectId } });
-        if (project && project.state === 'scope_proposed') {
-          project.state = 'scope_accepted';
-          await this.projectRepo.save(project);
+        const updatedProject = await this.projectRepo.findOne({ where: { id: projectId } });
+        if (updatedProject && updatedProject.state === 'scope_proposed') {
+          updatedProject.state = 'scope_accepted';
+          await this.projectRepo.save(updatedProject);
           console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_accepted' after scope approval`);
         }
 
+        const recipients = await this.getProjectEventRecipients(updatedProject || project);
         this.eventsService.publishProjectEvent('project.scope_approved', {
           projectId,
           contractAddress,
@@ -464,7 +503,7 @@ export class ProjectsService {
           data: {
             approvedTaskIds: body.approved_task_ids,
           },
-        });
+        }, recipients);
       } catch (error) {
         console.error(`Error updating project state for ${projectId} after scope approval:`, error);
       }
@@ -506,6 +545,7 @@ export class ProjectsService {
 
     await this.projectRepo.save(project);
     console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_rejected' after scope rejection`);
+    const recipients = await this.getProjectEventRecipients(project);
     this.eventsService.publishProjectEvent('project.scope_rejected', {
       projectId,
       contractAddress: project.contractAddress,
@@ -513,7 +553,7 @@ export class ProjectsService {
       data: {
         clientResponse: body.clientResponse,
       },
-    });
+    }, recipients);
 
     return { success: true };
   }
@@ -594,6 +634,7 @@ export class ProjectsService {
       project.coordinatorApprovalStatus = 'approved';
       project.state = 'scope_proposed';
       await this.projectRepo.save(project);
+      const recipients = await this.getProjectEventRecipients(project);
       this.eventsService.publishProjectEvent('project.scope_proposed', {
         projectId,
         contractAddress,
@@ -602,7 +643,7 @@ export class ProjectsService {
           milestoneCount: createdMilestones.length,
           advancePaymentPercentage: approvalData.advance_payment_percentage,
         },
-      });
+      }, recipients);
 
       return {
         success: true,
