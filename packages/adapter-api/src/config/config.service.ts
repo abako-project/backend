@@ -63,6 +63,10 @@ export class ConfigService {
     }
   }
 
+  getCorsOrigin(): string {
+    return this.envConfig['CORS_ORIGIN'] || process.env['CORS_ORIGIN'] || '';
+  }
+
   getDerivePath(): string {
     return this.envConfig['DERIVE_PATH'] || process.env['DERIVE_PATH'] || '//Alice';
   }

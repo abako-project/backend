@@ -19,15 +19,15 @@ A Node.js API server for deploying and interacting with ink! smart contracts on 
 ## Installation
 
 ```bash
-npm install
+pnpm install
 ```
 
 ## Running
 
 ```bash
-npm start
+pnpm start
 # or
-npm run server
+pnpm run server
 # or
 npx tsx src/server.ts
 ```
@@ -35,7 +35,7 @@ npx tsx src/server.ts
 ## Development
 
 ```bash
-npm run dev
+pnpm run dev
 # or
 npx tsx watch src/server.ts
 ```

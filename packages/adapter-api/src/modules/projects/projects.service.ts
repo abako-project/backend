@@ -263,19 +263,19 @@ export class ProjectsService {
       if (developerId) {
         project.consultantId = developerId.toString();
         await this.projectRepo.save(project);
-        const recipients = await this.getProjectEventRecipients(project, [assignedAccountId]);
-        this.eventsService.publishProjectEvent('project.coordinator_assigned', {
-          projectId,
-          contractAddress,
-          data: {
-            developerId,
-            accountId: assignedAccountId,
-          },
-        }, recipients);
         console.log(`Coordinator ${assignedAccountId} (developer ID: ${developerId}) assigned to project ${projectId} (${contractAddress})`);
       } else {
         console.warn(`Could not find developer ID for coordinator address ${assignedAccountId}. Project ${projectId} will not have consultantId set.`);
       }
+      const recipients = await this.getProjectEventRecipients(project, [assignedAccountId]);
+      await this.eventsService.publishProjectEvent('project.coordinator_assigned', {
+        projectId,
+        contractAddress,
+        data: {
+          developerId: developerId ?? null,
+          accountId: assignedAccountId,
+        },
+      }, recipients);
     } else {
       console.error('Error assigning coordinator:', result);
       throw new HttpException(
@@ -363,7 +363,7 @@ export class ProjectsService {
       .map((member: any) => member?.account_id || member?.accountId)
       .filter(Boolean);
     const recipients = await this.getProjectEventRecipients(project, teamAddresses);
-    this.eventsService.publishProjectEvent('project.team_assigned', {
+    await this.eventsService.publishProjectEvent('project.team_assigned', {
       projectId: project.id,
       contractAddress,
       state: project.state,
@@ -496,7 +496,7 @@ export class ProjectsService {
         }
 
         const recipients = await this.getProjectEventRecipients(updatedProject || project);
-        this.eventsService.publishProjectEvent('project.scope_approved', {
+        await this.eventsService.publishProjectEvent('project.scope_approved', {
           projectId,
           contractAddress,
           state: 'scope_accepted',
@@ -546,7 +546,7 @@ export class ProjectsService {
     await this.projectRepo.save(project);
     console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_rejected' after scope rejection`);
     const recipients = await this.getProjectEventRecipients(project);
-    this.eventsService.publishProjectEvent('project.scope_rejected', {
+    await this.eventsService.publishProjectEvent('project.scope_rejected', {
       projectId,
       contractAddress: project.contractAddress,
       state: project.state,
@@ -635,7 +635,7 @@ export class ProjectsService {
       project.state = 'scope_proposed';
       await this.projectRepo.save(project);
       const recipients = await this.getProjectEventRecipients(project);
-      this.eventsService.publishProjectEvent('project.scope_proposed', {
+      await this.eventsService.publishProjectEvent('project.scope_proposed', {
         projectId,
         contractAddress,
         state: 'scope_proposed',

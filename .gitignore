@@ -3,3 +3,4 @@ log.txt
 *.log
 .env
 packages/adapter-api/data/
+.codebase-memory

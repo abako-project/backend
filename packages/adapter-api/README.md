@@ -21,6 +21,11 @@ POST   /v1/clients
 GET    /v1/developers
 POST   /v1/projects/deploy/:version
 GET    /v1/auth/check-registered/:userId
+POST   /v1/events/session
+GET    /v1/events
+GET    /v1/notifications
+PATCH  /v1/notifications/:id/read
+PATCH  /v1/notifications/read-all
 ```
 
 ### Example Usage
@@ -126,6 +131,218 @@ Connect and authenticate user
 
 #### POST /v1/auth/sign
 Sign extrinsic data
+
+### Event and Notification Endpoints
+
+The notification system has two parts:
+
+- persisted notifications in the database;
+- a Server-Sent Events stream used to push live updates to every active device for the same wallet.
+
+The wallet address inside the normal login JWT is the notification recipient. Clients never send a wallet/user id to subscribe. The backend derives it from auth and stores every notification with `recipientAddress`.
+
+#### Notification lifecycle
+
+1. A project operation publishes an event, for example `project.scope_proposed`.
+2. The backend resolves the affected wallet addresses.
+3. One `notifications` row is stored for each affected wallet.
+4. The same event is pushed over SSE to every open stream for those wallets.
+5. The frontend loads existing notifications from `GET /v1/notifications` on page load.
+6. After the initial load, the frontend stays in sync by listening to SSE.
+
+Read notifications are kept in the database. "Clear notifications" means marking them as read, not deleting them.
+
+#### SSE authentication model
+
+Native `EventSource` cannot send an `Authorization` header. To keep the SSE stream authenticated without putting JWTs in the URL, the backend uses a short-lived, one-use, HttpOnly cookie.
+
+The cookie contains an opaque random token, not the user's JWT and not the wallet address. The backend stores this token in memory with the wallet address for 60 seconds:
+
+```txt
+opaque token -> { recipientAddress, expiresAt }
+```
+
+When `/v1/events` consumes the token, it deletes it. If the same token is reused, the request is rejected.
+
+This is intentionally in-memory because the SSE broker is also in-memory. If the backend runs multiple instances, both the pending SSE tokens and event fanout need shared storage/pubsub, such as Redis.
+
+#### Per-device SSE handshake
+
+Each device or browser tab opens its own SSE channel. The flow is:
+
+1. The frontend already has a normal login JWT.
+2. The frontend asks the backend to create a one-use SSE cookie.
+3. The frontend opens `EventSource` with credentials.
+4. If the stream disconnects, the frontend repeats the same handshake.
+
+```ts
+async function openNotificationsStream(token: string) {
+  await fetch('/v1/events/session', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    credentials: 'include',
+  });
+
+  const source = new EventSource('/v1/events', {
+    withCredentials: true,
+  });
+
+  source.addEventListener('project.scope_proposed', (event) => {
+    const notificationEvent = JSON.parse(event.data);
+    // Add/update this notification in the local UI state.
+  });
+
+  source.addEventListener('notification.read', (event) => {
+    const { id, readAt } = JSON.parse(event.data).data;
+    // Mark this notification as read locally.
+  });
+
+  source.addEventListener('notification.read_all', (event) => {
+    const { ids, readAt } = JSON.parse(event.data).data;
+    // Mark all listed notifications as read locally.
+  });
+
+  source.onerror = () => {
+    source.close();
+    // Request a fresh one-use cookie and create a new EventSource.
+    void openNotificationsStream(token);
+  };
+
+  return source;
+}
+```
+
+If a user opens the app on two devices, both devices repeat this handshake independently. Both streams are tied to the same wallet, so both receive new notification events and read-state events.
+
+#### Initial notification pull
+
+On page load, fetch the current database state before opening or while opening SSE:
+
+```ts
+const unread = await fetch('/v1/notifications?status=unread', {
+  headers: { Authorization: `Bearer ${token}` },
+}).then((response) => response.json());
+```
+
+Supported filters:
+
+- `GET /v1/notifications?status=unread`: only unread notifications.
+- `GET /v1/notifications?status=read`: only read notifications.
+- `GET /v1/notifications?status=all`: all notifications.
+- `GET /v1/notifications`: defaults to all notifications.
+
+The response is an array of persisted notification rows:
+
+```json
+[
+  {
+    "id": "notification-uuid",
+    "eventId": "event-id",
+    "recipientAddress": "5...",
+    "type": "project.scope_proposed",
+    "projectId": "project-uuid",
+    "data": {
+      "projectId": "project-uuid",
+      "contractAddress": "5...",
+      "state": "scope_proposed"
+    },
+    "readAt": null,
+    "createdAt": "2026-06-29T12:00:00.000Z"
+  }
+]
+```
+
+#### POST /v1/events/session
+
+Create a one-use SSE session cookie from the current bearer JWT.
+
+```bash
+curl -i -X POST http://localhost:3000/v1/events/session \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+Successful response:
+
+```http
+HTTP/1.1 204 No Content
+Set-Cookie: abako_sse_token=<opaque-token>; HttpOnly; Path=/v1/events; Max-Age=60; SameSite=Lax
+```
+
+In production, the cookie also gets `Secure`.
+
+#### GET /v1/events
+
+Open the SSE stream. This endpoint uses the `abako_sse_token` cookie and does not accept `userId`, wallet address, or bearer auth.
+
+```ts
+new EventSource('/v1/events', { withCredentials: true });
+```
+
+The first event confirms the stream is open:
+
+```txt
+event: connected
+data: {"type":"connected","timestamp":"..."}
+```
+
+Domain notifications use their domain event type:
+
+```txt
+event: project.scope_proposed
+data: {"id":"...","type":"project.scope_proposed","timestamp":"...","projectId":"...","data":{...}}
+```
+
+Read-state sync events are:
+
+```txt
+event: notification.read
+data: {"id":"...","type":"notification.read","timestamp":"...","data":{"id":"notification-uuid","readAt":"..."}}
+
+event: notification.read_all
+data: {"id":"...","type":"notification.read_all","timestamp":"...","data":{"ids":["notification-uuid"],"readAt":"..."}}
+```
+
+#### PATCH /v1/notifications/:id/read
+
+Mark one notification as read. The backend only updates the notification if it belongs to the wallet in the bearer JWT.
+
+```bash
+curl -X PATCH http://localhost:3000/v1/notifications/notification-uuid/read \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+After updating the database, the backend broadcasts `notification.read` to every active SSE stream for that wallet. This keeps other tabs/devices in sync without calling `GET /v1/notifications` again.
+
+#### PATCH /v1/notifications/read-all
+
+Mark all unread notifications for the authenticated wallet as read.
+
+```bash
+curl -X PATCH http://localhost:3000/v1/notifications/read-all \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+Response:
+
+```json
+{
+  "ids": ["notification-uuid-1", "notification-uuid-2"],
+  "readAt": "2026-06-29T12:00:00.000Z",
+  "count": 2
+}
+```
+
+The backend broadcasts `notification.read_all` to every active SSE stream for that wallet with the changed notification ids.
+
+#### CORS for EventSource
+
+If the frontend and backend are cross-origin, configure `CORS_ORIGIN` in `.env`:
+
+```bash
+CORS_ORIGIN=http://localhost:3000
+```
+
+The frontend must use `credentials: 'include'` for `POST /v1/events/session` and `withCredentials: true` for `EventSource`.
 
 ### Client Endpoints (`/v1/clients`)
 

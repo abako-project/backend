@@ -12,7 +12,7 @@ pnpm run dev:mock     # start the backend (mock-api + adapter-api)
 API will be available at `http://localhost:4000`, docs at `http://localhost:4000/api-docs`.
 
 ```bash
-pnpm run test:mock    # run all 89 tests
+pnpm run test:mock    # run all 95 tests
 ```
 
 No MongoDB, Docker, or blockchain node required.
@@ -34,7 +34,7 @@ Then `npm run dev` — the frontend will use mock auth (no WebAuthn/blockchain).
 ```
 backend/
 ├── packages/
-│   ├── adapter-api/      # Main NestJS API (auth, projects, clients, calendar, ratings)
+│   ├── adapter-api/      # Main NestJS API (auth, projects, notifications, calendar, ratings)
 │   ├── mock-api/         # Mock server replacing blockchain services for dev/test
 │   ├── contracts-api/    # Ink! smart contract interactions (production)
 │   └── virto-api/        # Virto blockchain API (production)
@@ -101,6 +101,12 @@ New integrations should send `userId` when creating client or developer profiles
 - Activation is atomic. When no valid workers are available, the call fails without activating the milestone or accepting the previous one, and the client can retry later.
 - Availability covers the next 12 weeks, defaults to zero, and is capped at 60 hours per week. `PermanentWeeklyHours: 40` keeps future weeks at 40 hours as the window advances.
 - Mock workers, skills, and weekly availability are stored in SQLite. The production smart contract is expected to own equivalent vectors and assignment logic.
+
+## Notifications
+
+`adapter-api` stores notifications per wallet address and exposes an authenticated SSE stream for live updates. Frontends load existing notifications with `GET /v1/notifications`, create a one-use SSE cookie with `POST /v1/events/session`, and then open `GET /v1/events` with `EventSource`.
+
+The full handshake, event shapes, read-state sync, and multi-device behavior are documented in `packages/adapter-api/README.md`.
 
 ## Available Scripts
 
