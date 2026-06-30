@@ -30,14 +30,14 @@ virto-demo/
 ## Prerequisites
 
 - Node.js (latest LTS version recommended)
-- npm or yarn
+- pnpm
 
 ## Installation
 
 ```bash
 make init # init submodule
 # Install dependencies
-npm install
+pnpm install
 ```
 
 ## Configuration
@@ -68,27 +68,27 @@ SIGNING_SERVICE_URL=http://localhost:3000/passkeys/sign
 
 ```bash
 # Development mode
-npm run start:dev
+pnpm run start:dev
 
 # Debug mode
-npm run start:debug
+pnpm run start:debug
 
 # Production mode
-npm run build
-npm run start:prod
+pnpm run build
+pnpm run start:prod
 ```
 
 ## Testing
 
 ```bash
 # Run tests
-npm test
+pnpm test
 
 # Run tests with watch mode
-npm run test:watch
+pnpm run test:watch
 
 # Run tests with coverage
-npm run test:cov
+pnpm run test:cov
 ```
 
 ## API Endpoints
@@ -113,7 +113,7 @@ npm run test:cov
 
 ```bash
 # Format code
-npm run format
+pnpm run format
 ```
 
 ## License

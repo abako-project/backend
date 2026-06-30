@@ -1583,12 +1583,12 @@ If you prefer manual control:
 
 # Run all E2E tests
 cd packages/adapter-api
-npm run test:e2e:all
+pnpm run test:e2e:all
 
 # Run specific test suites
-npm run test:e2e:auth       # Authentication only
-npm run test:e2e:calendar   # Calendar only
-npm run test:e2e            # Projects (complete flow)
+pnpm run test:e2e:auth       # Authentication only
+pnpm run test:e2e:calendar   # Calendar only
+pnpm run test:e2e            # Projects (complete flow)
 ```
 
 **Test output:**

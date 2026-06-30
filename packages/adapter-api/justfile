@@ -2,14 +2,13 @@ default:
     @just --list
 
 install:
-    npm ci
+    pnpm install --frozen-lockfile
 
 build:
-    npm run build
+    pnpm run build
 
 dev:
-    PORT=3000 NODE_ENV=development npm run start:dev
+    PORT=3000 NODE_ENV=development pnpm run start:dev
 
 start:
-    PORT=3000 NODE_ENV=production npm run start:prod
-
+    PORT=3000 NODE_ENV=production pnpm run start:prod
