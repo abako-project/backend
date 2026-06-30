@@ -1,29 +1,199 @@
 // Mock routes for contracts-api endpoints (projects, calendar, ratings)
 // Behavior mirrors the ink! smart contracts in ../../../contracts/
 import { Router } from "express";
-import { store, MockTask, MockTeamMember } from "./store.js";
+import { randomInt } from "node:crypto";
+import {
+  store,
+  MockAssignment,
+  MockProjectInfo,
+  MockRequirement,
+  MockTask,
+  MockTeamMember,
+} from "./store.js";
+import { workerRegistry } from "./worker-registry.js";
 
 export const contractsRouter = Router();
-
-function availabilityToHours(availability: any): number {
-  if (typeof availability === "number") return availability;
-  if (typeof availability === "string") {
-    if (availability === "FullTime") return 40;
-    if (availability === "PartTime") return 20;
-    return 0;
-  }
-  if (availability && typeof availability === "object") {
-    if (typeof availability.WeeklyHours === "number") return availability.WeeklyHours;
-    if (availability.type === "WeeklyHours") return Number(availability.value ?? 0);
-    if (availability.type === "FullTime") return 40;
-    if (availability.type === "PartTime") return 20;
-  }
-  return 0;
-}
 
 function positiveIntegerOrDefault(value: any, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizedSkillIds(skillIds: unknown): number[] {
+  if (!Array.isArray(skillIds)) return [];
+  return [...new Set(
+    skillIds.map(Number).filter((id) => Number.isInteger(id) && id > 0),
+  )].sort((a, b) => a - b);
+}
+
+function randomItem<T>(items: T[]): T {
+  return items[randomInt(items.length)];
+}
+
+function workerMatches(
+  worker: ReturnType<typeof workerRegistry.listWorkers>[number],
+  requirement: MockRequirement,
+): boolean {
+  const skills = new Set(worker.skillIds);
+  return requirement.skill_ids.every((skillId) => skills.has(skillId));
+}
+
+function selectCandidate(
+  candidates: ReturnType<typeof workerRegistry.listWorkers>,
+  requirement: MockRequirement,
+  excluded: Set<string>,
+) {
+  const eligible = candidates.filter((worker) => (
+    !excluded.has(worker.walletAddress) && workerMatches(worker, requirement)
+  ));
+  return eligible.length > 0 ? randomItem(eligible) : null;
+}
+
+function planTeamForApprovedTasks(info: MockProjectInfo): {
+  team: MockTeamMember[];
+  assignments: Array<{ taskId: number; assignments: MockAssignment[] }>;
+} {
+  const registered = store.getRegisteredWorkers(info.calendar_contract);
+  const approvedTasks = info.tasks.filter((task) => "Approved" in task.status);
+  const excludedProjectAccounts = new Set([info.client, info.coordinator].filter(Boolean) as string[]);
+  const workers = workerRegistry
+    .listWorkers(registered)
+    .filter((worker) => !excludedProjectAccounts.has(worker.walletAddress))
+    .filter((worker) => worker.totalHours > 0);
+  const assignmentsByKey = new Map<string, string>();
+  const projectTeam = new Set<string>();
+  const assignments: Array<{ taskId: number; assignments: MockAssignment[] }> = [];
+
+  for (const task of approvedTasks) {
+    if (task.requirements.length === 0) {
+      throw new Error(`Task ${task.id} has no assignment requirements`);
+    }
+    const usedInMilestone = new Set<string>();
+    const taskAssignments: MockAssignment[] = [];
+    for (const requirement of task.requirements) {
+      const previousAccount = assignmentsByKey.get(requirement.assignment_key);
+      const previousWorker = previousAccount
+        ? workers.find((worker) => worker.walletAddress === previousAccount)
+        : undefined;
+
+      let selected = previousWorker &&
+        !usedInMilestone.has(previousWorker.walletAddress) &&
+        workerMatches(previousWorker, requirement)
+        ? previousWorker
+        : null;
+
+      if (!selected) {
+        const existingTeam = workers.filter((worker) => projectTeam.has(worker.walletAddress));
+        selected = selectCandidate(existingTeam, requirement, usedInMilestone);
+      }
+      if (!selected) {
+        selected = selectCandidate(workers, requirement, usedInMilestone);
+      }
+      if (!selected) {
+        throw new Error(
+          `No worker covers ${requirement.assignment_key} for task ${task.id}`,
+        );
+      }
+
+      usedInMilestone.add(selected.walletAddress);
+      projectTeam.add(selected.walletAddress);
+      assignmentsByKey.set(requirement.assignment_key, selected.walletAddress);
+      taskAssignments.push({
+        ...requirement,
+        account_id: selected.walletAddress,
+      });
+    }
+    assignments.push({
+      taskId: task.id,
+      assignments: taskAssignments,
+    });
+  }
+
+  const uniqueWorkers = [...projectTeam];
+  const team = uniqueWorkers.map((accountId): MockTeamMember => ({
+    account_id: accountId,
+    rating: null,
+  }));
+  for (const assignment of assignments) {
+    const task = info.tasks.find((item) => item.id === assignment.taskId);
+    if (!task) continue;
+    task.assignments = assignment.assignments;
+    task.assigned_to = assignment.assignments[0]?.account_id || null;
+  }
+  info.team = team;
+  info.state = "TeamAssigned";
+  return { team, assignments };
+}
+
+function activateTask(info: MockProjectInfo, task: MockTask): void {
+  const registered = store.getRegisteredWorkers(info.calendar_contract);
+  const globalWorkers = workerRegistry
+    .listWorkers(registered)
+    .filter((worker) => worker.walletAddress !== info.client)
+    .filter((worker) => worker.walletAddress !== info.coordinator);
+  const existingTeamAccounts = new Set(info.team.map((member) => member.account_id));
+  const used = new Set<string>();
+  const activatedAssignments: MockAssignment[] = [];
+
+  for (const assignment of task.assignments) {
+    const currentWorker = globalWorkers.find(
+      (worker) => worker.walletAddress === assignment.account_id,
+    );
+    let selected = currentWorker &&
+      !used.has(currentWorker.walletAddress) &&
+      workerMatches(currentWorker, assignment) &&
+      currentWorker.totalHours >= assignment.hours
+      ? currentWorker
+      : null;
+
+    if (!selected) {
+      const existingTeam = globalWorkers.filter((worker) => (
+        existingTeamAccounts.has(worker.walletAddress) &&
+        worker.totalHours >= assignment.hours
+      ));
+      selected = selectCandidate(existingTeam, assignment, used);
+    }
+    if (!selected) {
+      const availableGlobal = globalWorkers.filter(
+        (worker) => worker.totalHours >= assignment.hours,
+      );
+      selected = selectCandidate(availableGlobal, assignment, used);
+    }
+    if (!selected) {
+      throw new Error(
+        `No available worker for ${assignment.assignment_key}; try activation later`,
+      );
+    }
+
+    used.add(selected.walletAddress);
+    activatedAssignments.push({
+      ...assignment,
+      account_id: selected.walletAddress,
+    });
+  }
+
+  workerRegistry.reserveAssignments(activatedAssignments.map((assignment) => ({
+    walletAddress: assignment.account_id,
+    hours: assignment.hours,
+  })));
+  task.assignments = activatedAssignments;
+  task.assigned_to = activatedAssignments[0]?.account_id || null;
+  task.status = { Active: store.nextBlockNumber() };
+
+  for (const assignment of activatedAssignments) {
+    if (!existingTeamAccounts.has(assignment.account_id)) {
+      info.team.push({ account_id: assignment.account_id, rating: null });
+      existingTeamAccounts.add(assignment.account_id);
+    }
+  }
+}
+
+function nextIncompleteTask(info: MockProjectInfo, afterTaskId?: number): MockTask | null {
+  const ordered = info.tasks.filter((task) => !("Rejected" in task.status));
+  const startIndex = afterTaskId == null
+    ? 0
+    : ordered.findIndex((task) => task.id === afterTaskId) + 1;
+  return ordered.slice(Math.max(startIndex, 0)).find((task) => !task.completed) || null;
 }
 
 // --- Health ---
@@ -33,6 +203,14 @@ contractsRouter.get("/health", (_req, res) => {
     service: "contracts-api (mock-api)",
     timestamp: new Date().toISOString(),
   });
+});
+
+contractsRouter.get("/mock/skills", (_req, res) => {
+  res.json({ skills: workerRegistry.listSkills() });
+});
+
+contractsRouter.get("/mock/workers", (_req, res) => {
+  res.json({ workers: workerRegistry.listWorkers() });
 });
 
 // ===================== PROJECTS =====================
@@ -96,7 +274,7 @@ contractsRouter.get("/projects/query/:contractAddress/:methodName", (req, res) =
       break;
 
     case "get_team":
-      // Mirrors: Vec<TeamMember { account_id, role, rating }>
+      // Mock assignment team members are identified only by account.
       response = info.team;
       break;
 
@@ -154,6 +332,8 @@ function serializeTask(t: MockTask): any {
     completed: t.completed,
     status: t.status,
     assigned_to: t.assigned_to,
+    assignments: t.assignments,
+    requirements: t.requirements,
   };
 }
 
@@ -184,20 +364,17 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
       return;
     }
 
-    // Query calendar for available workers with 30+ hours (mirrors real contract)
-    const available = store.getAvailableWorkers(info.calendar_contract, 30);
-    let coordinatorAddress: string;
-
-    if (available.length > 0) {
-      // Pick first available worker (highest hours, excluding the client)
-      const candidate = available.find((w) => w.worker !== info.client) || available[0];
-      coordinatorAddress = candidate.worker;
-    } else {
-      // Fallback: pick any registered user that isn't the client
-      const registeredUsers = Array.from(store.users.values());
-      const nonClient = registeredUsers.find((u) => u.address !== info.client);
-      coordinatorAddress = nonClient?.address || store.generateAddress();
+    const registered = store.getRegisteredWorkers(info.calendar_contract);
+    const candidates = workerRegistry
+      .listWorkers(registered)
+      .filter((worker) => worker.isCoordinator)
+      .filter((worker) => worker.walletAddress !== info.client)
+      .filter((worker) => worker.totalHours > 0);
+    if (candidates.length === 0) {
+      res.status(400).json({ success: false, error: "No available coordinator" });
+      return;
     }
+    const coordinatorAddress = randomItem(candidates).walletAddress;
 
     info.coordinator = coordinatorAddress;
     info.state = "CoordinatorAssigned";
@@ -216,68 +393,59 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
   if (encodedMethods.includes(methodName)) {
     // Apply side effects to in-memory state (mirrors contract behavior)
     if (info) {
-      switch (methodName) {
+      try {
+        switch (methodName) {
         // ── assign_team ────────────────────────────────────────────
         case "assign_team": {
-          // Query calendar for workers with 15+ hours (mirrors real contract)
-          const available = store.getAvailableWorkers(info.calendar_contract, 15);
-          const idealSize = positiveIntegerOrDefault(
-            req.body.data?.ideal_team_size ?? req.body.data?._team_size ?? info.scope?.team_size,
-            1
-          );
-
-          // Filter out coordinator and client
-          const candidates = available.filter(
-            (w) => w.worker !== info.coordinator && w.worker !== info.client
-          );
-
-          // Take up to idealSize workers
-          const teamWorkers = candidates.slice(0, idealSize);
-
-          // Assign roles round-robin: Designer, Developer, Tester (mirrors real contract)
-          const roles = ["Designer", "Developer", "Tester"];
-          info.team = teamWorkers.map((w, i): MockTeamMember => ({
-            account_id: w.worker,
-            role: roles[i % roles.length],
-            rating: null,
-          }));
-
-          // If no calendar workers available, generate placeholder team
-          if (info.team.length === 0) {
-            info.team = Array.from({ length: Math.min(idealSize, 3) }, (_, i): MockTeamMember => ({
-              account_id: store.generateAddress(),
-              role: roles[i % roles.length],
-              rating: null,
-            }));
-          }
-
-          // Assign approved tasks to team members round-robin (mirrors real contract)
-          const approvedTasks = info.tasks.filter(
-            (t) => "Approved" in t.status
-          );
-          approvedTasks.forEach((task, i) => {
-            task.assigned_to = info.team[i % info.team.length].account_id;
-          });
-
-          info.state = "TeamAssigned";
+          if (info.state === "TeamAssigned" && info.team.length > 0) break;
+          planTeamForApprovedTasks(info);
+          const firstTask = nextIncompleteTask(info);
+          if (firstTask) activateTask(info, firstTask);
           break;
         }
 
         // ── propose_scope ──────────────────────────────────────────
         case "propose_scope": {
           const rawTasks: any[] = req.body.data?.tasks || [];
+          const requirements = new Map<number, any>(
+            (req.body.data?.assignment_requirements || []).map((requirement: any) => [
+              Number(requirement.task_id),
+              requirement,
+            ]),
+          );
           const advancePct = req.body.data?.advance_payment_percentage || 0;
           const docHash = req.body.data?.document_hash || "";
 
-          info.tasks = rawTasks.map((t: any, i: number): MockTask => ({
-            id: t[0] ?? i,
-            complexity: typeof t[1] === "object" ? t[1] : { type: "Days", value: t[1] },
-            cost: String(t[2]),
-            dependencies: t[3] || [],
-            completed: false,
-            status: { Pending: null },
-            assigned_to: null,
-          }));
+          info.tasks = rawTasks.map((t: any, i: number): MockTask => {
+            const id = Number(t[0] ?? i);
+            const requirementGroup = requirements.get(id) as any;
+            const taskRequirements = Array.isArray(requirementGroup?.requirements)
+              ? requirementGroup.requirements
+              : [];
+            const parsedRequirements: MockRequirement[] = taskRequirements.map((requirement: any) => ({
+              assignment_key: String(requirement.assignment_key || "").trim().toLowerCase(),
+              hours: positiveIntegerOrDefault(requirement.hours, 1),
+              skill_ids: normalizedSkillIds(requirement.skill_ids),
+            }));
+            const keys = parsedRequirements.map((requirement) => requirement.assignment_key);
+            if (keys.some((key) => !key) || new Set(keys).size !== keys.length) {
+              throw new Error(`Task ${id} has invalid or duplicate assignment keys`);
+            }
+            if (parsedRequirements.some((requirement) => requirement.skill_ids.length === 0)) {
+              throw new Error(`Task ${id} requirements must contain skill IDs`);
+            }
+            return {
+              id,
+              complexity: typeof t[1] === "object" ? t[1] : { type: "Days", value: t[1] },
+              cost: String(t[2]),
+              dependencies: t[3] || [],
+              completed: false,
+              status: { Pending: null },
+              assigned_to: null,
+              assignments: [],
+              requirements: parsedRequirements,
+            };
+          });
 
           info.scope = {
             tasks: rawTasks,
@@ -296,27 +464,49 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
           const approvedIds: number[] = req.body.data?.approved_task_ids || [];
           const blockNum = store.nextBlockNumber();
           const approvedSet = new Set(approvedIds);
+          const previousStatuses = info.tasks.map((task) => task.status);
+          const previousState = info.state;
+          const previousTotalCost = info.total_cost;
+          const previousPaidAmount = info.paid_amount;
+          const previousScopeState = info.scope?.state;
+          const previousTeam = [...info.team];
+          const previousAssignments = info.tasks.map((task) => [...task.assignments]);
+          const previousAssignedTo = info.tasks.map((task) => task.assigned_to);
 
-          // Set task statuses: Approved or Rejected (mirrors real contract)
-          for (const task of info.tasks) {
-            if (approvedSet.has(task.id)) {
-              task.status = { Approved: blockNum };
-            } else if ("Pending" in task.status) {
-              task.status = { Rejected: blockNum };
+          try {
+            for (const task of info.tasks) {
+              if (approvedSet.has(task.id)) {
+                task.status = { Approved: blockNum };
+              } else if ("Pending" in task.status) {
+                task.status = { Rejected: blockNum };
+              }
             }
+
+            info.total_cost = info.tasks
+              .filter((t) => "Approved" in t.status)
+              .reduce((sum, t) => sum + parseInt(t.cost || "0"), 0);
+
+            const advancePct = info.scope?.advance_payment_percentage || 0;
+            info.paid_amount = Math.floor(info.total_cost * advancePct / 100);
+
+            if (info.scope) info.scope.state = "Approved";
+            info.state = "ScopeAccepted";
+            planTeamForApprovedTasks(info);
+            const firstTask = nextIncompleteTask(info);
+            if (firstTask) activateTask(info, firstTask);
+          } catch (error) {
+            info.tasks.forEach((task, index) => {
+              task.status = previousStatuses[index];
+              task.assignments = previousAssignments[index];
+              task.assigned_to = previousAssignedTo[index];
+            });
+            info.team = previousTeam;
+            info.state = previousState;
+            info.total_cost = previousTotalCost;
+            info.paid_amount = previousPaidAmount;
+            if (info.scope && previousScopeState) info.scope.state = previousScopeState;
+            throw error;
           }
-
-          // Recalculate total_cost from approved tasks
-          info.total_cost = info.tasks
-            .filter((t) => "Approved" in t.status)
-            .reduce((sum, t) => sum + parseInt(t.cost || "0"), 0);
-
-          // Calculate advance payment
-          const advancePct = info.scope?.advance_payment_percentage || 0;
-          info.paid_amount = Math.floor(info.total_cost * advancePct / 100);
-
-          if (info.scope) info.scope.state = "Approved";
-          info.state = "ScopeAccepted";
           break;
         }
 
@@ -324,16 +514,17 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
         case "submit_task_for_review": {
           const taskId = req.body.data?.task_id;
           const task = info.tasks.find((t) => t.id === taskId);
-          if (task && !task.completed && "Approved" in task.status) {
-            // Check dependencies are completed (mirrors real contract)
-            const depsCompleted = task.dependencies.every((depId) => {
-              const dep = info.tasks.find((t) => t.id === depId);
-              return dep?.completed === true;
-            });
-            if (depsCompleted) {
-              task.status = { PendingReview: store.nextBlockNumber() };
-            }
+          if (!task || task.completed || !("Active" in task.status)) {
+            throw new Error(`Task ${taskId} is not active`);
           }
+          const depsCompleted = task.dependencies.every((depId) => {
+            const dep = info.tasks.find((t) => t.id === depId);
+            return dep?.completed === true;
+          });
+          if (!depsCompleted) {
+            throw new Error(`Task ${taskId} dependencies are not completed`);
+          }
+          task.status = { PendingReview: store.nextBlockNumber() };
           break;
         }
 
@@ -341,10 +532,12 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
         case "complete_task": {
           const taskId = req.body.data?.task_id;
           const task = info.tasks.find((t) => t.id === taskId);
-          // Real contract: must be in PendingReview status
-          if (task && !task.completed && "PendingReview" in task.status) {
-            task.completed = true;
+          if (!task || task.completed || !("PendingReview" in task.status)) {
+            throw new Error(`Task ${taskId} is not awaiting client acceptance`);
           }
+          const nextTask = nextIncompleteTask(info, task.id);
+          if (nextTask) activateTask(info, nextTask);
+          task.completed = true;
           break;
         }
 
@@ -374,6 +567,14 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
           info.ratings_contract = req.body.data?.ratings_contract || null;
           break;
         }
+        }
+      } catch (error) {
+        res.status(400).json({
+          success: false,
+          method: methodName,
+          error: error instanceof Error ? error.message : "Contract call failed",
+        });
+        return;
       }
     }
 
@@ -424,7 +625,12 @@ contractsRouter.get("/calendar/query/:contractAddress/:methodName", (req, res) =
     switch (methodName) {
       case "get_availability_hours": {
         const worker = String(req.query.worker || "");
-        response = cal.workers.get(worker) ?? 0;
+        response = workerRegistry.getWorker(worker)?.availability[0]?.hours ?? 0;
+        break;
+      }
+      case "get_availability_calendar": {
+        const worker = String(req.query.worker || "");
+        response = workerRegistry.getAvailability(worker);
         break;
       }
       case "is_available": {
@@ -432,7 +638,7 @@ contractsRouter.get("/calendar/query/:contractAddress/:methodName", (req, res) =
         const minHours = req.query.min_hours != null
           ? parseInt(String(req.query.min_hours))
           : null;
-        const hours = cal.workers.get(worker) ?? 0;
+        const hours = workerRegistry.getWorker(worker)?.availability[0]?.hours ?? 0;
         response = minHours != null ? hours >= minHours : hours > 0;
         break;
       }
@@ -440,25 +646,31 @@ contractsRouter.get("/calendar/query/:contractAddress/:methodName", (req, res) =
         const minHours = req.query.min_hours != null
           ? parseInt(String(req.query.min_hours))
           : null;
-        // Mirrors real contract: Vec<WorkerAvailability>, sorted by hours desc
-        response = [];
-        for (const [addr, hours] of cal.workers.entries()) {
-          if (minHours != null ? hours >= minHours : hours > 0) {
-            response.push({ worker: addr, hours });
-          }
-        }
+        response = workerRegistry
+          .listWorkers(cal.workers)
+          .filter((worker) => {
+            const currentWeekHours = worker.availability[0]?.hours ?? 0;
+            return minHours != null ? currentWeekHours >= minHours : worker.totalHours > 0;
+          })
+          .map((worker) => ({
+            worker: worker.walletAddress,
+            hours: worker.availability[0]?.hours ?? 0,
+            total_hours: worker.totalHours,
+            weeks: worker.availability,
+          }));
         response.sort((a: any, b: any) => b.hours - a.hours);
         break;
       }
       case "get_registered_workers":
-        response = Array.from(cal.workers.keys());
+        response = Array.from(cal.workers);
         break;
       case "get_all_workers_availability":
-        // Mirrors real contract: all workers including 0 hours, sorted desc
-        response = [];
-        for (const [addr, hours] of cal.workers.entries()) {
-          response.push({ worker: addr, hours });
-        }
+        response = workerRegistry.listWorkers(cal.workers).map((worker) => ({
+          worker: worker.walletAddress,
+          hours: worker.availability[0]?.hours ?? 0,
+          total_hours: worker.totalHours,
+          weeks: worker.availability,
+        }));
         response.sort((a: any, b: any) => b.hours - a.hours);
         break;
     }
@@ -479,12 +691,19 @@ contractsRouter.post("/calendar/call/:contractAddress/:methodName", (req, res) =
   const cal = contract?.calendarInfo;
 
   if (methodName === "set_availability") {
-    // Returns encoded data for signing (worker sets own availability)
     const caller = req.body.caller;
     const availability = req.body.data?.availability ?? 0;
-    const hours = availabilityToHours(availability);
-    if (cal && caller) {
-      cal.workers.set(caller, hours);
+    try {
+      if (cal && caller) {
+        cal.workers.add(caller);
+        workerRegistry.setAvailability(caller, availability);
+      }
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Invalid availability",
+      });
+      return;
     }
     res.json({
       method: "set_availability",
@@ -496,9 +715,14 @@ contractsRouter.post("/calendar/call/:contractAddress/:methodName", (req, res) =
   if (methodName === "register_worker") {
     const worker = req.body.data?.worker;
     if (cal && worker) {
-      if (!cal.workers.has(worker)) {
-        cal.workers.set(worker, 0);
-      }
+      cal.workers.add(worker);
+      workerRegistry.upsertWorker({
+        walletAddress: worker,
+        userId: req.body.data?.user_id || "",
+        name: req.body.data?.name || "",
+        isCoordinator: Boolean(req.body.data?.is_coordinator),
+        skillIds: normalizedSkillIds(req.body.data?.skill_ids ?? req.body.data?.skills),
+      });
     }
     res.json({
       method: "register_worker",
@@ -512,9 +736,20 @@ contractsRouter.post("/calendar/call/:contractAddress/:methodName", (req, res) =
 
   if (methodName === "register_workers") {
     const workers: string[] = req.body.data?.workers || [];
+    const profiles = new Map(
+      (req.body.data?.worker_profiles || []).map((profile: any) => [profile.worker, profile]),
+    );
     if (cal) {
       for (const w of workers) {
-        if (!cal.workers.has(w)) cal.workers.set(w, 0);
+        const profile = profiles.get(w) as any;
+        cal.workers.add(w);
+        workerRegistry.upsertWorker({
+          walletAddress: w,
+          userId: profile?.user_id || "",
+          name: profile?.name || "",
+          isCoordinator: Boolean(profile?.is_coordinator),
+          skillIds: normalizedSkillIds(profile?.skill_ids ?? profile?.skills),
+        });
       }
     }
     res.json({
@@ -530,9 +765,17 @@ contractsRouter.post("/calendar/call/:contractAddress/:methodName", (req, res) =
   if (methodName === "admin_set_worker_availability") {
     const worker = req.body.data?.worker;
     const availability = req.body.data?.availability ?? 0;
-    const hours = availabilityToHours(availability);
-    if (cal && worker) {
-      cal.workers.set(worker, hours);
+    try {
+      if (cal && worker) {
+        cal.workers.add(worker);
+        workerRegistry.setAvailability(worker, availability);
+      }
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        error: error instanceof Error ? error.message : "Invalid availability",
+      });
+      return;
     }
     res.json({
       method: "admin_set_worker_availability",

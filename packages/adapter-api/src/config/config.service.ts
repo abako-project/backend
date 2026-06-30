@@ -72,7 +72,7 @@ export class ConfigService {
   }
 
   getSqlitePath(): string {
-    return this.envConfig['SQLITE_PATH'] || process.env['SQLITE_PATH'] || './data/abako.sqlite';
+    return process.env['SQLITE_PATH'] || this.envConfig['SQLITE_PATH'] || './data/abako.sqlite';
   }
 
   getDaoAddress(): string {

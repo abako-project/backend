@@ -15,6 +15,7 @@ import { DaoModule } from './modules/dao/dao.module';
 import { RampModule } from './modules/ramps/ramps.module';
 import { SeedModule } from './modules/seed/seed.module';
 import { EventsModule } from './modules/events/events.module';
+import { SkillsModule } from './modules/skills/skills.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 
 dotenv.config();
@@ -37,6 +38,7 @@ dotenv.config();
     DaoModule,
     RampModule,
     EventsModule,
+    SkillsModule,
     NotificationsModule,
     SeedModule,
   ],

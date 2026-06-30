@@ -1,7 +1,7 @@
 import { Module, Global } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '../config/config.service';
-import { User, Developer, Client, Project, Milestone, Rating, Notification } from './entities';
+import { User, Developer, Client, Project, Milestone, MilestoneAssignment, Rating, Skill, Notification } from './entities';
 
 @Global()
 @Module({
@@ -11,7 +11,7 @@ import { User, Developer, Client, Project, Milestone, Rating, Notification } fro
       useFactory: (configService: ConfigService) => ({
         type: 'better-sqlite3',
         database: configService.getSqlitePath(),
-        entities: [User, Developer, Client, Project, Milestone, Rating, Notification],
+        entities: [User, Developer, Client, Project, Milestone, MilestoneAssignment, Rating, Skill, Notification],
         synchronize: true,
       }),
     }),
