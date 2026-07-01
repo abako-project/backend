@@ -11,6 +11,8 @@ import {
   MockTeamMember,
 } from "./store.js";
 import { workerRegistry } from "./worker-registry.js";
+import { DEFAULT_ASSET_ID, ledger } from "./ledger.js";
+import { payments } from "./payments.js";
 
 export const contractsRouter = Router();
 
@@ -28,6 +30,13 @@ function normalizedSkillIds(skillIds: unknown): number[] {
 
 function randomItem<T>(items: T[]): T {
   return items[randomInt(items.length)];
+}
+
+function ensureFunds(address: string, amount: number): void {
+  if (amount <= 0) return;
+  if (BigInt(ledger.getBalance(address, DEFAULT_ASSET_ID)) < BigInt(amount)) {
+    throw new Error(`Insufficient KVN balance for ${address}`);
+  }
 }
 
 function workerMatches(
@@ -488,12 +497,23 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
 
             const advancePct = info.scope?.advance_payment_percentage || 0;
             info.paid_amount = Math.floor(info.total_cost * advancePct / 100);
+            ensureFunds(info.client, info.paid_amount);
 
             if (info.scope) info.scope.state = "Approved";
             info.state = "ScopeAccepted";
             planTeamForApprovedTasks(info);
             const firstTask = nextIncompleteTask(info);
             if (firstTask) activateTask(info, firstTask);
+            if (info.paid_amount > 0) {
+              payments.createPayment({
+                from: info.client,
+                to: contractAddress,
+                assetId: DEFAULT_ASSET_ID,
+                amount: info.paid_amount,
+                kind: "advance",
+                projectContract: contractAddress,
+              });
+            }
           } catch (error) {
             info.tasks.forEach((task, index) => {
               task.status = previousStatuses[index];
@@ -535,8 +555,24 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
           if (!task || task.completed || !("PendingReview" in task.status)) {
             throw new Error(`Task ${taskId} is not awaiting client acceptance`);
           }
+          if (!task.assigned_to) throw new Error(`Task ${taskId} has no assigned worker`);
+          const taskCost = parseInt(task.cost || "0");
+          ensureFunds(info.client, taskCost);
           const nextTask = nextIncompleteTask(info, task.id);
           if (nextTask) activateTask(info, nextTask);
+          if (taskCost > 0) {
+            const payment = payments.createPayment({
+              from: info.client,
+              to: task.assigned_to,
+              assetId: DEFAULT_ASSET_ID,
+              amount: taskCost,
+              kind: "milestone",
+              projectContract: contractAddress,
+              taskId: task.id,
+            });
+            payments.releasePayment(payment.paymentId);
+            info.paid_amount = Math.min(info.total_cost, info.paid_amount + taskCost);
+          }
           task.completed = true;
           break;
         }
