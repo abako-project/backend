@@ -25,7 +25,18 @@
 - Read-state changes should be broadcast to all active streams for that wallet with `notification.read` or `notification.read_all`.
 - In-memory SSE routing and one-use token storage assume a single backend instance. Add Redis/pubsub or equivalent before running multiple adapter-api instances.
 
+## Mock Ledger And Payments
+
+- Mock ledger/payments are dev-only behavior in `packages/mock-api`; production must keep using blockchain + `virto-api`.
+- `assetId=1` is `KVN`. Keep multi-asset support in request shapes, but do not invent other seeded assets unless requested.
+- The mock ledger is strict: debits must fail on insufficient funds and balances must never go negative.
+- `POST /api/fund` and `GET /api/balance` are frontend/dev helpers for mock mode only.
+- Mock payment endpoints under `/api/payments/*` simulate `pallet-payments` state transitions without fees, scheduler, incentives, or real chain holds.
+- Project scope approval and milestone acceptance should route through the mock payment/ledger behavior in mock mode, while production remains chain-backed.
+- Do not commit generated SQLite files from mock runs. Keep only intentional seed/config files such as `packages/mock-api/data/mock-balances.json`.
+
 ## Documentation Expectations
 
 - Keep `packages/adapter-api/README.md` as the source of truth for notification/SSE endpoint contracts and frontend handshake examples.
 - If event names, payload shape, auth flow, or notification read behavior changes, update the README in the same change.
+- If mock ledger/payment endpoint behavior changes, update `README.md`, `packages/adapter-api/README.md`, and this file in the same change.

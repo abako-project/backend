@@ -79,7 +79,7 @@ The connection is established automatically when the services start.
 
 ## Mock Mode (No Blockchain)
 
-For frontend development without the slow dev blockchain infrastructure, use the **mock-api** package. It replaces `virto-api` and `contracts-api` with a single in-memory Express server.
+For frontend development without the slow dev blockchain infrastructure, use the **mock-api** package. It replaces `virto-api` and `contracts-api` with a single Express server backed by SQLite for mock balances and payments.
 
 ### Setup
 
@@ -93,18 +93,66 @@ pnpm start       # or: pnpm dev (watch mode)
 Then configure your adapter-api `.env`:
 
 ```bash
-FEDERATE_SERVER=http://localhost:4000/api
-SIGNING_SERVICE_URL=http://localhost:4000
+FEDERATE_SERVER=http://localhost:4010/api
+SIGNING_SERVICE_URL=http://localhost:4010
 ```
 
-Start adapter-api as usual — it will hit the mock instead of the blockchain services. MongoDB is still required.
+Start adapter-api as usual — it will hit the mock instead of the blockchain services.
 
 ### What's mocked
 
 - **virto-api**: auth (WebAuthn flow), payments, memberships, balance, fund
 - **contracts-api**: project/calendar/ratings contract deploy, query, and call methods
 
-All state is in-memory and resets on restart. Contract interactions are stateful within a session (e.g. deploying a project then querying it returns consistent data).
+Users, contracts, memberships, and project state are held by the mock process. Worker registry, availability, ledger balances, and payments are persisted in SQLite so frontend dev sessions can inspect real balance changes.
+
+### Mock ledger and payment endpoints
+
+These endpoints are available on `mock-api` through `FEDERATE_SERVER` (`http://localhost:4010/api` by default). They are dev-only helpers; production uses the blockchain and `virto-api`.
+
+#### GET /api/balance?address=&assetId=1
+
+Returns the current mock balance for a wallet. Balances are strings because token amounts can exceed JavaScript safe integers.
+
+```json
+{
+  "balance": "1000000",
+  "assetId": 1
+}
+```
+
+#### POST /api/fund
+
+Credits a mock wallet for local testing.
+
+```json
+{
+  "address": "5...",
+  "assetId": 1,
+  "amount": "1000000"
+}
+```
+
+`assetId` defaults to `1`, which is `KVN`. `amount` defaults to `"1000000"`.
+
+#### Payment lifecycle endpoints
+
+- `GET /api/payments/health`
+- `POST /api/payments/create` with `{ senderAddress, recipientAddress, amount, assetId?, remark? }`
+- `GET /api/payments/get?paymentId=`
+- `POST /api/payments/release` with `{ paymentId }`
+- `POST /api/payments/request-payment` with `{ senderAddress, recipientAddress, amount, assetId?, remark? }`
+- `POST /api/payments/accept-and-pay` with `{ paymentId }`
+- `POST /api/payments/request-refund` with `{ paymentId }`
+- `POST /api/payments/cancel` with `{ paymentId }`
+- `POST /api/payments/dispute-refund` with `{ paymentId }`
+- `POST /api/payments/resolve-dispute` with `{ paymentId, percentBeneficiary }`
+
+Supported mock payment states are `Created`, `Released`, `PaymentRequested`, `Completed`, `RefundRequested`, `Cancelled`, `Refunded`, `NeedsReview`, and `DisputeResolved`.
+
+The mock ledger is strict: a debit fails when the sender does not have enough KVN. There are no fees, scheduler, incentives, or production chain holds in mock mode.
+
+Project scope approval creates an advance payment from the client. Accepting a milestone creates and releases a milestone payment to the assigned worker.
 
 ## API Documentation
 

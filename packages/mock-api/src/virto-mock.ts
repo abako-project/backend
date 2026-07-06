@@ -1,6 +1,8 @@
 // Mock routes for virto-api endpoints (mounted under /api)
 import { Router } from "express";
 import { store } from "./store.js";
+import { DEFAULT_ASSET_ID, DEFAULT_INITIAL_BALANCE, ledger } from "./ledger.js";
+import { payments } from "./payments.js";
 import {
   canonicalMessage,
   hexToBytes,
@@ -9,6 +11,13 @@ import {
 } from "./password.js";
 
 export const virtoRouter = Router();
+
+function paymentError(res: any, error: unknown): void {
+  res.status(400).json({
+    success: false,
+    error: error instanceof Error ? error.message : "Payment operation failed",
+  });
+}
 
 /** Mock JWT — header.payload.signature, payload carries {userId, address}. */
 function mockToken(userId: string, address: string): string {
@@ -381,27 +390,33 @@ virtoRouter.get("/is-member", (req, res) => {
 
 // Fund account
 virtoRouter.post("/fund", (req, res) => {
-  const { address } = req.body;
-  if (!address) {
-    res.status(400).json({ error: "address is required" });
-    return;
+  try {
+    const { address, assetId, amount } = req.body;
+    if (!address) {
+      res.status(400).json({ error: "address is required" });
+      return;
+    }
+    const fundedAmount = amount || DEFAULT_INITIAL_BALANCE;
+    ledger.credit(address, assetId || DEFAULT_ASSET_ID, fundedAmount, "fund");
+    res.json({
+      ok: true,
+      txHash: store.generateTxHash(),
+      blockHash: store.generateTxHash(),
+      address,
+      assetId: assetId || DEFAULT_ASSET_ID,
+      amount: String(fundedAmount),
+    });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error instanceof Error ? error.message : "Funding failed" });
   }
-  res.json({
-    ok: true,
-    txHash: store.generateTxHash(),
-    blockHash: store.generateTxHash(),
-    address,
-    amount: "100000000000",
-  });
 });
 
 // Get balance
 virtoRouter.get("/balance", (req, res) => {
   const address = String(req.query.address || "");
   const assetId = parseInt(String(req.query.assetId || "1"));
-  // Return a reasonable mock balance
   res.json({
-    balance: "50000000000",
+    balance: ledger.getBalance(address, assetId),
     assetId,
   });
 });
@@ -409,45 +424,96 @@ virtoRouter.get("/balance", (req, res) => {
 // --- Payments ---
 
 virtoRouter.post("/payments/create", (req, res) => {
-  const { recipientAddress, amount, assetId } = req.body;
-  const senderAddress = store.generateAddress();
-  const payment = store.createPayment(
-    senderAddress,
-    recipientAddress || store.generateAddress(),
-    String(amount || "0"),
-    assetId || 1
-  );
-  res.json({
-    success: true,
-    txHash: store.generateTxHash(),
-    paymentId: payment.paymentId,
-  });
+  try {
+    const { senderAddress, recipientAddress, amount, assetId, remark } = req.body;
+    if (!senderAddress || !recipientAddress) throw new Error("senderAddress and recipientAddress are required");
+    const payment = payments.createPayment({
+      from: senderAddress,
+      to: recipientAddress,
+      amount,
+      assetId: assetId || DEFAULT_ASSET_ID,
+      remark,
+    });
+    res.json({ success: true, txHash: store.generateTxHash(), paymentId: payment.paymentId });
+  } catch (error) {
+    paymentError(res, error);
+  }
 });
 
 virtoRouter.post("/payments/release", (req, res) => {
-  const { paymentId } = req.body;
-  const payment = store.payments.get(String(paymentId));
-  if (payment) payment.state = "Released";
-  res.json({
-    success: true,
-    txHash: store.generateTxHash(),
-  });
+  try {
+    payments.releasePayment(req.body.paymentId);
+    res.json({ success: true, txHash: store.generateTxHash() });
+  } catch (error) {
+    paymentError(res, error);
+  }
 });
 
 virtoRouter.post("/payments/accept-and-pay", (req, res) => {
-  const { paymentId } = req.body;
-  const payment = store.payments.get(String(paymentId));
-  if (payment) payment.state = "Completed";
-  res.json({
-    success: true,
-    txHash: store.generateTxHash(),
-  });
+  try {
+    payments.acceptAndPay(req.body.paymentId);
+    res.json({ success: true, txHash: store.generateTxHash() });
+  } catch (error) {
+    paymentError(res, error);
+  }
 });
 
 virtoRouter.get("/payments/get", (req, res) => {
   const paymentId = String(req.query.paymentId || "");
-  const payment = store.payments.get(paymentId);
-  res.json({ payment: payment || null });
+  res.json({ payment: payments.getPayment(paymentId) });
+});
+
+virtoRouter.post("/payments/request-payment", (req, res) => {
+  try {
+    const { senderAddress, recipientAddress, amount, assetId, remark } = req.body;
+    if (!senderAddress || !recipientAddress) throw new Error("senderAddress and recipientAddress are required");
+    const payment = payments.requestPayment({
+      from: senderAddress,
+      to: recipientAddress,
+      amount,
+      assetId: assetId || DEFAULT_ASSET_ID,
+      remark,
+    });
+    res.json({ success: true, txHash: store.generateTxHash(), paymentId: payment.paymentId });
+  } catch (error) {
+    paymentError(res, error);
+  }
+});
+
+virtoRouter.post("/payments/request-refund", (req, res) => {
+  try {
+    payments.requestRefund(req.body.paymentId);
+    res.json({ success: true, txHash: store.generateTxHash() });
+  } catch (error) {
+    paymentError(res, error);
+  }
+});
+
+virtoRouter.post("/payments/cancel", (req, res) => {
+  try {
+    payments.cancelPayment(req.body.paymentId);
+    res.json({ success: true, txHash: store.generateTxHash() });
+  } catch (error) {
+    paymentError(res, error);
+  }
+});
+
+virtoRouter.post("/payments/dispute-refund", (req, res) => {
+  try {
+    payments.disputeRefund(req.body.paymentId);
+    res.json({ success: true, txHash: store.generateTxHash() });
+  } catch (error) {
+    paymentError(res, error);
+  }
+});
+
+virtoRouter.post("/payments/resolve-dispute", (req, res) => {
+  try {
+    payments.resolveDispute(req.body.paymentId, req.body.percentBeneficiary);
+    res.json({ success: true, txHash: store.generateTxHash() });
+  } catch (error) {
+    paymentError(res, error);
+  }
 });
 
 virtoRouter.get("/payments/health", (_req, res) => {

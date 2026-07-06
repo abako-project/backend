@@ -3,4 +3,6 @@ log.txt
 *.log
 .env
 packages/adapter-api/data/
+packages/mock-api/data/*.sqlite
+packages/mock-api/data/*.sqlite-*
 .codebase-memory

@@ -57,7 +57,7 @@ const server = app.listen(PORT, async () => {
   // Funding/Balance
   console.log("\nFunding/Balance:");
   await test("fund account", "POST", "/api/fund", { address: userAddr?.address }, r => r.ok);
-  await test("get balance", "GET", `/api/balance?address=${userAddr?.address}&assetId=1`, undefined, r => !!r.balance);
+  await test("get balance", "GET", `/api/balance?address=${userAddr?.address}&assetId=1`, undefined, r => BigInt(r.balance) >= 1000000n);
 
   // Membership
   console.log("\nMembership:");
@@ -156,6 +156,7 @@ const server = app.listen(PORT, async () => {
   await test("accept first milestone and activate second", "POST", `/projects/call/${pAddr}/complete_task`, {
     data: { task_id: 1 },
   }, r => !!r.encodedData);
+  await test("worker paid after milestone acceptance", "GET", `/api/balance?address=${assignedAddress}&assetId=1`, undefined, r => BigInt(r.balance) >= 100n);
   await test("reassign active slot from existing project team", "GET", `/projects/query/${pAddr}/get_all_tasks`, undefined, r => (
     r.response?.[1]?.assignments?.[0]?.account_id === backupAddress &&
     "Active" in r.response[1].status
@@ -182,10 +183,50 @@ const server = app.listen(PORT, async () => {
 
   // Payments
   console.log("\nPayments:");
-  await test("create payment", "POST", "/api/payments/create", { recipientAddress: "addr1", amount: "100", assetId: 1 }, r => !!r.paymentId);
-  await test("get payment", "GET", "/api/payments/get?paymentId=1", undefined, r => !!r.payment);
-  await test("release payment", "POST", "/api/payments/release", { paymentId: "1" }, r => r.success);
-  await test("accept and pay", "POST", "/api/payments/accept-and-pay", { paymentId: "1" }, r => r.success);
+  const payment = await test("create payment", "POST", "/api/payments/create", {
+    senderAddress: userAddr?.address,
+    recipientAddress: "addr1",
+    amount: "100",
+    assetId: 1,
+  }, r => !!r.paymentId);
+  await test("get payment", "GET", `/api/payments/get?paymentId=${payment?.paymentId}`, undefined, r => r.payment?.state === "Created");
+  await test("release payment", "POST", "/api/payments/release", { paymentId: payment?.paymentId }, r => r.success);
+
+  const requestPayment = await test("request payment", "POST", "/api/payments/request-payment", {
+    senderAddress: userAddr?.address,
+    recipientAddress: "addr2",
+    amount: "50",
+    assetId: 1,
+  }, r => !!r.paymentId);
+  await test("accept and pay", "POST", "/api/payments/accept-and-pay", { paymentId: requestPayment?.paymentId }, r => r.success);
+
+  const refundPayment = await test("create refundable payment", "POST", "/api/payments/create", {
+    senderAddress: userAddr?.address,
+    recipientAddress: "addr3",
+    amount: "25",
+    assetId: 1,
+  }, r => !!r.paymentId);
+  await test("request refund", "POST", "/api/payments/request-refund", { paymentId: refundPayment?.paymentId }, r => r.success);
+  await test("cancel refund", "POST", "/api/payments/cancel", { paymentId: refundPayment?.paymentId }, r => r.success);
+
+  const disputedPayment = await test("create disputed payment", "POST", "/api/payments/create", {
+    senderAddress: userAddr?.address,
+    recipientAddress: "addr4",
+    amount: "25",
+    assetId: 1,
+  }, r => !!r.paymentId);
+  await test("request disputed refund", "POST", "/api/payments/request-refund", { paymentId: disputedPayment?.paymentId }, r => r.success);
+  await test("dispute refund", "POST", "/api/payments/dispute-refund", { paymentId: disputedPayment?.paymentId }, r => r.success);
+  await test("resolve dispute", "POST", "/api/payments/resolve-dispute", {
+    paymentId: disputedPayment?.paymentId,
+    percentBeneficiary: 40,
+  }, r => r.success);
+  await test("reject insufficient funds", "POST", "/api/payments/create", {
+    senderAddress: "empty-account",
+    recipientAddress: "addr5",
+    amount: "1",
+    assetId: 1,
+  }, r => r.success === false);
 
   console.log(`\n${"=".repeat(40)}`);
   console.log(`Results: ${pass} passed, ${fail} failed`);

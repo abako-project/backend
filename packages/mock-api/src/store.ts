@@ -17,15 +17,6 @@ export interface MockUser {
   pubKey?: string;
 }
 
-export interface MockPayment {
-  paymentId: string;
-  from: string;
-  to: string;
-  amount: string;
-  asset: number;
-  state: string;
-}
-
 export interface MockMember {
   address: string;
   membershipId: number;
@@ -109,11 +100,9 @@ export interface MockContract {
 
 class Store {
   users = new Map<string, MockUser>();
-  payments = new Map<string, MockPayment>();
   members = new Map<string, MockMember[]>(); // communityId -> members
   contracts = new Map<string, MockContract>();
 
-  private paymentCounter = 1;
   private membershipCounter = 1;
   private contractCounter = 1;
   private blockNumber = 1000;
@@ -192,20 +181,6 @@ class Store {
       if (user.address === address) return user;
     }
     return undefined;
-  }
-
-  // Payment methods
-  createPayment(from: string, to: string, amount: string, assetId: number): MockPayment {
-    const payment: MockPayment = {
-      paymentId: String(this.paymentCounter++),
-      from,
-      to,
-      amount,
-      asset: assetId,
-      state: "Created",
-    };
-    this.payments.set(payment.paymentId, payment);
-    return payment;
   }
 
   // Member methods

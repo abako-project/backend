@@ -12,7 +12,7 @@ pnpm run dev:mock     # start the backend (mock-api + adapter-api)
 API will be available at `http://localhost:4000`, docs at `http://localhost:4000/api-docs`.
 
 ```bash
-pnpm run test:mock    # run all 95 tests
+pnpm run test:mock    # run all 96 tests
 ```
 
 No MongoDB, Docker, or blockchain node required.
@@ -102,6 +102,19 @@ New integrations should send `userId` when creating client or developer profiles
 - Availability covers the next 12 weeks, defaults to zero, and is capped at 60 hours per week. `PermanentWeeklyHours: 40` keeps future weeks at 40 hours as the window advances.
 - Mock workers, skills, and weekly availability are stored in SQLite. The production smart contract is expected to own equivalent vectors and assignment logic.
 
+## Mock Ledger And Payments
+
+Mock mode includes a SQLite-backed ledger for frontend/dev testing only. Production still uses the blockchain through `virto-api`.
+
+- `assetId=1` is `KVN`.
+- `POST /api/fund` credits a dev wallet, defaulting to `1000000` KVN.
+- `GET /api/balance?address=<wallet>&assetId=1` returns the current mock balance as a string.
+- Payment endpoints live under `/api/payments/*` on `mock-api` and cover create/release, payment requests, refunds, cancellations, and dispute resolution.
+- Ledger debits are strict: operations fail when the payer lacks funds; mock balances must not go negative.
+- Project scope approval debits the client for the advance payment. Milestone acceptance debits the client and releases the milestone amount to the assigned worker.
+
+Frontend code should treat these endpoints as mock/dev helpers. Do not build production flows around `/api/fund` or the mock SQLite ledger.
+
 ## Notifications
 
 `adapter-api` stores notifications per wallet address and exposes an authenticated SSE stream for live updates. Frontends load existing notifications with `GET /v1/notifications`, create a one-use SSE cookie with `POST /v1/events/session`, and then open `GET /v1/events` with `EventSource`.
@@ -127,6 +140,7 @@ The e2e test suite covers:
 - Client and developer CRUD with image upload
 - Project deployment and lifecycle (deploy, coordinator, scope, team, completion)
 - Calendar contract (worker registration, availability)
+- Mock ledger and payments (funding, release, refunds, disputes, insufficient funds)
 - DAO governance (remark referendums)
 - Ratings (client, coordinator, developer)
 - Bramp integration (deposits, withdrawals)
@@ -143,6 +157,7 @@ See `packages/adapter-api/.env.mock` for mock mode defaults, or `.env.template` 
 | `USE_MOCK_AUTH` | `true` | Use mock auth (no blockchain) |
 | `SQLITE_PATH` | `./data/abako.sqlite` | SQLite database path |
 | `MOCK_SQLITE_PATH` | `./data/mock-registry.sqlite` | Mock worker, skill, and availability registry |
+| `MOCK_INITIAL_BALANCES_FILE` | `./data/mock-balances.json` | Mock dev accounts funded with 1000000 KVN |
 | `BRAMP_SERVICE_URL` | `http://localhost:4010` | Bramp payment service / mock-api |
 | `JWT_SECRET` | (set in .env) | JWT signing secret |
 | `PROVIDER_URL` | (production only) | Blockchain WebSocket URL |

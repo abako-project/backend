@@ -3,6 +3,7 @@
 
 import { store, MockTask, MockTeamMember, MockProjectInfo } from "./store.js";
 import { SkillCategory, workerRegistry } from "./worker-registry.js";
+import { ledger } from "./ledger.js";
 
 // Fixed Substrate-style addresses for seed users
 export const SEED = {
@@ -169,6 +170,8 @@ export function seedStore(): void {
     user.credentialId = u.credentialId;
     user.isMember = true;
   }
+  ledger.seedAssets();
+  ledger.seedInitialBalances((userId) => store.getOrCreateUser(userId));
 
   workerRegistry.seed(
     SEED_SKILLS,

@@ -98,6 +98,17 @@ describe('Projects Module E2E Tests', () => {
       const data = await response.json() as { balance: string };
       return BigInt(data.balance);
     };
+    const fundAccount = async (address: string, amount = '1000000', assetId: number = 1) => {
+      const federateServerUrl = process.env.FEDERATE_SERVER || 'http://localhost:4010/api';
+      const response = await fetch(`${federateServerUrl}/fund`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, amount, assetId }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fund account: ${response.status} ${response.statusText}`);
+      }
+    };
     describe('Deploy Ratings Contract for Test Isolation', () => {
       it('should deploy ratings contract for E2E test', async () => {
         console.log('Deploying isolated ratings contract for E2E test...');
@@ -1028,6 +1039,7 @@ describe('Projects Module E2E Tests', () => {
           expect(clientAccountId).toBeDefined();
           expect(contractAddress).toBeDefined();
 
+          await fundAccount(clientAccountId);
           initialClientBalance = await checkBalance(clientAccountId);
           initialContractBalance = await checkBalance(contractAddress);
           initialCoordinatorBalance = await checkBalance(coordinatorAccountId);
@@ -1099,11 +1111,8 @@ describe('Projects Module E2E Tests', () => {
           console.log(`Post-Approval Contract Balance: ${postApprovalContractBalance}`);
           console.log(`Post-Approval Coordinator Balance: ${postApprovalCoordinatorBalance}`);
 
-          // Mock always returns the same balance, so just verify values are valid bigints
-          expect(typeof postApprovalClientBalance).toBe('bigint');
+          expect(postApprovalClientBalance < initialClientBalance).toBe(true);
           expect(typeof postApprovalContractBalance).toBe('bigint');
-          expect(postApprovalClientBalance).toBeDefined();
-          expect(postApprovalContractBalance).toBeDefined();
         });
       });
 
@@ -1518,13 +1527,9 @@ describe('Projects Module E2E Tests', () => {
             console.log(`Final Contract Balance: ${finalContractBalance}`);
             console.log(`Final Coordinator Balance: ${finalCoordinatorBalance}`);
 
-            // Mock always returns the same balance, so just verify values are valid bigints
+            expect(finalClientBalance < postApprovalClientBalance).toBe(true);
             expect(typeof finalContractBalance).toBe('bigint');
             expect(typeof finalCoordinatorBalance).toBe('bigint');
-            expect(typeof finalClientBalance).toBe('bigint');
-            expect(finalContractBalance).toBeDefined();
-            expect(finalCoordinatorBalance).toBeDefined();
-            expect(finalClientBalance).toBeDefined();
           });
 
           it('should verify project delivery date was set after completion', async () => {
