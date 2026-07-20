@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  NotImplementedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Developer } from '../../database/entities/developer.entity';
@@ -7,6 +12,7 @@ import { Milestone } from '../../database/entities/milestone.entity';
 import { MilestoneAssignment } from '../../database/entities/milestone-assignment.entity';
 import { CreateDeveloperRequest, UpdateDeveloperRequest } from './types';
 import { SkillsService } from '../skills/skills.service';
+import { ConfigService } from '../../config/config.service';
 
 @Injectable()
 export class DevelopersService {
@@ -16,6 +22,7 @@ export class DevelopersService {
     @InjectRepository(Milestone) private milestoneRepo: Repository<Milestone>,
     @InjectRepository(MilestoneAssignment) private milestoneAssignmentRepo: Repository<MilestoneAssignment>,
     private readonly skillsService: SkillsService,
+    private readonly configService: ConfigService,
   ) {}
 
   async findAll(): Promise<Developer[]> {
@@ -111,15 +118,39 @@ export class DevelopersService {
   async updateCoordinatorEligibility(
     developerId: number,
     isCoordinator: boolean,
-  ): Promise<Developer> {
-    const developer = await this.developerRepo.findOne({ where: { id: developerId } });
-
-    if (!developer) {
-      throw new NotFoundException(`Developer with id ${developerId} not found`);
+  ): Promise<{ id: number; isCoordinator: boolean }> {
+    const developer = await this.findOne(developerId);
+    if (process.env.USE_MOCK_AUTH !== 'true') {
+      throw new NotImplementedException(
+        'Coordinator authorization is not implemented outside mock mode',
+      );
     }
 
-    developer.isCoordinator = Boolean(isCoordinator);
-    return this.developerRepo.save(developer);
+    const userId = developer.userId ?? developer.email;
+    if (!userId) {
+      throw new BadRequestException('Developer has no user identifier');
+    }
+
+    const response = await fetch(
+      `${this.configService.getFederateServer()}/users/${encodeURIComponent(userId)}/coordinator`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: Boolean(isCoordinator) }),
+      },
+    );
+    const result = await response.json() as {
+      error?: string;
+      roles?: Array<{ id: number }>;
+    };
+    if (!response.ok) {
+      throw new BadRequestException(result.error ?? 'Failed to update coordinator role');
+    }
+
+    return {
+      id: developer.id,
+      isCoordinator: result.roles?.some(({ id }) => id === 1) ?? false,
+    };
   }
 
   async updateImage(

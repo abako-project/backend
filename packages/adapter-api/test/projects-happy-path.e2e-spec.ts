@@ -219,11 +219,17 @@ describe('Issue #60 project happy path E2E', () => {
       .expect(200);
 
     if (definition.coordinator) {
-      await request(app.getHttpServer())
+      const eligibilityResponse = await request(app.getHttpServer())
         .put(`/v1/developers/${developerId}/coordinator-eligibility`)
         .send({ isCoordinator: true })
         .expect(200);
+      expect(eligibilityResponse.body.isCoordinator).toBe(true);
     }
+
+    const persistedProfile = await request(app.getHttpServer())
+      .get(`/v1/developers/${developerId}`)
+      .expect(200);
+    expect(persistedProfile.body.developer).not.toHaveProperty('isCoordinator');
 
     return {
       key: definition.key,

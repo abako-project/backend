@@ -9,6 +9,7 @@
 import type { Request } from "express";
 import { Router } from "express";
 import { store, MockContract, MockProjectInfo, MockTask, MockUser } from "./store.js";
+import { roleRegistry } from "./roles.js";
 
 export const appRouter = Router();
 
@@ -63,6 +64,7 @@ appRouter.get("/auth/me", (req, res) => {
   res.json({
     ...userSummary(user),
     isMember: user.isMember,
+    roles: roleRegistry.getUserRoles(user.userId),
   });
 });
 

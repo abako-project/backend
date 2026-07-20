@@ -3,7 +3,7 @@
 // Front-end developers consume this API:
 //
 //     const client = new PasswordAuthClient("http://localhost:4010");
-//     await client.register("alice", "hunter2");
+//     await client.register("alice", "hunter2", [2, 3]);
 //     const { token } = await client.login("alice", "hunter2");
 //     await client.changePassword(token, "hunter2", "tr0ub4dor&3");
 //
@@ -30,6 +30,7 @@ interface RegisterResponse {
   address: string;
   blockNumber: number;
   blockHash: string;
+  roles: Array<{ id: number; name: string; selectable: boolean }>;
 }
 
 interface LoginResponse {
@@ -69,7 +70,12 @@ export class PasswordAuthClient {
     return await r.json() as ChainHead;
   }
 
-  async register(userId: string, password: string, address?: string): Promise<RegisterResponse> {
+  async register(
+    userId: string,
+    password: string,
+    roleIds: number[],
+    address?: string,
+  ): Promise<RegisterResponse> {
     const { privKey, pubKey } = await deriveKeyPair(userId, password, this.chainId);
     const head = await this.chainHead();
     const clientNonce = this.newNonce();
@@ -88,6 +94,7 @@ export class PasswordAuthClient {
       blockHash: head.blockHash,
       clientNonce,
       signature: bytesToHex(signature),
+      roleIds,
       ...(address ? { address } : {}),
     });
   }

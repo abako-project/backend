@@ -65,6 +65,13 @@ export class PreparedRegistrationData {
     example: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY'
   })
   passAccountAddress: string;
+
+  @ApiProperty({
+    description: 'Selectable mock role IDs assigned during registration',
+    type: [Number],
+    example: [2, 3],
+  })
+  roleIds: number[];
 }
 
 export class SignRequest {

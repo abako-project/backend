@@ -8,6 +8,7 @@ describe('Auth Module - Registration Flow E2E', () => {
   let app: INestApplication;
   let auth: MockAuthHelper;
   let userId: string;
+  let token: string;
 
   beforeAll(async () => {
     console.log('Starting NestJS application for E2E tests...');
@@ -47,6 +48,9 @@ describe('Auth Module - Registration Flow E2E', () => {
       const result = await auth.registerUser(userId);
       expect(result.success).toBe(true);
       expect(result.passAccountAddress).toBeDefined();
+      expect(result.roles).toEqual([
+        { id: 2, name: 'frontend', selectable: true },
+      ]);
     });
   });
 
@@ -63,10 +67,21 @@ describe('Auth Module - Registration Flow E2E', () => {
 
   describe('Connection', () => {
     it('should connect user and obtain token', async () => {
-      const token = await auth.connectUser(userId);
+      token = await auth.connectUser(userId);
       expect(token).toBeDefined();
       expect(typeof token).toBe('string');
       expect(token.split('.').length).toBe(3); // JWT format
+    });
+
+    it('should return the current roles from the mock database', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/v1/auth/me')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(response.body.roles).toEqual([
+        { id: 2, name: 'frontend', selectable: true },
+      ]);
     });
   });
 });

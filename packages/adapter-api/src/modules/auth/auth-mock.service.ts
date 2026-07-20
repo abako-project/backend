@@ -52,6 +52,7 @@ export class MockAuthService {
           userId: preparedData.userId,
           credentialId: preparedData.credentialId,
           address: preparedData.passAccountAddress,
+          roleIds: preparedData.roleIds,
         }),
       });
 
@@ -146,13 +147,28 @@ export class MockAuthService {
     }
   }
 
-  async getCurrentUser(token: string): Promise<{ id: string; address: string; displayName: string }> {
+  async getCurrentUser(token: string): Promise<{
+    id: string;
+    address: string;
+    displayName: string;
+    roles: Array<{ id: number; name: string; selectable: boolean }>;
+  }> {
     const { userId, address } = this.decodeToken(token);
+    const rolesResponse = await fetch(
+      `${this.federateServer}/users/${encodeURIComponent(userId)}/roles`,
+    );
+    if (!rolesResponse.ok) {
+      throw new Error(`Failed to get user roles: ${rolesResponse.status}`);
+    }
+    const { roles } = await rolesResponse.json() as {
+      roles: Array<{ id: number; name: string; selectable: boolean }>;
+    };
     const local = userId?.split('@')[0] || userId || '';
     return {
       id: userId,
       address,
       displayName: local.charAt(0).toUpperCase() + local.slice(1),
+      roles,
     };
   }
 

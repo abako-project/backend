@@ -46,13 +46,13 @@ async function main() {
   const client = new PasswordAuthClient(BASE);
 
   // ── Registration
-  const reg = await client.register(USER, PASSWORD);
+  const reg = await client.register(USER, PASSWORD, [2]);
   check("register → ok", reg.ok === true, reg);
   check("register returns address", typeof reg.address === "string");
   check("register returns blockHash", typeof reg.blockHash === "string");
 
   // Re-register collides
-  await expectError("re-register", 409, () => client.register(USER, PASSWORD));
+  await expectError("re-register", 409, () => client.register(USER, PASSWORD, [2]));
 
   // ── Login: correct password
   const login = await client.login(USER, PASSWORD);

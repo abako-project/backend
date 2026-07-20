@@ -2,6 +2,8 @@
 import express from "express";
 import { virtoRouter } from "./virto-mock.js";
 import { contractsRouter } from "./contracts-mock.js";
+import { appRouter } from "./app-mock.js";
+import { PasswordAuthClient, PasswordAuthError } from "./password-client.js";
 import { seedStore } from "./seed.js";
 import { SEED } from "./seed.js";
 
@@ -9,6 +11,7 @@ const app = express();
 app.use(express.json());
 app.use("/api", virtoRouter);
 app.use("/", contractsRouter);
+app.use("/", appRouter);
 seedStore();
 
 const PORT = 0; // random available port
@@ -20,13 +23,22 @@ const server = app.listen(PORT, async () => {
   let pass = 0;
   let fail = 0;
 
-  async function test(name: string, method: string, path: string, body?: any, check?: (r: any) => boolean) {
+  async function test(
+    name: string,
+    method: string,
+    path: string,
+    body?: any,
+    check?: (r: any, status: number) => boolean,
+  ) {
     try {
       const opts: RequestInit = { method, headers: { "Content-Type": "application/json" } };
       if (body) opts.body = JSON.stringify(body);
       const res = await fetch(`${base}${path}`, opts);
-      const json = await res.json();
-      if (check && !check(json)) throw new Error(`Unexpected: ${JSON.stringify(json)}`);
+      const text = await res.text();
+      const json = text ? JSON.parse(text) : null;
+      if (check && !check(json, res.status)) {
+        throw new Error(`Unexpected ${res.status}: ${JSON.stringify(json)}`);
+      }
       console.log(`  PASS  ${name}`);
       pass++;
       return json;
@@ -37,6 +49,26 @@ const server = app.listen(PORT, async () => {
     }
   }
 
+  async function expectPasswordRoleError(
+    name: string,
+    userId: string,
+    roleIds: number[],
+  ) {
+    try {
+      await new PasswordAuthClient(base).register(userId, "correct horse battery staple", roleIds);
+      console.log(`  FAIL  ${name} - Expected status 400`);
+      fail++;
+    } catch (error) {
+      if (error instanceof PasswordAuthError && error.status === 400) {
+        console.log(`  PASS  ${name}`);
+        pass++;
+      } else {
+        console.log(`  FAIL  ${name} - ${error instanceof Error ? error.message : String(error)}`);
+        fail++;
+      }
+    }
+  }
+
   console.log("\nMock API smoke test\n");
 
   // Health
@@ -44,15 +76,126 @@ const server = app.listen(PORT, async () => {
   await test("virto health", "GET", "/api/health", undefined, r => r.status === "ok");
   await test("contracts health", "GET", "/health", undefined, r => r.status === "ok");
 
+  // Roles
+  console.log("\nRoles:");
+  const seededRoles = await test("list seeded roles", "GET", "/api/roles", undefined, (r, status) => (
+    status === 200 &&
+    JSON.stringify(r.roles) === JSON.stringify([
+      { id: 1, name: "coordinator", selectable: false },
+      { id: 2, name: "frontend", selectable: true },
+      { id: 3, name: "backend", selectable: true },
+      { id: 4, name: "fullstack", selectable: true },
+      { id: 5, name: "designer", selectable: true },
+      { id: 6, name: "qa", selectable: true },
+      { id: 7, name: "architect", selectable: true },
+      { id: 8, name: "embedded", selectable: true },
+      { id: 9, name: "devops", selectable: true },
+    ])
+  ));
+  const frontendRoleId = seededRoles?.roles?.find((role: any) => role.name === "frontend")?.id;
+  const backendRoleId = seededRoles?.roles?.find((role: any) => role.name === "backend")?.id;
+  await test("create role", "POST", "/api/roles", { name: "support" }, (r, status) => (
+    status === 201 && r.role?.name === "support" && r.role?.selectable === true
+  ));
+  const temporaryRole = await test("create temporary role", "POST", "/api/roles", { name: "temporary" }, (r, status) => (
+    status === 201 && Number.isInteger(r.role?.id)
+  ));
+  await test("read role", "GET", `/api/roles/${temporaryRole?.role?.id}`, undefined, (r, status) => (
+    status === 200 && r.role?.name === "temporary"
+  ));
+  await test("rename role", "PATCH", `/api/roles/${temporaryRole?.role?.id}`, { name: "temporary-renamed" }, (r, status) => (
+    status === 200 && r.role?.name === "temporary-renamed"
+  ));
+  await test("delete unused role", "DELETE", `/api/roles/${temporaryRole?.role?.id}`, undefined, (_r, status) => status === 204);
+  await test("reject duplicate role", "POST", "/api/roles", { name: "BACKEND" }, (_r, status) => status === 409);
+  await test("protect coordinator rename", "PATCH", "/api/roles/1", { name: "lead" }, (_r, status) => status === 409);
+  await test("protect coordinator delete", "DELETE", "/api/roles/1", undefined, (_r, status) => status === 409);
+  for (const userId of ["carol@example.com", "grace@example.com", "malik@example.com"]) {
+    await test(`seed coordinator role for ${userId}`, "GET", `/api/users/${userId}/roles`, undefined, (r, status) => (
+      status === 200 && r.roles?.some((role: any) => role.id === 1)
+    ));
+  }
+
   // Auth/Users
   console.log("\nAuth/Users:");
-  await test("register user", "POST", "/api/register", { userId: "alice" }, r => r.ok);
+  await test("register user", "POST", "/api/register", {
+    userId: "alice",
+    roleIds: [frontendRoleId, backendRoleId],
+  }, (r, status) => status === 200 && r.ok && r.roles?.length === 2);
+  await test("reject registration without roles", "POST", "/api/register", { userId: "no-roles" }, (_r, status) => status === 400);
+  await test("reject duplicate registration roles", "POST", "/api/register", {
+    userId: "duplicate-roles",
+    roleIds: [frontendRoleId, frontendRoleId],
+  }, (_r, status) => status === 400);
+  await test("reject coordinator during registration", "POST", "/api/register", {
+    userId: "self-coordinator",
+    roleIds: [1],
+  }, (_r, status) => status === 400);
+  await test("reject unknown registration role", "POST", "/api/register", {
+    userId: "unknown-role",
+    roleIds: [9999],
+  }, (_r, status) => status === 400);
+  const supportRoleId = (await test("read support role", "GET", "/api/roles", undefined, r => (
+    r.roles?.some((role: any) => role.name === "support")
+  )))?.roles?.find((role: any) => role.name === "support")?.id;
+  await test("register user with shared role", "POST", "/api/register", {
+    userId: "support-user",
+    roleIds: [supportRoleId],
+  }, (r, status) => status === 200 && r.roles?.[0]?.name === "support");
+  await test("reject deleting assigned role", "DELETE", `/api/roles/${supportRoleId}`, undefined, (_r, status) => status === 409);
+  await test("assign coordinator", "PATCH", "/api/users/alice/coordinator", { enabled: true }, (r, status) => (
+    status === 200 && r.roles?.some((role: any) => role.id === 1)
+  ));
+  const meResponse = await fetch(`${base}/auth/me`, { headers: { Authorization: "Bearer alice" } });
+  const me = await meResponse.json() as any;
+  if (meResponse.status === 200 && me.roles?.some((role: any) => role.id === 1)) {
+    console.log("  PASS  return current roles from authenticated auth me");
+    pass++;
+  } else {
+    console.log(`  FAIL  return current roles from authenticated auth me - Unexpected ${meResponse.status}: ${JSON.stringify(me)}`);
+    fail++;
+  }
+  await test("remove coordinator", "PATCH", "/api/users/alice/coordinator", { enabled: false }, (r, status) => (
+    status === 200 &&
+    !r.roles?.some((role: any) => role.id === 1) &&
+    r.roles?.length === 2
+  ));
+  await test("reject invalid coordinator flag", "PATCH", "/api/users/alice/coordinator", { enabled: "yes" }, (_r, status) => status === 400);
+  await test("reject coordinator for unknown user", "PATCH", "/api/users/missing/coordinator", { enabled: true }, (_r, status) => status === 404);
   await test("check registered", "GET", "/api/check-user-registered?userId=alice", undefined, r => r.ok === true);
   await test("check not registered", "GET", "/api/check-user-registered?userId=unknown", undefined, r => r.ok === false);
   const userAddr = await test("get user address", "GET", "/api/get-user-address?userId=alice", undefined, r => !!r.address);
   await test("get user id by address", "GET", `/api/get-user-id-by-address?address=${userAddr?.address}`, undefined, r => r.userId === "alice");
   await test("attestation", "GET", "/api/attestation?id=alice&challenge=abc", undefined, r => !!r.publicKey);
   await test("assertion", "GET", "/api/assertion?userId=alice&challenge=abc", undefined, r => !!r.publicKey);
+  const passwordRegistration = await new PasswordAuthClient(base).register(
+    "password-user",
+    "correct horse battery staple",
+    [frontendRoleId, backendRoleId],
+  );
+  if (passwordRegistration.ok && passwordRegistration.roles?.length === 2) {
+    console.log("  PASS  password registration stores roles");
+    pass++;
+  } else {
+    console.log(`  FAIL  password registration stores roles - Unexpected: ${JSON.stringify(passwordRegistration)}`);
+    fail++;
+  }
+  await expectPasswordRoleError("reject password registration without roles", "password-no-roles", []);
+  await expectPasswordRoleError(
+    "reject duplicate password registration roles",
+    "password-duplicate-roles",
+    [frontendRoleId, frontendRoleId],
+  );
+  await expectPasswordRoleError(
+    "reject coordinator during password registration",
+    "password-self-coordinator",
+    [1],
+  );
+  await expectPasswordRoleError(
+    "reject unknown password registration role",
+    "password-unknown-role",
+    [9999],
+  );
 
   // Funding/Balance
   console.log("\nFunding/Balance:");
@@ -78,7 +221,15 @@ const server = app.listen(PORT, async () => {
   }, r => r.success && !!r.address);
   const pAddr = proj?.address;
   await test("query project info", "GET", `/projects/query/${pAddr}/get_project_info`, undefined, r => r.response?.name === "Test");
-  await test("assign coordinator", "POST", `/projects/call/${pAddr}/assign_coordinator`, {}, r => !!r.coordinator);
+  for (const userId of ["carol@example.com", "grace@example.com", "malik@example.com"]) {
+    await test(`remove seeded coordinator ${userId}`, "PATCH", `/api/users/${userId}/coordinator`, { enabled: false }, (_r, status) => status === 200);
+  }
+  await test("assign coordinator role to Dave", "PATCH", "/api/users/dave@example.com/coordinator", { enabled: true }, (r, status) => (
+    status === 200 && r.roles?.some((role: any) => role.id === 1)
+  ));
+  await test("assign coordinator from role 1 only", "POST", `/projects/call/${pAddr}/assign_coordinator`, {}, r => (
+    r.coordinator === SEED.users.dave.address
+  ));
   await test("propose scope", "POST", `/projects/call/${pAddr}/propose_scope`, {
     data: {
       tasks: [[1, 1, 100, []], [2, 1, 100, [1]]],
@@ -176,6 +327,9 @@ const server = app.listen(PORT, async () => {
   await test("query 12-week calendar", "GET", `/calendar/query/${cAddr}/get_availability_calendar?worker=w1`, undefined, r => r.response?.length === 12);
   await test("reject availability over weekly cap", "POST", `/calendar/call/${cAddr}/set_availability`, { caller: "w1", data: { availability: 61 } }, r => r.success === false);
   await test("query workers", "GET", `/calendar/query/${cAddr}/get_registered_workers`, undefined, r => Array.isArray(r.response));
+  await test("workers omit coordinator flag", "GET", "/mock/workers", undefined, r => (
+    Array.isArray(r.workers) && r.workers.every((worker: any) => !("isCoordinator" in worker))
+  ));
 
   // Ratings
   console.log("\nRatings:");
