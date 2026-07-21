@@ -20,7 +20,14 @@ export class MockAuthHelper {
   /**
    * Register a user and return the registration result.
    */
-  async registerUser(userId: string): Promise<{ success: boolean; passAccountAddress: string }> {
+  async registerUser(
+    userId: string,
+    roleIds: number[] = [2],
+  ): Promise<{
+    success: boolean;
+    passAccountAddress: string;
+    roles: Array<{ id: number; name: string; selectable: boolean }>;
+  }> {
     const passAccountAddress = this.generateAddress();
 
     const preparedData = {
@@ -38,6 +45,7 @@ export class MockAuthHelper {
       credentialId: `cred_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
       userId,
       passAccountAddress,
+      roleIds,
     };
 
     const response = await request(this.httpServer)
@@ -47,6 +55,7 @@ export class MockAuthHelper {
     return {
       success: response.body.success,
       passAccountAddress,
+      roles: response.body.data?.roles ?? [],
     };
   }
 

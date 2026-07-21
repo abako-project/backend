@@ -13,6 +13,7 @@ import {
 import { workerRegistry } from "./worker-registry.js";
 import { DEFAULT_ASSET_ID, ledger } from "./ledger.js";
 import { payments } from "./payments.js";
+import { COORDINATOR_ROLE_ID, roleRegistry } from "./roles.js";
 
 export const contractsRouter = Router();
 
@@ -376,7 +377,7 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
     const registered = store.getRegisteredWorkers(info.calendar_contract);
     const candidates = workerRegistry
       .listWorkers(registered)
-      .filter((worker) => worker.isCoordinator)
+      .filter((worker) => roleRegistry.hasRole(worker.userId, COORDINATOR_ROLE_ID))
       .filter((worker) => worker.walletAddress !== info.client)
       .filter((worker) => worker.totalHours > 0);
     if (candidates.length === 0) {
@@ -756,7 +757,6 @@ contractsRouter.post("/calendar/call/:contractAddress/:methodName", (req, res) =
         walletAddress: worker,
         userId: req.body.data?.user_id || "",
         name: req.body.data?.name || "",
-        isCoordinator: Boolean(req.body.data?.is_coordinator),
         skillIds: normalizedSkillIds(req.body.data?.skill_ids ?? req.body.data?.skills),
       });
     }
@@ -783,7 +783,6 @@ contractsRouter.post("/calendar/call/:contractAddress/:methodName", (req, res) =
           walletAddress: w,
           userId: profile?.user_id || "",
           name: profile?.name || "",
-          isCoordinator: Boolean(profile?.is_coordinator),
           skillIds: normalizedSkillIds(profile?.skill_ids ?? profile?.skills),
         });
       }

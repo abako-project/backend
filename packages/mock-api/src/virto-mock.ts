@@ -3,6 +3,7 @@ import { Router } from "express";
 import { store } from "./store.js";
 import { DEFAULT_ASSET_ID, DEFAULT_INITIAL_BALANCE, ledger } from "./ledger.js";
 import { payments } from "./payments.js";
+import { roleRegistry, RoleError } from "./roles.js";
 import {
   canonicalMessage,
   hexToBytes,
@@ -11,6 +12,20 @@ import {
 } from "./password.js";
 
 export const virtoRouter = Router();
+
+function roleError(res: any, error: unknown): void {
+  if (error instanceof RoleError) {
+    res.status(error.status).json({ error: error.message });
+    return;
+  }
+  res.status(500).json({ error: error instanceof Error ? error.message : "Role operation failed" });
+}
+
+function roleId(value: string): number {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) throw new RoleError(400, "Invalid role id");
+  return id;
+}
 
 function paymentError(res: any, error: unknown): void {
   res.status(400).json({
@@ -81,6 +96,64 @@ virtoRouter.get("/health", (_req, res) => {
   });
 });
 
+virtoRouter.get("/roles", (_req, res) => {
+  res.json({ roles: roleRegistry.listRoles() });
+});
+
+virtoRouter.get("/roles/:id", (req, res) => {
+  try {
+    res.json({ role: roleRegistry.getRole(roleId(req.params.id)) });
+  } catch (error) {
+    roleError(res, error);
+  }
+});
+
+virtoRouter.post("/roles", (req, res) => {
+  try {
+    res.status(201).json({ role: roleRegistry.createRole(req.body?.name) });
+  } catch (error) {
+    roleError(res, error);
+  }
+});
+
+virtoRouter.patch("/roles/:id", (req, res) => {
+  try {
+    res.json({ role: roleRegistry.updateRole(roleId(req.params.id), req.body?.name) });
+  } catch (error) {
+    roleError(res, error);
+  }
+});
+
+virtoRouter.delete("/roles/:id", (req, res) => {
+  try {
+    roleRegistry.deleteRole(roleId(req.params.id));
+    res.status(204).send();
+  } catch (error) {
+    roleError(res, error);
+  }
+});
+
+virtoRouter.get("/users/:userId/roles", (req, res) => {
+  if (!store.users.has(req.params.userId)) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json({ roles: roleRegistry.getUserRoles(req.params.userId) });
+});
+
+virtoRouter.patch("/users/:userId/coordinator", (req, res) => {
+  const { userId } = req.params;
+  if (!store.users.has(userId)) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (typeof req.body?.enabled !== "boolean") {
+    res.status(400).json({ error: "enabled must be a boolean" });
+    return;
+  }
+  res.json({ ok: true, roles: roleRegistry.setCoordinator(userId, req.body.enabled) });
+});
+
 // WebAuthn attestation (registration init)
 virtoRouter.get("/attestation", (req, res) => {
   const { id, name, challenge } = req.query;
@@ -112,17 +185,24 @@ virtoRouter.get("/attestation", (req, res) => {
 
 // WebAuthn register (complete registration)
 virtoRouter.post("/register", (req, res) => {
-  const { userId, credentialId, address } = req.body;
+  const { userId, credentialId, address, roleIds } = req.body;
   if (!userId) {
     res.status(400).json({ error: "userId is required" });
     return;
   }
 
+  let roles;
+  try {
+    roles = roleRegistry.setRegistrationRoles(String(userId), roleIds);
+  } catch (error) {
+    roleError(res, error);
+    return;
+  }
   const user = store.getOrCreateUser(userId);
   if (credentialId) user.credentialId = credentialId;
   if (address) user.address = address;
 
-  res.json({ ok: true });
+  res.json({ ok: true, roles });
 });
 
 // WebAuthn assertion (login init)
@@ -172,7 +252,7 @@ virtoRouter.get("/chain-head", (_req, res) => {
 // 200 → { ok, address, blockNumber, blockHash }
 // 400 malformed; 401 signature invalid; 409 already registered; 410 stale blockHash.
 virtoRouter.post("/password-register", (req, res) => {
-  const { userId, pubKey, blockHash, clientNonce, signature, address } = req.body ?? {};
+  const { userId, pubKey, blockHash, clientNonce, signature, address, roleIds } = req.body ?? {};
   if (
     typeof userId !== "string" ||
     !isHex32(pubKey) ||
@@ -209,6 +289,13 @@ virtoRouter.post("/password-register", (req, res) => {
     return;
   }
 
+  let roles;
+  try {
+    roles = roleRegistry.setRegistrationRoles(userId, roleIds);
+  } catch (error) {
+    roleError(res, error);
+    return;
+  }
   const user = store.getOrCreateUser(userId);
   if (typeof address === "string" && address.length > 0) user.address = address;
   user.pubKey = stripHex(pubKey);
@@ -219,6 +306,7 @@ virtoRouter.post("/password-register", (req, res) => {
     address: user.address,
     blockNumber: store.nextBlockNumber(),
     blockHash: store.currentBlockHash(),
+    roles,
   });
 });
 

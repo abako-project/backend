@@ -11,7 +11,6 @@ export interface WorkerSeed {
   walletAddress: string;
   userId: string;
   name: string;
-  isCoordinator?: boolean;
   skillIds: number[];
   weeklyHours?: number[];
   permanentWeeklyHours?: number | null;
@@ -21,7 +20,6 @@ export interface WorkerRecord {
   walletAddress: string;
   userId: string | null;
   name: string | null;
-  isCoordinator: boolean;
   skillIds: number[];
   availability: Array<{ weekStart: string; hours: number }>;
   totalHours: number;
@@ -82,7 +80,6 @@ class WorkerRegistry {
         wallet_address TEXT PRIMARY KEY,
         user_id TEXT UNIQUE,
         name TEXT,
-        is_coordinator INTEGER NOT NULL DEFAULT 0,
         permanent_weekly_hours INTEGER
           CHECK (permanent_weekly_hours IS NULL OR permanent_weekly_hours BETWEEN 0 AND 60)
       );
@@ -129,18 +126,16 @@ class WorkerRegistry {
       : validateHours(worker.permanentWeeklyHours);
 
     this.db.prepare(`
-      INSERT INTO workers (wallet_address, user_id, name, is_coordinator, permanent_weekly_hours)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO workers (wallet_address, user_id, name, permanent_weekly_hours)
+      VALUES (?, ?, ?, ?)
       ON CONFLICT(wallet_address) DO UPDATE SET
         user_id = COALESCE(excluded.user_id, workers.user_id),
         name = COALESCE(excluded.name, workers.name),
-        is_coordinator = excluded.is_coordinator,
         permanent_weekly_hours = COALESCE(excluded.permanent_weekly_hours, workers.permanent_weekly_hours)
     `).run(
       worker.walletAddress,
       worker.userId || null,
       worker.name || null,
-      worker.isCoordinator ? 1 : 0,
       permanent,
     );
 
@@ -241,14 +236,12 @@ class WorkerRegistry {
 
   getWorker(walletAddress: string): WorkerRecord | null {
     const worker = this.db.prepare(`
-      SELECT wallet_address AS walletAddress, user_id AS userId, name,
-             is_coordinator AS isCoordinator
+      SELECT wallet_address AS walletAddress, user_id AS userId, name
       FROM workers WHERE wallet_address = ?
     `).get(walletAddress) as {
       walletAddress: string;
       userId: string | null;
       name: string | null;
-      isCoordinator: number;
     } | undefined;
     if (!worker) return null;
 
@@ -260,7 +253,6 @@ class WorkerRegistry {
 
     return {
       ...worker,
-      isCoordinator: Boolean(worker.isCoordinator),
       skillIds,
       availability,
       totalHours: availability.reduce((total, week) => total + week.hours, 0),

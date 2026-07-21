@@ -23,7 +23,6 @@ export interface Developer {
   languages: string[];
   skills: number[];
   availableHoursPerWeek?: number;
-  isCoordinator?: boolean;
   proficiencyId?: number;
   createdAt: number;
   updatedAt: number;

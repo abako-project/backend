@@ -156,6 +156,17 @@ export class AuthController {
         id: { type: 'string' },
         address: { type: 'string' },
         displayName: { type: 'string' },
+        roles: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'number' },
+              name: { type: 'string' },
+              selectable: { type: 'boolean' },
+            },
+          },
+        },
       },
     },
   })

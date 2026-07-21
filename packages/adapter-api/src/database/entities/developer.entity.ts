@@ -47,9 +47,6 @@ export class Developer {
   @Column({ nullable: true })
   role: string;
 
-  @Column({ default: false })
-  isCoordinator: boolean;
-
   @Column({ type: 'blob', nullable: true })
   imageData: Buffer;
 

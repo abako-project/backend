@@ -33,7 +33,6 @@ export class CalendarService {
       return {
         user_id: developer.userId,
         name: developer.name,
-        is_coordinator: developer.isCoordinator,
         skill_ids: developer.skills,
       };
     } catch {

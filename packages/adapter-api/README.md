@@ -101,10 +101,39 @@ Start adapter-api as usual — it will hit the mock instead of the blockchain se
 
 ### What's mocked
 
-- **virto-api**: auth (WebAuthn flow), payments, memberships, balance, fund
+- **virto-api**: auth (WebAuthn and password flows), user roles, payments, memberships, balance, fund
 - **contracts-api**: project/calendar/ratings contract deploy, query, and call methods
 
-Users, contracts, memberships, and project state are held by the mock process. Worker registry, availability, ledger balances, and payments are persisted in SQLite so frontend dev sessions can inspect real balance changes.
+Users, contracts, memberships, and project state are held by the mock process. Roles, user-role assignments, worker registry, availability, ledger balances, and payments are persisted in SQLite so frontend dev sessions can inspect real state changes.
+
+### Mock user roles
+
+Both `POST /api/register` and `POST /api/password-register` require a non-empty `roleIds` array. IDs must be unique and refer to selectable roles. The stable catalog is:
+
+| ID | Name | Selectable at registration |
+|---:|---|:---:|
+| 1 | `coordinator` | No |
+| 2 | `frontend` | Yes |
+| 3 | `backend` | Yes |
+| 4 | `fullstack` | Yes |
+| 5 | `designer` | Yes |
+| 6 | `qa` | Yes |
+| 7 | `architect` | Yes |
+| 8 | `embedded` | Yes |
+| 9 | `devops` | Yes |
+
+Mock role management endpoints are:
+
+- `GET /api/roles`
+- `GET /api/roles/:id`
+- `POST /api/roles` with `{ "name": "support" }`
+- `PATCH /api/roles/:id` with `{ "name": "customer-support" }`
+- `DELETE /api/roles/:id`
+- `PATCH /api/users/:userId/coordinator` with `{ "enabled": true }`
+
+Role `1` cannot be renamed or deleted, and an assigned role cannot be deleted. Assigning or removing coordinator preserves the user's selectable roles. `GET /auth/me` on mock-api and `GET /v1/auth/me` on adapter-api query the current SQLite assignments; roles are not copied into JWTs.
+
+`PUT /v1/developers/:developerId/coordinator-eligibility` remains as a compatibility endpoint. In mock mode it resolves the developer's `userId` and delegates to `PATCH /api/users/:userId/coordinator`; it does not store a boolean on the developer profile. The mock coordinator endpoint is intentionally unauthenticated for local development. Production must implement blockchain-backed authorization before exposing equivalent behavior, so this compatibility endpoint returns `501 Not Implemented` outside mock mode.
 
 ### Mock ledger and payment endpoints
 

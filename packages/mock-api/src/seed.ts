@@ -4,6 +4,7 @@
 import { store, MockTask, MockTeamMember, MockProjectInfo } from "./store.js";
 import { SkillCategory, workerRegistry } from "./worker-registry.js";
 import { ledger } from "./ledger.js";
+import { roleRegistry } from "./roles.js";
 
 // Fixed Substrate-style addresses for seed users
 export const SEED = {
@@ -144,19 +145,21 @@ function skillIds(names: readonly string[]): number[] {
 }
 
 const SEEDED_WORKERS = [
-  { key: "carol", name: "Carol Chen", coordinator: true, hours: 40, skills: ["rust", "ink", "substrate", "node.js", "leadership", "stakeholder management"] },
-  { key: "dave", name: "Dave Kim", coordinator: false, hours: 32, skills: ["typescript", "javascript", "react", "next.js", "ui/ux", "teamwork"] },
-  { key: "eve", name: "Eve Santos", coordinator: false, hours: 40, skills: ["rust", "solidity", "smart contract auditing", "automated testing", "technical writing"] },
-  { key: "frank", name: "Frank Müller", coordinator: false, hours: 24, skills: ["node.js", "postgresql", "graphql", "rest api", "problem solving"] },
-  { key: "grace", name: "Grace Okafor", coordinator: true, hours: 40, skills: ["typescript", "react", "web3", "leadership", "facilitation", "communication"] },
-  { key: "heidi", name: "Heidi Berg", coordinator: false, hours: 20, skills: ["figma", "ui/ux", "react", "communication", "adaptability"] },
-  { key: "ivan", name: "Ivan Petrov", coordinator: false, hours: 36, skills: ["rust", "substrate", "docker", "kubernetes", "problem solving"] },
-  { key: "judy", name: "Judy Alvarez", coordinator: false, hours: 30, skills: ["react native", "typescript", "automated testing", "teamwork", "time management"] },
-  { key: "malik", name: "Malik Rahman", coordinator: true, hours: 40, skills: ["solidity", "web3", "postgresql", "leadership", "mentoring", "technical writing"] },
-  { key: "nina", name: "Nina Rossi", coordinator: false, hours: 28, skills: ["vue", "javascript", "node.js", "sqlite", "adaptability"] },
-  { key: "oscar", name: "Oscar Silva", coordinator: false, hours: 16, skills: ["aws", "docker", "kubernetes", "postgresql", "communication"] },
-  { key: "priya", name: "Priya Shah", coordinator: false, hours: 0, skills: ["typescript", "react", "graphql", "mentoring", "teamwork"] },
+  { key: "carol", name: "Carol Chen", hours: 40, skills: ["rust", "ink", "substrate", "node.js", "leadership", "stakeholder management"] },
+  { key: "dave", name: "Dave Kim", hours: 32, skills: ["typescript", "javascript", "react", "next.js", "ui/ux", "teamwork"] },
+  { key: "eve", name: "Eve Santos", hours: 40, skills: ["rust", "solidity", "smart contract auditing", "automated testing", "technical writing"] },
+  { key: "frank", name: "Frank Müller", hours: 24, skills: ["node.js", "postgresql", "graphql", "rest api", "problem solving"] },
+  { key: "grace", name: "Grace Okafor", hours: 40, skills: ["typescript", "react", "web3", "leadership", "facilitation", "communication"] },
+  { key: "heidi", name: "Heidi Berg", hours: 20, skills: ["figma", "ui/ux", "react", "communication", "adaptability"] },
+  { key: "ivan", name: "Ivan Petrov", hours: 36, skills: ["rust", "substrate", "docker", "kubernetes", "problem solving"] },
+  { key: "judy", name: "Judy Alvarez", hours: 30, skills: ["react native", "typescript", "automated testing", "teamwork", "time management"] },
+  { key: "malik", name: "Malik Rahman", hours: 40, skills: ["solidity", "web3", "postgresql", "leadership", "mentoring", "technical writing"] },
+  { key: "nina", name: "Nina Rossi", hours: 28, skills: ["vue", "javascript", "node.js", "sqlite", "adaptability"] },
+  { key: "oscar", name: "Oscar Silva", hours: 16, skills: ["aws", "docker", "kubernetes", "postgresql", "communication"] },
+  { key: "priya", name: "Priya Shah", hours: 0, skills: ["typescript", "react", "graphql", "mentoring", "teamwork"] },
 ] as const;
+
+const SEEDED_COORDINATORS = ["carol", "grace", "malik"] as const;
 
 /**
  * Populate the in-memory store with seed users and contracts.
@@ -172,6 +175,9 @@ export function seedStore(): void {
   }
   ledger.seedAssets();
   ledger.seedInitialBalances((userId) => store.getOrCreateUser(userId));
+  for (const key of SEEDED_COORDINATORS) {
+    roleRegistry.setCoordinator(U[key].userId, true);
+  }
 
   workerRegistry.seed(
     SEED_SKILLS,
@@ -181,7 +187,6 @@ export function seedStore(): void {
         walletAddress: user.address,
         userId: user.userId,
         name: worker.name,
-        isCoordinator: worker.coordinator,
         skillIds: skillIds(worker.skills),
         permanentWeeklyHours: worker.hours,
       };
