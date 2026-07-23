@@ -1,46 +1,64 @@
-# Mock skill catalog as the source of truth
+# External skill catalog as the source of truth
 
 ## Scope
 
-In mock mode, `mock-api` is the only source of truth for skills and skill-role relationships. Developer profiles remain stored in `adapter-api` and keep only skill IDs. Authentication, roles, matching, availability, projects, and profile ownership are unchanged.
+`adapter-api` never owns or mirrors the skill catalog, the role catalog, or their relationships.
 
-Outside mock mode, the existing adapter skill table and legacy behavior remain available until a production smart contract provides the catalog.
+During mock/dev work, `mock-api` is the only source of truth. When the production smart contract exists, it replaces `mock-api` as the only source of truth. The adapter remains the public gateway in both cases.
+
+Developer profiles remain stored in `adapter-api` and keep only skill IDs. Authentication, matching, availability, projects, and profile ownership are otherwise unchanged.
 
 ## Data ownership
 
-- `mock-api` owns skill IDs, names, categories, and role relationships.
-- `adapter-api` developer profiles store `skillIds: number[]` as references.
-- `adapter-api` must not read or write its local skill table while mock mode is enabled.
-- The local `Skill` entity remains only for the non-mock legacy path; no schema migration or table deletion is required.
+- Today, `mock-api` owns skill and role IDs, names, categories, and skill-role relationships.
+- In production, the smart contract will own the same data.
+- `adapter-api` developer profiles store `skillIds: number[]` as external references.
+- `adapter-api` does not synchronize, cache, read, seed, or write a local skill or role catalog.
+- The historical adapter `skills` table may remain physically present to avoid a destructive schema change in this issue. It is not part of any application flow and will be removed by a separate explicit migration.
 
-## Adapter behavior in mock mode
+## Adapter routing
+
+The public routes stay stable while their backing provider changes:
+
+| Runtime | Catalog provider |
+|---|---|
+| `USE_MOCK_AUTH=true` | `mock-api` |
+| Production after contract integration | Smart contract |
+| Production before contract integration | `501 Not Implemented` |
+
+Until the contract exists, every adapter operation that needs skill or role catalog data returns `501` outside mock mode. There is no local fallback.
+
+In mock mode:
 
 - `GET /v1/skills` proxies the mock catalog while preserving `{ skills: Skill[] }`.
-- `POST /v1/skills` creates or updates the skill in `mock-api` and returns that response without mirroring it locally.
-- `GET /v1/skills/ids` and `GET /v1/skills/:skillId` continue to delegate to `mock-api`.
+- `POST /v1/skills` creates or updates the skill in `mock-api` and returns the mock-owned ID.
+- `GET /v1/skills/ids` and `GET /v1/skills/:skillId` delegate to `mock-api`.
 - Profile skill IDs and names are resolved against the mock catalog only.
-- A new free-form profile skill is created in `mock-api` with the profile user's registered role IDs; the returned ID is stored on the profile.
+- A new free-form profile skill is created in `mock-api` with the profile user's registered role IDs; only the returned ID is stored on the profile.
 - Numeric strings received from multipart profile forms are treated as skill IDs and validated against `mock-api`.
+
+Future contract integration replaces these mock calls; it does not introduce a synchronization step or a second catalog.
 
 ## Seed behavior
 
-When mock mode is enabled, adapter seed data reads the already-seeded mock catalog and builds its name-to-ID map from that response. It does not insert skills into the adapter database. Developer and milestone seed records continue to store those IDs.
+Adapter demo seed runs only in mock mode. It reads the already-seeded mock catalog, builds its name-to-ID map from that response, and stores those IDs in developer and milestone records. It never inserts skill rows into the adapter database.
 
-The non-mock seed path continues to create the local legacy catalog.
+Outside mock mode, adapter demo seed is skipped until the contract-backed seed flow is designed.
 
 ## Errors
 
 - Unknown numeric skill IDs are rejected with `400`.
 - Creating a free-form profile skill requires a mock user with at least one registered role; otherwise the profile update returns `400`.
 - Mock transport errors retain their upstream HTTP status.
+- Catalog-dependent operations return `501` outside mock mode until the smart contract integration exists.
 
 ## Verification
 
-Integration coverage must prove that:
+Coverage must prove that:
 
-- the adapter local skill table stays empty in mock mode;
+- the historical adapter skill table receives no seed, create, update, or profile writes;
 - list, create, ID lookup, and role filtering still work through the adapter;
 - profile updates validate existing IDs against the mock catalog;
 - free-form profile skills are created in the mock and their IDs are stored on profiles;
-- the production legacy branch still compiles;
+- non-mock catalog and validation operations return `501`;
 - existing project matching and profile tests remain green.
