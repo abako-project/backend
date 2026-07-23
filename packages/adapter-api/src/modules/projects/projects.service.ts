@@ -226,6 +226,7 @@ export class ProjectsService {
         );
       }
       keys.add(assignmentKey);
+      const roleId = await this.skillsService.validateRoleId(requirement.roleId);
       const skillIds = await this.skillsService.validateIds(requirement.skillIds || []);
       if (skillIds.length === 0) {
         throw new HttpException(
@@ -235,6 +236,7 @@ export class ProjectsService {
       }
       normalized.push({
         assignmentKey,
+        roleId,
         hours: this.parsePositiveInteger(requirement.hours, `${assignmentKey}.hours`),
         skillIds,
       });
@@ -320,7 +322,8 @@ export class ProjectsService {
       if (developer?.id) developerByAddress.set(accountId, developer);
     }
 
-    await this.milestoneAssignmentRepo.delete({ projectId: project.id });
+    const projectedAssignments: MilestoneAssignment[] = [];
+    const updatedMilestones: Milestone[] = [];
     for (const task of tasks) {
       const milestone = milestoneById.get(Number(task.id));
       if (!milestone) continue;
@@ -328,21 +331,37 @@ export class ProjectsService {
 
       for (const [index, assignment] of assignments.entries()) {
         const accountId = String(assignment.account_id || '');
-        if (!accountId) continue;
+        const assignmentKey = String(assignment.assignment_key || '').trim();
+        const roleId = Number(assignment.role_id);
+        const hours = Number(assignment.hours);
+        if (
+          !accountId
+          || !assignmentKey
+          || !Number.isInteger(roleId)
+          || roleId <= 0
+          || !Number.isInteger(hours)
+          || hours <= 0
+        ) {
+          throw new HttpException(
+            `Contract returned an invalid assignment for milestone ${milestone.id}`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
         let developer = developerByAddress.get(accountId);
         if (!developer) {
           developer = await this.getDeveloperFromAddress(accountId) || undefined;
           if (developer?.id) developerByAddress.set(accountId, developer);
         }
         if (!developer?.id) continue;
-        await this.milestoneAssignmentRepo.save(this.milestoneAssignmentRepo.create({
+        projectedAssignments.push(this.milestoneAssignmentRepo.create({
           projectId: project.id,
           contractAddress,
           milestoneId: milestone.id,
           developerId: developer.id,
           accountId,
-          assignmentKey: String(assignment.assignment_key),
-          hours: Number(assignment.hours),
+          assignmentKey,
+          roleId,
+          hours,
         }));
         if (index === 0) milestone.developerId = developer.id;
       }
@@ -351,11 +370,20 @@ export class ProjectsService {
       else if (task.status && 'Active' in task.status) milestone.state = 'task_in_progress';
       else if (task.status && 'PendingReview' in task.status) milestone.state = 'in_review';
       else milestone.state = 'pending';
-      await this.milestoneRepo.save(milestone);
+      updatedMilestones.push(milestone);
     }
 
     project.state = 'team_assigned';
-    await this.projectRepo.save(project);
+    await this.projectRepo.manager.transaction(async (manager) => {
+      await manager.delete(MilestoneAssignment, { projectId: project.id });
+      if (projectedAssignments.length > 0) {
+        await manager.save(MilestoneAssignment, projectedAssignments);
+      }
+      if (updatedMilestones.length > 0) {
+        await manager.save(Milestone, updatedMilestones);
+      }
+      await manager.save(Project, project);
+    });
     const selectedDeveloperIds = [...new Set(
       [...developerByAddress.values()].map((developer) => developer.id),
     )];
@@ -622,6 +650,7 @@ export class ProjectsService {
           task_id: milestone.id,
           requirements: milestone.requirements.map((requirement) => ({
             assignment_key: requirement.assignmentKey,
+            role_id: requirement.roleId,
             hours: requirement.hours,
             skill_ids: requirement.skillIds,
           })),
@@ -653,6 +682,7 @@ export class ProjectsService {
       };
     } catch (error) {
       console.error('Error during coordinator approval:', error);
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         `Error during coordinator approval: ${error.message}`,
         HttpStatus.INTERNAL_SERVER_ERROR

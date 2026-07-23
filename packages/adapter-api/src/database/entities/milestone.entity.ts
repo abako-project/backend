@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 
 export interface MilestoneRequirement {
   assignmentKey: string;
+  roleId: number;
   hours: number;
   skillIds: number[];
 }

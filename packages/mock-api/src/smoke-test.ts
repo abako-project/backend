@@ -5,7 +5,9 @@ import { contractsRouter } from "./contracts-mock.js";
 import { appRouter } from "./app-mock.js";
 import { PasswordAuthClient, PasswordAuthError } from "./password-client.js";
 import { seedStore } from "./seed.js";
-import { SEED } from "./seed.js";
+import { SEED, SEED_SKILLS } from "./seed.js";
+import { registryDatabase } from "./registry-database.js";
+import { store } from "./store.js";
 
 const app = express();
 app.use(express.json());
@@ -69,6 +71,16 @@ const server = app.listen(PORT, async () => {
     }
   }
 
+  function check(name: string, condition: boolean, detail: string): void {
+    if (condition) {
+      console.log(`  PASS  ${name}`);
+      pass++;
+    } else {
+      console.log(`  FAIL  ${name} - ${detail}`);
+      fail++;
+    }
+  }
+
   console.log("\nMock API smoke test\n");
 
   // Health
@@ -115,6 +127,78 @@ const server = app.listen(PORT, async () => {
       status === 200 && r.roles?.some((role: any) => role.id === 1)
     ));
   }
+  await test("seed worker roles", "GET", "/api/users/dave@example.com/roles", undefined, (r, status) => (
+    status === 200 &&
+    JSON.stringify(r.roles?.map((role: any) => role.id)) === JSON.stringify([2, 4])
+  ));
+
+  // Skills and role relationships
+  console.log("\nSkills:");
+  const skillRoleForeignKeys = registryDatabase.prepare(
+    "PRAGMA foreign_key_list(skill_roles)",
+  ).all() as Array<{ table: string; from: string; on_delete: string }>;
+  check(
+    "skill-role foreign keys",
+    skillRoleForeignKeys.some((foreignKey) => (
+      foreignKey.table === "skills" && foreignKey.from === "skill_id" && foreignKey.on_delete === "CASCADE"
+    )) && skillRoleForeignKeys.some((foreignKey) => (
+      foreignKey.table === "roles" && foreignKey.from === "role_id" && foreignKey.on_delete === "RESTRICT"
+    )),
+    JSON.stringify(skillRoleForeignKeys),
+  );
+  await test("list all seeded skill ids", "GET", "/mock/skills/ids", undefined, (r, status) => (
+    status === 200 &&
+    JSON.stringify(r.skillIds) === JSON.stringify(SEED_SKILLS.map((skill) => skill.id))
+  ));
+  for (let roleId = 1; roleId <= 9; roleId++) {
+    const expected = SEED_SKILLS
+      .filter((skill) => skill.roleIds.includes(roleId))
+      .map((skill) => skill.id);
+    await test(`complete skill seed for role ${roleId}`, "GET", `/mock/skills/ids?roleId=${roleId}`, undefined, (r, status) => (
+      status === 200 && JSON.stringify(r.skillIds) === JSON.stringify(expected)
+    ));
+  }
+  const accessibilitySkill = await test("create skill with roles", "POST", "/mock/skills", {
+    name: "accessibility",
+    category: "soft",
+    roleIds: [2, 5],
+  }, (r, status) => (
+    status === 201 &&
+    r.skill?.name === "accessibility" &&
+    JSON.stringify(r.skill?.roleIds) === JSON.stringify([2, 5])
+  ));
+  await test("read skill name by id", "GET", `/mock/skills/${accessibilitySkill?.skill?.id}`, undefined, (r, status) => (
+    status === 200 && r.skill?.name === "accessibility"
+  ));
+  await test("replace existing skill roles", "POST", "/mock/skills", {
+    name: "accessibility",
+    roleIds: [6],
+  }, (r, status) => (
+    status === 201 &&
+    r.skill?.category === "soft" &&
+    JSON.stringify(r.skill?.roleIds) === JSON.stringify([6])
+  ));
+  await test("filter skill ids after role replacement", "GET", "/mock/skills/ids?roleId=6", undefined, (r, status) => (
+    status === 200 && r.skillIds?.includes(accessibilitySkill?.skill?.id)
+  ));
+  await test("reject duplicate skill roles", "POST", "/mock/skills", {
+    name: "duplicate-role-skill",
+    roleIds: [2, 2],
+  }, (_r, status) => status === 400);
+  await test("reject unknown skill role", "POST", "/mock/skills", {
+    name: "unknown-role-skill",
+    roleIds: [9999],
+  }, (_r, status) => status === 400);
+  const skillRole = await test("create role used by skill", "POST", "/api/roles", { name: "skill-role" }, (r, status) => (
+    status === 201 && Number.isInteger(r.role?.id)
+  ));
+  await test("assign created role to skill", "POST", "/mock/skills", {
+    name: "role-bound-skill",
+    roleIds: [skillRole?.role?.id],
+  }, (_r, status) => status === 201);
+  await test("reject deleting role assigned to skill", "DELETE", `/api/roles/${skillRole?.role?.id}`, undefined, (_r, status) => (
+    status === 409
+  ));
 
   // Auth/Users
   console.log("\nAuth/Users:");
@@ -146,6 +230,76 @@ const server = app.listen(PORT, async () => {
   await test("assign coordinator", "PATCH", "/api/users/alice/coordinator", { enabled: true }, (r, status) => (
     status === 200 && r.roles?.some((role: any) => role.id === 1)
   ));
+  const typescriptSkillId = SEED_SKILLS.find(({ name }) => name === "typescript")?.id;
+  const figmaSkillId = SEED_SKILLS.find(({ name }) => name === "figma")?.id;
+  await test(
+    "read seeded user qualifications",
+    "GET",
+    "/mock/users/carol@example.com/qualifications",
+    undefined,
+    (r, status) => (
+      status === 200 &&
+      r.skillIds?.includes(SEED_SKILLS.find(({ name }) => name === "rust")?.id) &&
+      JSON.stringify(r.roleIds) === JSON.stringify([1, 3, 7])
+    ),
+  );
+  await test(
+    "replace user qualifications and preserve coordinator",
+    "PUT",
+    "/mock/users/alice/qualifications",
+    { skillIds: [typescriptSkillId, figmaSkillId], roleIds: [frontendRoleId, 5] },
+    (r, status) => (
+      status === 200 &&
+      JSON.stringify(r.skillIds) === JSON.stringify([typescriptSkillId, figmaSkillId]) &&
+      JSON.stringify(r.roleIds) === JSON.stringify([1, frontendRoleId, 5])
+    ),
+  );
+  const qualificationsBeforeInvalid = await test(
+    "read replaced user qualifications",
+    "GET",
+    "/mock/users/alice/qualifications",
+    undefined,
+    (r, status) => (
+      status === 200 &&
+      JSON.stringify(r.skillIds) === JSON.stringify([typescriptSkillId, figmaSkillId]) &&
+      JSON.stringify(r.roleIds) === JSON.stringify([1, frontendRoleId, 5])
+    ),
+  );
+  await test(
+    "reject invalid qualification replacement",
+    "PUT",
+    "/mock/users/alice/qualifications",
+    { skillIds: [9999], roleIds: [backendRoleId] },
+    (_r, status) => status === 400,
+  );
+  await test(
+    "keep qualifications atomic after rejection",
+    "GET",
+    "/mock/users/alice/qualifications",
+    undefined,
+    (r, status) => status === 200 && JSON.stringify(r) === JSON.stringify(qualificationsBeforeInvalid),
+  );
+  await test(
+    "reject duplicate qualification skills",
+    "PUT",
+    "/mock/users/alice/qualifications",
+    { skillIds: [typescriptSkillId, typescriptSkillId], roleIds: [frontendRoleId] },
+    (_r, status) => status === 400,
+  );
+  await test(
+    "reject coordinator in selectable profile roles",
+    "PUT",
+    "/mock/users/alice/qualifications",
+    { skillIds: [typescriptSkillId], roleIds: [1] },
+    (_r, status) => status === 400,
+  );
+  await test(
+    "reject unknown qualification user",
+    "GET",
+    "/mock/users/missing/qualifications",
+    undefined,
+    (_r, status) => status === 404,
+  );
   const meResponse = await fetch(`${base}/auth/me`, { headers: { Authorization: "Bearer alice" } });
   const me = await meResponse.json() as any;
   if (meResponse.status === 200 && me.roles?.some((role: any) => role.id === 1)) {
@@ -239,10 +393,12 @@ const server = app.listen(PORT, async () => {
           task_id: 1,
           requirements: [{
             assignment_key: "developer-1",
+            role_id: 2,
             hours: 10,
             skill_ids: [5],
           }, {
             assignment_key: "developer-2",
+            role_id: 2,
             hours: 10,
             skill_ids: [5],
           }],
@@ -251,6 +407,7 @@ const server = app.listen(PORT, async () => {
           task_id: 2,
           requirements: [{
             assignment_key: "developer-1",
+            role_id: 2,
             hours: 20,
             skill_ids: [5],
           }],
@@ -279,6 +436,7 @@ const server = app.listen(PORT, async () => {
       r.response[1]?.assignments?.length === 1 &&
       "Active" in r.response[0].status &&
       "Approved" in r.response[1].status &&
+      r.response[0].assignments.every((assignment: any) => assignment.role_id === 2) &&
       r.response[0].assignments[0].account_id === r.response[1].assignments[0].account_id,
   );
   const assignedAddress = plannedTasks?.response?.[0]?.assignments?.[0]?.account_id;
@@ -317,10 +475,141 @@ const server = app.listen(PORT, async () => {
     r.response.reduce((sum: number, week: any) => sum + week.hours, 0) === backupHoursBefore - 30
   ));
 
+  const mismatchProject = await test("deploy role mismatch project", "POST", "/projects/deploy/v5", {
+    name: "Role mismatch",
+    client: userAddr?.address,
+    calendar_contract: SEED.contracts.calendar,
+  }, r => r.success && !!r.address);
+  await test("assign role mismatch coordinator", "POST", `/projects/call/${mismatchProject?.address}/assign_coordinator`, {}, r => (
+    !!r.coordinator
+  ));
+  await test("reject scope requirement without role", "POST", `/projects/call/${mismatchProject?.address}/propose_scope`, {
+    data: {
+      tasks: [[1, 1, 100, []]],
+      assignment_requirements: [{
+        task_id: 1,
+        requirements: [{ assignment_key: "designer", hours: 10, skill_ids: [7] }],
+      }],
+    },
+  }, (_r, status) => status === 400);
+  await test("propose mismatched role and skill", "POST", `/projects/call/${mismatchProject?.address}/propose_scope`, {
+    data: {
+      tasks: [[1, 1, 100, []]],
+      assignment_requirements: [{
+        task_id: 1,
+        requirements: [
+          { assignment_key: "frontend", role_id: 2, hours: 10, skill_ids: [5] },
+          { assignment_key: "designer", role_id: 5, hours: 10, skill_ids: [7] },
+        ],
+      }],
+    },
+  }, r => !!r.encodedData);
+  const availabilityBeforeMismatch = await test(
+    "snapshot availability before failed matching",
+    "GET",
+    "/mock/workers",
+    undefined,
+    (r, status) => status === 200 && Array.isArray(r.workers),
+  );
+  await test("reject worker with skill but wrong role", "POST", `/projects/call/${mismatchProject?.address}/approve_scope`, {
+    data: { approved_task_ids: [1] },
+  }, (_r, status) => status === 400);
+  await test("keep failed role-aware assignment atomic", "GET", `/projects/query/${mismatchProject?.address}/get_team`, undefined, r => (
+    Array.isArray(r.response) && r.response.length === 0
+  ));
+  await test("keep failed task assignments empty", "GET", `/projects/query/${mismatchProject?.address}/get_all_tasks`, undefined, r => (
+    Array.isArray(r.response) && r.response.every((task: any) => task.assignments?.length === 0)
+  ));
+  await test("keep failed availability reservations atomic", "GET", "/mock/workers", undefined, r => (
+    JSON.stringify(r.workers?.map((worker: any) => [worker.walletAddress, worker.totalHours])) ===
+    JSON.stringify(availabilityBeforeMismatch?.workers?.map((worker: any) => [worker.walletAddress, worker.totalHours]))
+  ));
+
+  const crossRoleProject = await test("deploy cross-role skill project", "POST", "/projects/deploy/v5", {
+    name: "Cross-role skill",
+    client: userAddr?.address,
+    calendar_contract: SEED.contracts.calendar,
+  }, r => r.success && !!r.address);
+  await test("assign cross-role coordinator", "POST", `/projects/call/${crossRoleProject?.address}/assign_coordinator`, {}, r => (
+    !!r.coordinator
+  ));
+  await test("confirm react is not categorized as designer", "GET", "/mock/skills/ids?roleId=5", undefined, r => (
+    Array.isArray(r.skillIds) && !r.skillIds.includes(8)
+  ));
+  await test("propose skill outside role taxonomy", "POST", `/projects/call/${crossRoleProject?.address}/propose_scope`, {
+    data: {
+      tasks: [[1, 1, 100, []]],
+      assignment_requirements: [{
+        task_id: 1,
+        requirements: [{ assignment_key: "designer", role_id: 5, hours: 10, skill_ids: [8] }],
+      }],
+    },
+  }, r => !!r.encodedData);
+  await test("assign worker by owned role and skill", "POST", `/projects/call/${crossRoleProject?.address}/approve_scope`, {
+    data: { approved_task_ids: [1] },
+  }, (_r, status) => status === 200);
+
+  const atomicAssignProject = await test("deploy direct assignment atomicity project", "POST", "/projects/deploy/v5", {
+    name: "Direct assignment atomicity",
+    client: userAddr?.address,
+    calendar_contract: SEED.contracts.calendar,
+  }, r => r.success && !!r.address);
+  await test("assign direct assignment coordinator", "POST", `/projects/call/${atomicAssignProject?.address}/assign_coordinator`, {}, r => (
+    !!r.coordinator
+  ));
+  await test("propose under-capacity direct assignment", "POST", `/projects/call/${atomicAssignProject?.address}/propose_scope`, {
+    data: {
+      tasks: [[1, 1, 100, []]],
+      assignment_requirements: [{
+        task_id: 1,
+        requirements: [{
+          assignment_key: "frontend",
+          role_id: 2,
+          hours: 10000,
+          skill_ids: [typescriptSkillId],
+        }],
+      }],
+    },
+  }, r => !!r.encodedData);
+  const atomicAssignInfo = store.contracts.get(atomicAssignProject?.address)?.projectInfo;
+  if (atomicAssignInfo?.tasks[0]) {
+    atomicAssignInfo.tasks[0].status = { Approved: null };
+    atomicAssignInfo.state = "ScopeAccepted";
+  }
+  await test("reject direct assignment without enough availability", "POST", `/projects/call/${atomicAssignProject?.address}/assign_team`, {
+    data: {},
+  }, (_r, status) => status === 400);
+  await test("keep failed direct assignment team atomic", "GET", `/projects/query/${atomicAssignProject?.address}/get_team`, undefined, r => (
+    Array.isArray(r.response) && r.response.length === 0
+  ));
+  await test("keep failed direct assignment tasks atomic", "GET", `/projects/query/${atomicAssignProject?.address}/get_all_tasks`, undefined, r => (
+    Array.isArray(r.response) &&
+    r.response[0]?.assignments?.length === 0 &&
+    r.response[0]?.assigned_to === null
+  ));
+
   // Calendar
   console.log("\nCalendar:");
   const cal = await test("deploy calendar", "POST", "/calendar/deploy/v5", {}, r => r.success && !!r.address);
   const cAddr = cal?.address;
+  await test(
+    "register qualified worker without overwriting qualifications",
+    "POST",
+    `/calendar/call/${cAddr}/register_worker`,
+    { data: { worker: SEED.users.alice.address, skill_ids: [] } },
+    r => r.success,
+  );
+  await test(
+    "preserve qualifications after calendar registration",
+    "GET",
+    "/mock/users/alice/qualifications",
+    undefined,
+    (r, status) => (
+      status === 200 &&
+      JSON.stringify(r.skillIds) === JSON.stringify([typescriptSkillId, figmaSkillId]) &&
+      JSON.stringify(r.roleIds) === JSON.stringify([frontendRoleId, 5])
+    ),
+  );
   await test("register worker", "POST", `/calendar/call/${cAddr}/register_worker`, { data: { worker: "w1" } }, r => r.success);
   await test("set availability", "POST", `/calendar/call/${cAddr}/set_availability`, { caller: "w1", data: { availability: 40 } }, r => !!r.encodedData);
   await test("query availability", "GET", `/calendar/query/${cAddr}/get_availability_hours?worker=w1`, undefined, r => r.response === 40);

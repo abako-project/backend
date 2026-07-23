@@ -12,7 +12,7 @@ pnpm run dev:mock     # start the backend (mock-api + adapter-api)
 API will be available at `http://localhost:4000`, docs at `http://localhost:4000/api-docs`.
 
 ```bash
-pnpm run test:mock    # run all 96 tests
+pnpm run test:mock    # run the complete mock-backed integration suite
 ```
 
 No MongoDB, Docker, or blockchain node required.
@@ -28,6 +28,15 @@ VITE_CALENDAR_ADDRESS=mock-calendar-address
 ```
 
 Then `npm run dev` — the frontend will use mock auth (no WebAuthn/blockchain).
+
+### Frontend project happy path
+
+The step-by-step project lifecycle guide is
+[packages/adapter-api/docs/project-happy-path-e2e-flow.md](packages/adapter-api/docs/project-happy-path-e2e-flow.md).
+It documents the adapter and mock base URLs, authentication, developer
+qualification payloads, calendar setup, project creation, role-aware scope
+requirements, automatic team assignment, milestone completion, payments,
+ratings, expected states, and failure cases.
 
 ## Project Structure
 
@@ -93,10 +102,19 @@ New integrations should send `userId` when creating client or developer profiles
 
 In mock mode, users also have SQLite-backed roles. Registration requires one or more selectable `roleIds`; role `1` is the reserved, non-selectable `coordinator` role and can only be assigned through the mock coordinator endpoint. `user_roles` is the sole source of coordinator eligibility: worker and developer profiles do not persist a duplicate coordinator flag. Current roles are returned by `GET /auth/me` on mock-api and `GET /v1/auth/me` on adapter-api.
 
+## Mock Skill–Role Catalog
+
+Mock/dev mode stores a many-to-many `skill_roles` catalog in the same SQLite database as roles and workers. `mock-api` is the only source of truth for the catalog, skill-role relationships, and user skill/role assignments; `adapter-api` has no skill table or developer qualification columns. Create or replace a skill's complete role set with `POST /v1/skills` and `{ "name": "javascript", "category": "software", "roleIds": [2, 3, 4] }`. `roleIds` must be a non-empty list of unique, existing positive IDs. `GET /v1/skills/ids?roleId=2` returns the sorted skill IDs for a role, omitting `roleId` returns every skill ID, and `GET /v1/skills/:skillId` returns the skill name. `GET /v1/skills` keeps its existing response shape but reads directly from the mock.
+
+Developer profile reads combine adapter-owned metadata with live `skills` and `roleIds` from the mock. Profile updates replace those qualifications in the mock, so matching uses the new values immediately. Registering a worker in a calendar sends only its wallet address and never copies profile qualifications into calendar storage.
+
+These relationships categorize skills for discovery; they do not constrain proposal requirements. Worker matching independently requires the worker to own the requested `roleId` and every requested `skillId`. Outside mock mode, all catalog and qualification operations return `501` until the production smart contract replaces the mock as source of truth.
+
 ## Assignment Workflow
 
 - Project deployment triggers coordinator assignment. The mock contract randomly selects a registered worker whose `userId` has role `1` and whose availability is above zero; ratings are not used.
-- Coordinators propose milestones with assignment slots. Each slot contains a stable `assignmentKey`, required `hours`, and catalog `skillIds`; roles and skill names are not stored in assignment payloads.
+- Coordinators propose milestones with assignment slots. Each slot contains a stable `assignmentKey`, required `roleId`, required `hours`, and catalog `skillIds`. Role IDs are persisted and forwarded as `role_id`; skill names are not stored in assignment payloads.
+- Mock worker selection requires both the requested role and every requested skill. Scope approval is atomic: if any slot has no valid candidate, it creates neither assignments nor partial availability reservations.
 - Scope approval plans the whole team for every approved milestone. Repeated assignment keys reuse the same eligible worker when possible, then selection prefers existing project members before choosing randomly from the global worker pool.
 - Scope approval activates only the first milestone and reserves only its hours. Later assignments do not consume availability until their milestone becomes active.
 - Client acceptance of a delivered milestone activates the next milestone. If a planned worker lacks availability, that slot is reassigned from the project team first, then the global pool.

@@ -35,8 +35,18 @@
 - Project scope approval and milestone acceptance should route through the mock payment/ledger behavior in mock mode, while production remains chain-backed.
 - Do not commit generated SQLite files from mock runs. Keep only intentional seed/config files such as `packages/mock-api/data/mock-balances.json`.
 
+## Skills, Roles, And Matching
+
+- In mock mode, `mock-api` is the only source of truth for skill and role catalogs, skill-role relationships, user qualifications, worker availability, and automatic coordinator/team selection.
+- `adapter-api` must not add a skill/role mirror or qualification columns. Developer profile reads compose local metadata with live provider-owned `skills` and `roleIds`; authenticated profile updates write those qualifications to the provider.
+- Calendar registration sends wallet addresses only. Matching must read roles and skills from mock storage and require the requested role plus every requested skill.
+- Skill-role catalog relationships are for discovery and do not restrict proposal requirements.
+- Outside mock mode, provider-dependent catalog and qualification operations return `501` until the production smart contract replaces the mock directly.
+- Keep the frontend project lifecycle guide at `packages/adapter-api/docs/project-happy-path-e2e-flow.md` aligned with the E2E.
+
 ## Documentation Expectations
 
 - Keep `packages/adapter-api/README.md` as the source of truth for notification/SSE endpoint contracts and frontend handshake examples.
+- Keep `README.md` linked to the frontend project happy-path guide.
 - If event names, payload shape, auth flow, or notification read behavior changes, update the README in the same change.
 - If mock ledger/payment endpoint behavior changes, update `README.md`, `packages/adapter-api/README.md`, and this file in the same change.

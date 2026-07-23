@@ -9,10 +9,12 @@ import {
   UploadedFile,
   Res,
   ParseIntPipe,
+  Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Response } from 'express';
-import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { DevelopersService } from './developers.service';
 import { CreateDeveloperRequest, UpdateCoordinatorEligibilityRequest, UpdateDeveloperRequest } from './types';
 
@@ -82,9 +84,10 @@ export class DevelopersController {
   }
 
   @Put(':developerId')
+  @ApiBearerAuth()
   @ApiOperation({ 
     summary: 'Update developer profile',
-    description: 'Updates developer profile with additional information: bio, background, proficiency, skills, spoken languages, location, and availability.'
+    description: 'Updates local profile metadata and replaces the user skills and roles in the configured qualification provider.'
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -99,15 +102,15 @@ export class DevelopersController {
         bio: { type: 'string', example: 'Experienced full-stack developer' },
         background: { type: 'string', example: '5 years of experience in web development' },
         proficiency: { type: 'string', enum: ['junior', 'mid-level', 'senior'], example: 'mid-level', description: 'Developer proficiency level' },
-        role: { type: 'string', example: 'Full Stack Developer', description: 'Optional role title' },
         location: { type: 'string', example: 'San Francisco, USA' },
         availability: { type: 'string', enum: ['NotAvailable', 'PartTime', 'FullTime', 'WeeklyHours'], example: 'FullTime' },
         languages: { type: 'array', items: { type: 'string' }, example: ['English', 'Spanish'] },
         skills: { type: 'array', items: { type: 'number' }, example: [5, 8, 11] },
+        roleIds: { type: 'array', items: { type: 'number' }, example: [2, 4] },
         availableHoursPerWeek: { type: 'number', example: 40 },
         image: { type: 'string', format: 'binary', description: 'Profile image' }
       },
-      required: ['name', 'githubUsername', 'bio', 'background', 'proficiency', 'location', 'availability', 'languages', 'skills']
+      required: ['name', 'githubUsername', 'bio', 'background', 'proficiency', 'location', 'availability', 'languages', 'skills', 'roleIds']
     }
   })
   @ApiResponse({ status: 200, description: 'Developer updated successfully' })
@@ -115,9 +118,17 @@ export class DevelopersController {
   async update(
     @Param('developerId', ParseIntPipe) developerId: number,
     @Body() updateData: UpdateDeveloperRequest,
+    @Headers('authorization') authHeader?: string,
     @UploadedFile() file?: any,
   ) {
-    const developer = await this.developersService.update(developerId, updateData);
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Missing bearer token');
+    }
+    const developer = await this.developersService.update(
+      developerId,
+      updateData,
+      authHeader.slice('Bearer '.length).trim(),
+    );
 
     if (file) {
       await this.developersService.updateImage(

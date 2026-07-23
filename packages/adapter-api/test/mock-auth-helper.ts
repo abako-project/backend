@@ -77,8 +77,11 @@ export class MockAuthHelper {
   /**
    * Register + connect a user in one call. Returns { token, accountId }.
    */
-  async registerAndConnect(userId: string): Promise<{ token: string; accountId: string }> {
-    const reg = await this.registerUser(userId);
+  async registerAndConnect(
+    userId: string,
+    roleIds: number[] = [2],
+  ): Promise<{ token: string; accountId: string }> {
+    const reg = await this.registerUser(userId, roleIds);
     if (!reg.success) {
       throw new Error(`Registration failed for ${userId}`);
     }

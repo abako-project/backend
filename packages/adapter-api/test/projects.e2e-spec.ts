@@ -251,9 +251,11 @@ describe('Projects Module E2E Tests', () => {
         expect(response.body.message).toBe('Developer profile created successfully');
 
         workerOneDeveloperId = response.body.developerId;
+        authTokenWorkerOne = await auth.connectUser(workerOneUserId);
 
         await request(app.getHttpServer())
           .put(`/v1/developers/${workerOneDeveloperId}`)
+          .set('Authorization', `Bearer ${authTokenWorkerOne}`)
           .send({
             email: workerOneUserId,
             name: 'Projects Test Worker One',
@@ -262,11 +264,11 @@ describe('Projects Module E2E Tests', () => {
             bio: 'Coordinator profile for projects E2E tests',
             background: 'Project coordination and full-stack delivery',
             proficiency: 'senior',
-            role: 'Full Stack',
             location: 'Test Location',
             availability: 'FullTime',
             languages: ['ENG'],
             skills: ['Rust', 'Javascript', 'PostgreSQL'],
+            roleIds: [2],
             availableHoursPerWeek: 40,
           })
           .expect(200);
@@ -318,9 +320,11 @@ describe('Projects Module E2E Tests', () => {
         expect(response.body.message).toBe('Developer profile created successfully');
 
         workerTwoDeveloperId = response.body.developerId;
+        authTokenWorkerTwo = await auth.connectUser(workerTwoUserId);
 
         await request(app.getHttpServer())
           .put(`/v1/developers/${workerTwoDeveloperId}`)
+          .set('Authorization', `Bearer ${authTokenWorkerTwo}`)
           .send({
             email: workerTwoUserId,
             name: 'Projects Test Worker Two',
@@ -329,11 +333,11 @@ describe('Projects Module E2E Tests', () => {
             bio: 'Team developer profile for projects E2E tests',
             background: 'Full-stack delivery',
             proficiency: 'senior',
-            role: 'Full Stack',
             location: 'Test Location',
             availability: 'WeeklyHours',
             languages: ['ENG'],
             skills: ['Rust', 'Javascript', 'PostgreSQL'],
+            roleIds: [2],
             availableHoursPerWeek: 30,
           })
           .expect(200);
@@ -924,6 +928,7 @@ describe('Projects Module E2E Tests', () => {
                   deliveryDate: '2024-12-15',
                   requirements: [{
                     assignmentKey: 'developer-1',
+                    roleId: 2,
                     hours: 40,
                     skillIds: [1, 6, 11],
                   }],
@@ -1000,6 +1005,7 @@ describe('Projects Module E2E Tests', () => {
             expect(response.body.milestones[0]).toHaveProperty('budget', 3000);
             expect(response.body.milestones[0].requirements).toEqual([{
               assignmentKey: 'developer-1',
+              roleId: 2,
               hours: 40,
               skillIds: [1, 6, 11],
             }]);

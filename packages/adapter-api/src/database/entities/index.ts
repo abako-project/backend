@@ -5,5 +5,4 @@ export { Project } from './project.entity';
 export { Milestone } from './milestone.entity';
 export { MilestoneAssignment } from './milestone-assignment.entity';
 export { Rating } from './rating.entity';
-export { Skill } from './skill.entity';
 export { Notification } from './notification.entity';

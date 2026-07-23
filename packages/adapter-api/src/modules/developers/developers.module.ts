@@ -7,11 +7,13 @@ import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
 import { MilestoneAssignment } from '../../database/entities/milestone-assignment.entity';
 import { SkillsModule } from '../skills/skills.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Developer, Project, Milestone, MilestoneAssignment]),
     SkillsModule,
+    AuthModule,
   ],
   controllers: [DevelopersController],
   providers: [DevelopersService],

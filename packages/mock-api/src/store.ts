@@ -38,6 +38,7 @@ export interface MockTask {
 
 export interface MockRequirement {
   assignment_key: string;
+  role_id: number;
   hours: number;
   skill_ids: number[];
 }
