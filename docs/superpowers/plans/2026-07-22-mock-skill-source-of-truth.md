@@ -1,330 +1,343 @@
-# External Skill Source of Truth Implementation Plan
+# External Skills and Roles Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove the adapter skill catalog from every application flow so `mock-api` is the only source of truth today and the smart contract can replace it directly later.
+**Goal:** Make `mock-api` the sole owner of skill and role catalogs, relationships, and user qualifications while `adapter-api` stores only non-qualification profile metadata.
 
-**Architecture:** `SkillsService` is a gateway with no skill repository. In mock mode every catalog read, write, and validation delegates to `/mock/skills`; outside mock mode those operations return `501` until a contract-backed provider replaces the mock calls. Adapter seed data runs only in mock mode and obtains skill IDs from `mock-api`. The historical table remains physically registered only to avoid an implicit destructive schema change under TypeORM `synchronize`; no application code reads or writes it.
+**Architecture:** Automatic matching stays inside `mock-api` and reads its own `worker_skills`, `user_roles`, and availability tables. Adapter profile reads compose local metadata with live mock qualifications; profile updates write qualifications to the mock. The adapter skill table and developer qualification columns are deleted. Outside mock mode, these gateway operations return `501` until a smart-contract provider replaces the mock.
 
-**Tech Stack:** NestJS, TypeORM, Express mock-api, SQLite, Jest, Supertest, pnpm.
+**Tech Stack:** NestJS, TypeORM, Express, better-sqlite3, Jest, Supertest, pnpm.
 
 ## Global Constraints
 
-- Developer profiles remain stored in `adapter-api` and keep `skills: number[]`.
-- `mock-api` owns skill IDs, names, categories, role IDs, and skill-role relationships for the current mock/dev phase.
-- Future production code must replace the mock provider with the smart contract, never with local storage.
-- `adapter-api` must not read, write, seed, cache, or synchronize catalog records through application code.
-- Keep the historical `Skill` entity in `DatabaseModule` for this issue so `synchronize` cannot implicitly remove a deployed table. Do not inject its repository or add a schema migration.
-- Outside mock mode, all skill/role catalog-dependent operations return `501`.
-- Keep SDK versions, production contracts, production authentication, and deployed databases unchanged.
+- `mock-api` is the only current source of truth for skills, roles, relationships, and user qualification assignments.
+- The future smart contract replaces the mock directly; no adapter mirror is introduced.
+- Preserve coordinator authorization: normal profile updates replace selectable roles and preserve role ID `1`.
+- Keep project assignment selection inside the mock/contract provider.
+- Keep SDK versions, production contracts, and production authentication unchanged.
+- There is no production database to preserve; remove obsolete adapter schema now.
 - Preserve the unrelated `.gitignore` modification and never stage it.
 
 ---
 
-### Task 1: Make SkillsService a provider-only gateway
+### Task 1: Add mock-owned user qualifications
 
 **Files:**
 
-- Create: `packages/adapter-api/test/skills.service.spec.ts`
-- Modify: `packages/adapter-api/test/projects-happy-path.e2e-spec.ts:1-149,331-424`
-- Modify: `packages/adapter-api/src/modules/skills/skills.module.ts:1-14`
-- Modify: `packages/adapter-api/src/modules/skills/skills.service.ts:1-240`
+- Modify: `packages/mock-api/src/worker-registry.ts`
+- Modify: `packages/mock-api/src/roles.ts`
+- Modify: `packages/mock-api/src/contracts-mock.ts`
+- Modify: `packages/mock-api/src/smoke-test.ts`
 
 **Interfaces:**
 
-- Consumes in mock mode: `GET /mock/skills`, `POST /mock/skills`, `GET /mock/skills/ids`, `GET /mock/skills/:id`, and mock role lookups.
-- Produces: catalog values and IDs returned by `mock-api`; `501` for the same operations outside mock mode.
+- `GET /mock/users/:userId/qualifications`
+  - response `{ skillIds: number[], roleIds: number[] }`.
+- `PUT /mock/users/:userId/qualifications`
+  - body `{ skillIds: number[], roleIds: number[] }`;
+  - replaces worker skills and selectable roles;
+  - preserves coordinator eligibility.
 
-- [ ] **Step 1: Add failing non-mock gateway tests**
+- [ ] **Step 1: Add failing mock smoke coverage**
 
-Create `test/skills.service.spec.ts`. Build `SkillsService` through a Nest testing module with `ConfigService` and a temporary mocked `Skill` repository provider so the test compiles before the repository is removed:
+Add tests that:
 
-```ts
-import { NotImplementedException } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { ConfigService } from '../src/config/config.service';
-import { Skill } from '../src/database/entities/skill.entity';
-import { SkillsService } from '../src/modules/skills/skills.service';
-
-describe('SkillsService source of truth', () => {
-  let service: SkillsService;
-  const previousMockMode = process.env.USE_MOCK_AUTH;
-
-  beforeAll(async () => {
-    delete process.env.USE_MOCK_AUTH;
-    const module = await Test.createTestingModule({
-      providers: [
-        ConfigService,
-        SkillsService,
-        { provide: getRepositoryToken(Skill), useValue: {} },
-      ],
-    }).compile();
-    service = module.get(SkillsService);
-  });
-
-  afterAll(() => {
-    if (previousMockMode === undefined) delete process.env.USE_MOCK_AUTH;
-    else process.env.USE_MOCK_AUTH = previousMockMode;
-  });
-
-  it.each([
-    ['list', () => service.findAll()],
-    ['create', () => service.createWithRoles('rust', 'software', [3])],
-    ['list IDs', () => service.findIds()],
-    ['lookup', () => service.findNameById('1')],
-    ['role validation', () => service.validateRoleId(3)],
-    ['profile reference resolution', () => service.resolveReferences([1])],
-  ])('returns 501 for %s before the contract provider exists', async (_name, operation) => {
-    await expect(operation()).rejects.toBeInstanceOf(NotImplementedException);
-  });
-});
-```
+1. read Carol's seeded skill and role IDs;
+2. replace a test user's skills and selectable roles;
+3. verify `GET /mock/workers` and `GET /api/users/:userId/roles` expose the new matching state;
+4. verify coordinator role ID `1` survives a normal qualification replacement;
+5. reject unknown users, invalid/duplicate/unknown skills, and invalid/duplicate/non-selectable roles;
+6. snapshot qualifications before an invalid update and prove neither side changes.
 
 Run:
 
 ```bash
-pnpm --filter abako-adapter test -- --runInBand test/skills.service.spec.ts
+MOCK_SQLITE_PATH=:memory: pnpm --filter mock-api test
 ```
 
-Expected: the cases fail because the service still takes local fallback paths or touches the mocked repository.
+Expected: the new qualification endpoint tests fail with `404`.
 
-- [ ] **Step 2: Add a failing no-local-write integration assertion**
+- [ ] **Step 2: Make worker skill replacement strict**
 
-In `projects-happy-path.e2e-spec.ts`, resolve the historical repository through the root data source and record its count before the role-scoped skill flow:
+In `WorkerRegistry.setWorkerSkills`:
 
-```ts
-import { DataSource, Repository } from 'typeorm';
-import { Skill as SkillEntity } from '../src/database/entities/skill.entity';
+- require an array;
+- require positive integer IDs;
+- reject duplicates;
+- verify every skill exists before deleting current rows;
+- allow an empty array to represent no skills;
+- return IDs sorted ascending.
 
-let skillRepo: Repository<SkillEntity>;
+Add a lookup that returns a worker's skill IDs by wallet address. Make `upsertWorker` accept optional `userId` and `name` so calendar registration can preserve existing metadata.
 
-// after app.init()
-skillRepo = app.get(DataSource).getRepository(SkillEntity);
+Use the existing `SkillError` status mapping for `400` failures.
 
-// at the start of the role-scoped skill test
-const localSkillCount = await skillRepo.count();
+- [ ] **Step 3: Expose qualification replacement in RoleRegistry**
 
-// after explicit and profile skill creation
-expect(await skillRepo.count()).toBe(localSkillCount);
-```
+Reuse `setRegistrationRoles`; it already:
 
-Run:
+- validates a non-empty unique array of selectable role IDs;
+- replaces non-coordinator roles;
+- preserves coordinator role ID `1`.
+
+Only expose the minimum validation/mutation surface needed by the combined mock route. Do not add another role storage abstraction.
+
+- [ ] **Step 4: Implement the combined qualification endpoints**
+
+In `contracts-mock.ts`:
+
+1. resolve the user from `store.users`;
+2. use the mock-owned wallet address;
+3. return current worker skill IDs and all current role IDs for `GET`;
+4. validate both arrays before mutation;
+5. execute role and worker updates in one `registryDatabase.transaction`;
+6. create the worker registry row when the authenticated mock user does not yet have one;
+7. return the stored IDs after `PUT`.
+
+Map `RoleError` and `SkillError` statuses without converting them to `500`.
+
+- [ ] **Step 5: Stop calendar registration from importing adapter qualifications**
+
+For `register_worker` and `register_workers` in `contracts-mock.ts`:
+
+- derive `userId` with `store.getUserByAddress`;
+- call `upsertWorker` without `skillIds`;
+- never clear or replace existing worker skills.
+
+Add a smoke test that sets qualifications, registers the worker in a calendar, and verifies they are unchanged.
+
+- [ ] **Step 6: Run mock tests**
 
 ```bash
-MOCK_SQLITE_PATH=:memory: pnpm run test:mock
+MOCK_SQLITE_PATH=:memory: pnpm --filter mock-api test
 ```
 
-Expected: `projects-happy-path.e2e-spec.ts` fails because the current mirror inserts `accessibility review` and `profile catalog skill` into the adapter skill table.
-
-- [ ] **Step 3: Remove the repository and every local fallback from SkillsService**
-
-In `skills.service.ts`:
-
-1. Remove `ConflictException`, `NotFoundException`, `InjectRepository`, TypeORM, and `Skill` imports.
-2. Inject only `ConfigService`.
-3. Delete `ensure`, `create`, and `mirrorMockSkill`.
-4. Add one guard used by all catalog-dependent operations:
-
-```ts
-private requireMockProvider(): void {
-  if (!this.isMock()) {
-    throw new NotImplementedException(
-      'Skill and role catalogs are unavailable until the production smart contract is implemented',
-    );
-  }
-}
-```
-
-5. Call the guard before `resolveReferences`, `createWithRoles`, `findIds`, `findNameById`, `validateRoleId`, and `findAll` do any validation or I/O.
-6. Return the mock result directly from `createWithRoles`:
-
-```ts
-const { skill } = await this.mockRequest<{ skill: RoleScopedSkill }>('/mock/skills', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ name, category, roleIds }),
-});
-return skill;
-```
-
-7. Remove the local mirroring loop from `resolveMockReferences`:
-
-```ts
-if (referenced.some((skill) => !skill)) {
-  throw new BadRequestException(
-    'One or more skills do not exist in the mock catalog; create them through POST /v1/skills first',
-  );
-}
-return [...new Set((referenced as CatalogSkill[]).map((skill) => skill.id))]
-  .sort((a, b) => a - b);
-```
-
-8. Make `findAll` proxy the mock list:
-
-```ts
-async findAll(): Promise<CatalogSkill[]> {
-  this.requireMockProvider();
-  return (await this.mockRequest<{ skills: CatalogSkill[] }>('/mock/skills')).skills;
-}
-```
-
-- [ ] **Step 4: Remove Skill repository registration from SkillsModule**
-
-Delete the `TypeOrmModule` and `Skill` imports and reduce the module to:
-
-```ts
-@Module({
-  controllers: [SkillsController],
-  providers: [SkillsService],
-  exports: [SkillsService],
-})
-export class SkillsModule {}
-```
-
-Do not remove `Skill` from the root `DatabaseModule` in this issue. With `synchronize: true`, retaining the entity metadata avoids an implicit destructive schema change; application code no longer obtains its repository through `SkillsModule`.
-
-- [ ] **Step 5: Replace the E2E mirror helper with a read-only catalog comparison**
-
-Rename `ensureSkillsMirrorMock` to `getSkillsFromAdapter` and remove its POST loop:
-
-```ts
-const getSkillsFromAdapter = async (): Promise<Map<string, Skill>> => {
-  const mockResponse = await fetchJson<{ skills: Skill[] }>(`${signingServiceUrl()}/mock/skills`);
-  const adapterResponse = await request(app.getHttpServer()).get('/v1/skills').expect(200);
-  const mockSkills = [...mockResponse.skills].sort((a, b) => a.id - b.id);
-  const adapterSkills = [...adapterResponse.body.skills as Skill[]].sort((a, b) => a.id - b.id);
-
-  expect(adapterSkills).toEqual(mockSkills);
-  return new Map(adapterSkills.map((skill) => [skill.name, skill]));
-};
-```
-
-Update the lifecycle test call:
-
-```ts
-const skillsByName = await getSkillsFromAdapter();
-```
-
-- [ ] **Step 6: Run focused and integration checks**
-
-Run:
-
-```bash
-pnpm --filter abako-adapter test -- --runInBand test/skills.service.spec.ts
-pnpm --filter abako-adapter build
-MOCK_SQLITE_PATH=:memory: pnpm run test:mock
-```
-
-Expected: the focused tests pass, TypeScript exits `0`, and the integration suite passes.
+Expected: all mock smoke tests pass.
 
 - [ ] **Step 7: Commit the task**
 
 ```bash
-git add packages/adapter-api/src/modules/skills/skills.module.ts packages/adapter-api/src/modules/skills/skills.service.ts packages/adapter-api/test/skills.service.spec.ts packages/adapter-api/test/projects-happy-path.e2e-spec.ts
-git commit -m "refactor: remove adapter skill catalog"
+git add packages/mock-api/src/worker-registry.ts packages/mock-api/src/roles.ts packages/mock-api/src/contracts-mock.ts packages/mock-api/src/smoke-test.ts
+git commit -m "feat: store user qualifications in mock"
 ```
 
 ---
 
-### Task 2: Seed adapter references from the external catalog
+### Task 2: Remove the adapter skill and profile qualification schema
 
 **Files:**
 
-- Modify: `packages/adapter-api/src/modules/seed/seed.module.ts:1-18`
-- Modify: `packages/adapter-api/src/modules/seed/seed.service.ts:1-65`
-- Modify: `packages/adapter-api/test/projects-happy-path.e2e-spec.ts:331`
-- Modify: `README.md:95-105`
-- Modify: `packages/adapter-api/README.md:177-190`
+- Delete: `packages/adapter-api/src/database/entities/skill.entity.ts`
+- Modify: `packages/adapter-api/src/database/entities/index.ts`
+- Modify: `packages/adapter-api/src/database/database.module.ts`
+- Modify: `packages/adapter-api/src/database/entities/developer.entity.ts`
+- Modify: `packages/adapter-api/src/modules/skills/skills.module.ts`
+- Modify: `packages/adapter-api/src/modules/skills/skills.service.ts`
+- Modify: `packages/adapter-api/src/modules/seed/seed.module.ts`
+- Modify: `packages/adapter-api/src/modules/seed/seed.service.ts`
+- Create: `packages/adapter-api/test/skills.service.spec.ts`
+- Modify: `packages/adapter-api/test/projects-happy-path.e2e-spec.ts`
 
-**Interfaces:**
+- [ ] **Step 1: Add failing schema and non-mock tests**
 
-- Consumes: `SkillsService.findAll(): Promise<CatalogSkill[]>` from Task 1.
-- Produces: mock-only seed profiles and milestones whose skill IDs come from `mock-api`, with zero adapter skill writes.
-
-- [ ] **Step 1: Add a failing startup assertion for the historical table**
-
-Insert this test before the role-scoped skill test:
+In `projects-happy-path.e2e-spec.ts`, use the TypeORM `DataSource` to assert:
 
 ```ts
-it('does not seed a local skill catalog in mock mode', async () => {
-  expect(await skillRepo.count()).toBe(0);
-});
+const skillTables = await dataSource.query(
+  "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'skills'",
+);
+expect(skillTables).toEqual([]);
+
+const developerColumns = await dataSource.query('PRAGMA table_info(developers)');
+expect(developerColumns.map(({ name }: { name: string }) => name))
+  .not.toEqual(expect.arrayContaining(['skills', 'role']));
 ```
 
-- [ ] **Step 2: Run integration and verify the seed assertion fails**
+Create `test/skills.service.spec.ts` and assert that catalog and qualification methods throw `NotImplementedException` when `USE_MOCK_AUTH` is not `true`.
 
-Run:
+Run the focused test and the integration suite. Expected: schema assertions fail because all three local fields still exist.
+
+- [ ] **Step 2: Delete the local skill catalog**
+
+- delete `skill.entity.ts`;
+- remove its barrel export;
+- remove `Skill` from `DatabaseModule`;
+- remove `TypeOrmModule.forFeature([Skill])` from `SkillsModule`;
+- remove `Skill` from `SeedModule`;
+- remove every `Repository<Skill>` injection and local repository branch.
+
+`SkillsService` keeps only mock gateway behavior and a single non-mock `501` guard.
+
+- [ ] **Step 3: Delete local developer qualification columns**
+
+Remove `skills` and free-text `role` from the TypeORM `Developer` entity. Do not replace them with `skillIds` or `roleIds`.
+
+TypeORM `synchronize` will clean current dev/test SQLite databases; no migration is added.
+
+- [ ] **Step 4: Keep seed requirement resolution external**
+
+In `SeedService`:
+
+- obtain the mock skill catalog through `SkillsService.findAll`;
+- retain the name-to-ID map only for milestone requirement payloads;
+- remove `role` and `skills` from every seeded developer row.
+
+The mock seed remains responsible for worker skills and user roles.
+
+- [ ] **Step 5: Implement qualification gateway methods**
+
+In `SkillsService`, add:
+
+```ts
+type UserQualifications = {
+  skillIds: number[];
+  roleIds: number[];
+};
+
+getUserQualifications(userId: string): Promise<UserQualifications>;
+replaceUserQualifications(
+  userId: string,
+  skillIds: number[],
+  roleIds: number[],
+): Promise<UserQualifications>;
+```
+
+Both delegate to `/mock/users/:userId/qualifications` in mock mode and return `501` otherwise.
+
+Keep `resolveReferences` for numeric IDs and free-form names, but never persist its result locally. Allow submitted `roleIds` to be used when associating newly created skill names.
+
+- [ ] **Step 6: Run focused checks**
 
 ```bash
+pnpm --filter abako-adapter test -- --runInBand test/skills.service.spec.ts
+pnpm --filter abako-adapter build
+```
+
+Expected: focused tests and TypeScript pass.
+
+- [ ] **Step 7: Commit the task**
+
+```bash
+git add packages/adapter-api/src/database packages/adapter-api/src/modules/skills packages/adapter-api/src/modules/seed packages/adapter-api/test/skills.service.spec.ts packages/adapter-api/test/projects-happy-path.e2e-spec.ts
+git commit -m "refactor: remove adapter qualification storage"
+```
+
+---
+
+### Task 3: Compose developer profiles from adapter and mock data
+
+**Files:**
+
+- Modify: `packages/adapter-api/src/modules/developers/types.ts`
+- Modify: `packages/adapter-api/src/modules/developers/developers.service.ts`
+- Modify: `packages/adapter-api/src/modules/developers/developers.controller.ts`
+- Modify: `packages/adapter-api/src/modules/calendar/calendar.module.ts`
+- Modify: `packages/adapter-api/src/modules/calendar/calendar.service.ts`
+- Modify: `packages/adapter-api/test/projects-happy-path.e2e-spec.ts`
+- Modify: `packages/adapter-api/test/developers.spec.ts`
+
+- [ ] **Step 1: Add failing profile composition tests**
+
+Extend adapter tests to prove:
+
+- `GET /v1/developers/:developerId` returns `skills` and `roleIds` read from the mock;
+- `GET /v1/developers` does the same for each returned profile;
+- `PUT /v1/developers/:developerId` accepts `skills` and required `roleIds`;
+- a subsequent direct mock qualification read returns the updated values;
+- a subsequent profile read reflects direct mock changes without touching adapter SQLite;
+- invalid external qualification updates do not save local qualification data.
+
+Keep `skills` as the existing ID array for response compatibility. Remove the free-text `role` response and add `roleIds`.
+
+- [ ] **Step 2: Update developer request and response types**
+
+- remove free-text `role`;
+- keep `skills: Array<number | string>` on update;
+- add required `roleIds: number[]` on update;
+- define a composed profile response with `skills: number[]` and `roleIds: number[]`;
+- keep the database entity type free of both fields.
+
+Update Swagger examples accordingly.
+
+- [ ] **Step 3: Compose profile reads**
+
+Add one private enrichment helper in `DevelopersService`:
+
+1. obtain the stable `userId` with email fallback;
+2. call `SkillsService.getUserQualifications`;
+3. return `{ ...developer, skills: skillIds, roleIds }`.
+
+Use it in `findAll` and `getWithRelations`. Keep internal identity lookups local.
+
+- [ ] **Step 4: Route profile qualification updates to mock**
+
+In `DevelopersService.update`:
+
+1. load the local developer;
+2. derive its user identifier;
+3. resolve submitted skill references using the submitted selectable roles;
+4. call `replaceUserQualifications`;
+5. save only the non-qualification fields locally.
+
+Do not assign `developer.skills` or `developer.role`.
+
+The existing coordinator-eligibility endpoint remains the only way to add or remove role ID `1`.
+
+- [ ] **Step 5: Remove adapter profile data from calendar registration**
+
+Delete `CalendarService.getWorkerProfile`, its `DevelopersService` dependency, and `DevelopersModule` from `CalendarModule`.
+
+Send only worker addresses through `register_worker` and `register_workers`. The mock now resolves identity and qualifications internally.
+
+- [ ] **Step 6: Prove matching uses profile updates immediately**
+
+Update the project happy-path helper so worker setup:
+
+- registers mock authentication roles;
+- updates the adapter profile with `roleIds` and `skills`;
+- registers the wallet in the calendar without qualification payloads.
+
+Keep the existing role-and-skill matching assertions. Their success proves that the profile update changed mock storage and that calendar registration did not overwrite it.
+
+- [ ] **Step 7: Run adapter and integration tests**
+
+```bash
+pnpm --filter abako-adapter build
 MOCK_SQLITE_PATH=:memory: pnpm run test:mock
 ```
 
-Expected: the new test fails with `Expected: 0, Received: 33` because `SeedService` still inserts the historical catalog locally.
+Expected: adapter build and the full integration suite pass.
 
-- [ ] **Step 3: Make the seed module reuse SkillsService**
+- [ ] **Step 8: Commit the task**
 
-In `seed.module.ts`, remove the `Skill` entity import and add `SkillsModule`:
-
-```ts
-import { SkillsModule } from '../skills/skills.module';
-
-@Module({
-  imports: [
-    TypeOrmModule.forFeature([Client, Developer, Project, Milestone, Rating]),
-    SkillsModule,
-  ],
-  providers: [SeedService],
-})
-export class SeedModule {}
+```bash
+git add packages/adapter-api/src/modules/developers packages/adapter-api/src/modules/calendar packages/adapter-api/test/projects-happy-path.e2e-spec.ts packages/adapter-api/test/developers.spec.ts
+git commit -m "feat: compose profiles with mock qualifications"
 ```
 
-- [ ] **Step 4: Read the seed catalog from SkillsService**
+---
 
-Remove the `Skill` entity/repository imports and inject `SkillsService`:
+### Task 4: Document and verify the final boundary
 
-```ts
-import { SkillsService } from '../skills/skills.service';
+**Files:**
 
-constructor(
-  @InjectRepository(Client) private clientRepo: Repository<Client>,
-  @InjectRepository(Developer) private developerRepo: Repository<Developer>,
-  @InjectRepository(Project) private projectRepo: Repository<Project>,
-  @InjectRepository(Milestone) private milestoneRepo: Repository<Milestone>,
-  @InjectRepository(Rating) private ratingRepo: Repository<Rating>,
-  private readonly skillsService: SkillsService,
-) {}
-```
+- Modify: `README.md`
+- Modify: `packages/adapter-api/README.md`
+- Modify: `packages/adapter-api/docs/project-happy-path-e2e-flow.md`
 
-Delete `softwareSkills` and `softSkills`. Replace the local save with:
+- [ ] **Step 1: Update documentation**
 
-```ts
-const seededSkills = await this.skillsService.findAll();
-```
+Document:
 
-Keep the existing `skillIdByName` and every profile/milestone `skillIds(...)` call unchanged.
+- mock/contract ownership of catalogs and user qualifications;
+- removal of all adapter skill and role storage;
+- profile read composition and update delegation;
+- `skills` and `roleIds` profile payloads;
+- automatic assignment inside the mock/contract;
+- calendar registration preserving provider-owned qualifications;
+- current non-mock `501` behavior and future direct contract replacement.
 
-`onModuleInit` already exits when `USE_MOCK_AUTH !== 'true'`, so there is no non-mock seed path to preserve or replace.
-
-- [ ] **Step 5: Update ownership documentation**
-
-In `README.md`, state:
-
-```md
-Mock/dev mode stores the authoritative many-to-many `skill_roles` catalog in the same SQLite database as roles and workers. Adapter profiles and assignments store only external skill IDs; all skill listing, creation, validation, filtering, and name lookup delegate to `mock-api`. The adapter has no catalog mirror. Outside mock mode these operations return `501` until the smart contract replaces `mock-api` as the single source of truth.
-```
-
-In `packages/adapter-api/README.md`, state:
-
-```md
-The internal mock equivalents are `POST /mock/skills`, `GET /mock/skills/ids`, and `GET /mock/skills/:skillId`. The adapter never persists a second skill or role catalog: profiles and assignments keep only IDs, while listing, creation, validation, and name lookup delegate to `mock-api`. New profile skill names are created in the mock with the user's registered roles. Outside mock mode, catalog-dependent operations return `501` until a smart-contract provider replaces the mock.
-```
-
-Document that the historical `skills` table may remain physically present but is unused and is not a source of truth.
-
-- [ ] **Step 6: Run the complete verification suite**
-
-Run:
+- [ ] **Step 2: Run complete verification**
 
 ```bash
 MOCK_SQLITE_PATH=:memory: pnpm --filter mock-api test
@@ -337,14 +350,21 @@ Expected:
 
 - mock smoke passes;
 - adapter build exits `0`;
-- the focused and full integration suites pass;
-- `git diff --check` prints no output and exits `0`.
+- full integration passes;
+- `git diff --check` exits `0`.
 
-- [ ] **Step 7: Review scope and commit the task**
+- [ ] **Step 3: Review scope and commit**
 
-Confirm `git status --short` shows no generated SQLite files and that `.gitignore` remains unstaged. Then commit only the task files:
+Confirm:
+
+- no generated SQLite files are present;
+- no adapter `Skill` entity, skill table, or developer qualification column remains;
+- `.gitignore` remains unstaged;
+- matching code still reads only mock registries.
+
+Then commit only documentation:
 
 ```bash
-git add packages/adapter-api/src/modules/seed/seed.module.ts packages/adapter-api/src/modules/seed/seed.service.ts packages/adapter-api/test/projects-happy-path.e2e-spec.ts README.md packages/adapter-api/README.md
-git commit -m "refactor: seed skill references from mock"
+git add README.md packages/adapter-api/README.md packages/adapter-api/docs/project-happy-path-e2e-flow.md
+git commit -m "docs: define external qualification ownership"
 ```
