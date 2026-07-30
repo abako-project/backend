@@ -27,6 +27,9 @@ export class MilestoneAssignment {
   @Column({ type: 'text', nullable: true })
   assignmentKey: string | null;
 
+  @Column()
+  roleId: number;
+
   @Column({ default: 0 })
   hours: number;
 

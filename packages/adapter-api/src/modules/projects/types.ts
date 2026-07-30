@@ -117,6 +117,7 @@ export interface CreateMilestoneRequest {
   deliveryTime: number;
   requirements: Array<{
     assignmentKey: string;
+    roleId: number;
     hours: number;
     skillIds: number[];
   }>;
@@ -129,6 +130,7 @@ export interface UpdateMilestoneRequest {
   deliveryTime: number;
   requirements: Array<{
     assignmentKey: string;
+    roleId: number;
     hours: number;
     skillIds: number[];
   }>;

@@ -104,7 +104,7 @@ Start adapter-api as usual — it will hit the mock instead of the blockchain se
 - **virto-api**: auth (WebAuthn and password flows), user roles, payments, memberships, balance, fund
 - **contracts-api**: project/calendar/ratings contract deploy, query, and call methods
 
-Users, contracts, memberships, and project state are held by the mock process. Roles, user-role assignments, worker registry, availability, ledger balances, and payments are persisted in SQLite so frontend dev sessions can inspect real state changes.
+Users, contracts, memberships, and project state are held by the mock process. Roles, user-role assignments, skills, skill-role relationships, worker registry, availability, ledger balances, and payments are persisted in SQLite so frontend dev sessions can inspect real state changes.
 
 ### Mock user roles
 
@@ -133,7 +133,77 @@ Mock role management endpoints are:
 
 Role `1` cannot be renamed or deleted, and an assigned role cannot be deleted. Assigning or removing coordinator preserves the user's selectable roles. `GET /auth/me` on mock-api and `GET /v1/auth/me` on adapter-api query the current SQLite assignments; roles are not copied into JWTs.
 
+A role also cannot be deleted while any skill references it. Seed workers have these roles:
+
+| Worker | Roles |
+|---|---|
+| Carol, Malik | `backend`, `architect`, `coordinator` |
+| Grace | `frontend`, `architect`, `coordinator` |
+| Dave, Nina | `frontend`, `fullstack` |
+| Eve | `backend`, `qa` |
+| Frank | `backend` |
+| Heidi | `designer`, `frontend` |
+| Ivan, Oscar | `backend`, `devops` |
+| Judy | `frontend`, `qa` |
+| Priya | `frontend` |
+
 `PUT /v1/developers/:developerId/coordinator-eligibility` remains as a compatibility endpoint. In mock mode it resolves the developer's `userId` and delegates to `PATCH /api/users/:userId/coordinator`; it does not store a boolean on the developer profile. The mock coordinator endpoint is intentionally unauthenticated for local development. Production must implement blockchain-backed authorization before exposing equivalent behavior, so this compatibility endpoint returns `501 Not Implemented` outside mock mode.
+
+### Mock skill-role relationships
+
+Mock mode uses a many-to-many `skill_roles(skill_id, role_id)` table. Skill deletion cascades its relationships; role deletion is restricted. The seed taxonomy is:
+
+| Skills | Role IDs |
+|---|---|
+| `rust` | 3, 7, 8 |
+| `solidity`, `ink`, `substrate` | 3, 7 |
+| `typescript`, `javascript` | 2, 3, 4 |
+| `node.js` | 3, 4 |
+| `react`, `next.js`, `vue`, `react native` | 2, 4 |
+| `postgresql` | 3, 4, 7, 9 |
+| `sqlite` | 3, 4, 8 |
+| `docker` | 3, 7, 9 |
+| `kubernetes`, `aws` | 7, 9 |
+| `graphql`, `rest api`, `web3` | 2, 3, 4, 7 |
+| `smart contract auditing` | 3, 6, 7 |
+| `automated testing` | 2, 3, 4, 6, 8, 9 |
+| `ui/ux` | 2, 4, 5 |
+| `figma` | 2, 5 |
+| `communication`, `teamwork`, `time management` | 1–9 |
+| `leadership`, `mentoring` | 1, 7 |
+| `problem solving`, `adaptability` | 2–9 |
+| `stakeholder management`, `facilitation` | 1, 5, 7 |
+| `technical writing` | 1, 3, 6, 7, 8, 9 |
+
+The taxonomy is for catalog discovery only. A proposal may request a skill that is not cataloged under its role; matching succeeds when a registered worker owns both the requested role and all requested skills.
+
+Public adapter endpoints:
+
+- `POST /v1/skills` with `{ "name": "figma", "category": "software", "roleIds": [2, 5] }` creates or retrieves the normalized skill and replaces its complete role set. `roleIds` must be non-empty, unique positive integers referencing existing roles. The response is `{ "skill": { "id", "name", "category", "roleIds" } }`.
+- `GET /v1/skills` keeps the legacy `{ "skills": [...] }` response.
+- `GET /v1/skills/ids?roleId=2` returns `{ "skillIds": [...] }`, sorted by ID. Without `roleId`, it returns every skill ID. Invalid IDs return `400`; unknown roles return `404`.
+- `GET /v1/skills/:skillId` returns `{ "name": "figma" }`. Invalid IDs return `400`; unknown skills return `404`.
+
+The internal mock equivalents are `POST /mock/skills`, `GET /mock/skills`, `GET /mock/skills/ids`, and `GET /mock/skills/:skillId`. The mock also exposes `GET` and `PUT /mock/users/:userId/qualifications` for complete `{ "skillIds": [...], "roleIds": [...] }` replacement. These are provider-internal routes; frontend clients use the adapter profile and catalog endpoints.
+
+`mock-api` is the only source of truth for the skill catalog, skill-role relationships, and user skill/role assignments. The adapter has no skill table and the `developers` table has no skill or role columns. `GET /v1/developers` and `GET /v1/developers/:developerId` compose local profile metadata with live mock-owned `skills` and `roleIds`. Bearer-authenticated `PUT /v1/developers/:developerId` requires both arrays and writes the qualifications to the mock; only the profile owner may call it, and `userId` cannot be changed through this endpoint. A new free-form skill name is created in the mock catalog using the submitted profile role IDs; numeric strings from multipart forms continue to resolve as catalog IDs.
+
+Calendar registration sends only worker wallet addresses. Automatic coordinator and team selection runs inside the mock against its own roles, skills, and availability. Outside mock mode, catalog and qualification operations return `501 Not Implemented` until the production smart contract replaces the mock directly; no adapter mirror is intended.
+
+### Role-aware proposal requirements
+
+Every milestone assignment requirement is:
+
+```json
+{
+  "assignmentKey": "frontend-1",
+  "roleId": 2,
+  "hours": 40,
+  "skillIds": [5, 8]
+}
+```
+
+The adapter persists `roleId`, sends it to mock contracts as `role_id`, and stores it on `milestone_assignments`. Mock approval requires a worker with that role and every listed skill. If any requirement has no candidate, approval returns `400` atomically without assignments or partial availability reservations.
 
 ### Mock ledger and payment endpoints
 
@@ -453,7 +523,7 @@ Get all developers
 Get developer by ID
 
 #### PUT /v1/developers/:developerId
-Update developer profile
+Update the authenticated user's developer profile and replace its provider-owned `skills` and `roleIds`. Requires `Authorization: Bearer <token>` and does not allow changing `userId`.
 
 #### GET /v1/developers/:developerId/attachment
 Get developer profile image

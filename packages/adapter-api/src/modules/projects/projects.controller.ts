@@ -1135,6 +1135,7 @@ export class ProjectsController {
                   type: 'object',
                   properties: {
                     assignmentKey: { type: 'string', example: 'developer-1' },
+                    roleId: { type: 'number', example: 2 },
                     hours: { type: 'number', example: 160 },
                     skillIds: {
                       type: 'array',
@@ -1142,7 +1143,7 @@ export class ProjectsController {
                       example: [4, 7]
                     }
                   },
-                  required: ['assignmentKey', 'hours', 'skillIds']
+                  required: ['assignmentKey', 'roleId', 'hours', 'skillIds']
                 }
               }
             }
@@ -1304,10 +1305,11 @@ export class ProjectsController {
             type: 'object',
             properties: {
               assignmentKey: { type: 'string', example: 'designer-1' },
+              roleId: { type: 'number', example: 5 },
               hours: { type: 'number', example: 80 },
               skillIds: { type: 'array', items: { type: 'number' }, example: [20, 21] }
             },
-            required: ['assignmentKey', 'hours', 'skillIds']
+            required: ['assignmentKey', 'roleId', 'hours', 'skillIds']
           }
         }
       },

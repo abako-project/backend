@@ -1,6 +1,4 @@
-import Database from "better-sqlite3";
-import { mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { registryDatabase } from "./registry-database.js";
 
 export const AVAILABILITY_WEEKS = 12;
 export const MAX_WEEKLY_HOURS = 60;
@@ -16,6 +14,19 @@ export interface WorkerSeed {
   permanentWeeklyHours?: number | null;
 }
 
+export interface SkillRecord {
+  id: number;
+  name: string;
+  category: SkillCategory;
+  roleIds: number[];
+}
+
+export class SkillError extends Error {
+  constructor(public readonly status: number, message: string) {
+    super(message);
+  }
+}
+
 export interface WorkerRecord {
   walletAddress: string;
   userId: string | null;
@@ -25,7 +36,10 @@ export interface WorkerRecord {
   totalHours: number;
 }
 
-function normalizeSkill(skill: string): string {
+function normalizeSkill(skill: unknown): string {
+  if (typeof skill !== "string" || !skill.trim()) {
+    throw new SkillError(400, "name is required");
+  }
   return skill.trim().toLowerCase();
 }
 
@@ -50,24 +64,15 @@ function weekStartAt(offset: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function resolveDatabasePath(): string {
-  const configured = process.env.MOCK_SQLITE_PATH || "./data/mock-registry.sqlite";
-  if (configured === ":memory:") return configured;
-  const absolute = resolve(configured);
-  mkdirSync(dirname(absolute), { recursive: true });
-  return absolute;
-}
-
 class WorkerRegistry {
-  private readonly db = new Database(resolveDatabasePath());
+  private readonly db = registryDatabase;
 
   constructor() {
-    this.db.pragma("foreign_keys = ON");
     const existingSkillColumns = this.db.prepare("PRAGMA table_info(skills)").all() as Array<{
       name: string;
     }>;
     if (existingSkillColumns.length > 0 && !existingSkillColumns.some((column) => column.name === "id")) {
-      this.db.exec("DROP TABLE IF EXISTS worker_skills; DROP TABLE IF EXISTS skills;");
+      this.db.exec("DROP TABLE IF EXISTS skill_roles; DROP TABLE IF EXISTS worker_skills; DROP TABLE IF EXISTS skills;");
     }
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS skills (
@@ -92,6 +97,14 @@ class WorkerRegistry {
         FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE
       );
 
+      CREATE TABLE IF NOT EXISTS skill_roles (
+        skill_id INTEGER NOT NULL,
+        role_id INTEGER NOT NULL,
+        PRIMARY KEY (skill_id, role_id),
+        FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE,
+        FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT
+      );
+
       CREATE TABLE IF NOT EXISTS worker_availability (
         wallet_address TEXT NOT NULL,
         week_start TEXT NOT NULL,
@@ -102,14 +115,67 @@ class WorkerRegistry {
     `);
   }
 
-  addSkill(id: number, name: string, category: SkillCategory = "software"): number {
+  addSkill(
+    id: number,
+    name: string,
+    category: SkillCategory = "software",
+    roleIds: number[] = [],
+  ): number {
     const normalized = normalizeSkill(name);
-    if (!normalized) throw new Error("Skill name cannot be empty");
     this.db.prepare(`
       INSERT INTO skills (id, name, category) VALUES (?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET name = excluded.name, category = excluded.category
     `).run(id, normalized, category);
+    if (roleIds.length > 0) this.replaceSkillRoles(id, this.validateRoleIds(roleIds));
     return id;
+  }
+
+  createSkill(name: unknown, category: unknown, roleIds: unknown): SkillRecord {
+    const normalized = normalizeSkill(name);
+    if (category !== undefined && category !== "software" && category !== "soft") {
+      throw new SkillError(400, "category must be software or soft");
+    }
+    const validatedRoleIds = this.validateRoleIds(roleIds);
+    const transaction = this.db.transaction(() => {
+      const existing = this.db.prepare("SELECT id, category FROM skills WHERE name = ?").get(normalized) as {
+        id: number;
+        category: SkillCategory;
+      } | undefined;
+      const normalizedCategory = category ?? existing?.category ?? "software";
+      const skillId = existing?.id ?? Number(this.db.prepare(
+        "INSERT INTO skills (name, category) VALUES (?, ?)",
+      ).run(normalized, normalizedCategory).lastInsertRowid);
+      if (existing) {
+        this.db.prepare("UPDATE skills SET category = ? WHERE id = ?").run(normalizedCategory, skillId);
+      }
+      this.replaceSkillRoles(skillId, validatedRoleIds);
+      return skillId;
+    });
+    return this.getSkill(transaction());
+  }
+
+  getSkill(id: number): SkillRecord {
+    const skill = this.db.prepare(
+      "SELECT id, name, category FROM skills WHERE id = ?",
+    ).get(id) as Omit<SkillRecord, "roleIds"> | undefined;
+    if (!skill) throw new SkillError(404, "Skill not found");
+    const roles = this.db.prepare(
+      "SELECT role_id FROM skill_roles WHERE skill_id = ? ORDER BY role_id",
+    ).all(id) as Array<{ role_id: number }>;
+    return { ...skill, roleIds: roles.map((role) => role.role_id) };
+  }
+
+  listSkillIds(roleId?: number): number[] {
+    if (roleId === undefined) {
+      return (this.db.prepare("SELECT id FROM skills ORDER BY id").all() as Array<{ id: number }>)
+        .map((skill) => skill.id);
+    }
+    if (!Number.isInteger(roleId) || roleId <= 0) throw new SkillError(400, "Invalid role id");
+    const role = this.db.prepare("SELECT 1 FROM roles WHERE id = ?").get(roleId);
+    if (!role) throw new SkillError(404, "Role not found");
+    return (this.db.prepare(
+      "SELECT skill_id FROM skill_roles WHERE role_id = ? ORDER BY skill_id",
+    ).all(roleId) as Array<{ skill_id: number }>).map((skill) => skill.skill_id);
   }
 
   listSkills(): Array<{ id: number; name: string; category: SkillCategory }> {
@@ -120,7 +186,13 @@ class WorkerRegistry {
     }>;
   }
 
-  upsertWorker(worker: Omit<WorkerSeed, "skillIds" | "weeklyHours"> & { skillIds?: number[] }): void {
+  upsertWorker(worker: {
+    walletAddress: string;
+    userId?: string;
+    name?: string;
+    permanentWeeklyHours?: number | null;
+    skillIds?: number[];
+  }): void {
     const permanent = worker.permanentWeeklyHours == null
       ? null
       : validateHours(worker.permanentWeeklyHours);
@@ -144,7 +216,23 @@ class WorkerRegistry {
   }
 
   setWorkerSkills(walletAddress: string, skillIds: number[]): number[] {
-    const normalized = [...new Set(skillIds.filter((id) => Number.isInteger(id) && id > 0))];
+    if (!Array.isArray(skillIds) || !skillIds.every((id) => Number.isInteger(id) && id > 0)) {
+      throw new SkillError(400, "skillIds must contain positive integers");
+    }
+    if (new Set(skillIds).size !== skillIds.length) {
+      throw new SkillError(400, "skillIds must not contain duplicates");
+    }
+    for (const skillId of skillIds) {
+      try {
+        this.getSkill(skillId);
+      } catch (error) {
+        if (error instanceof SkillError && error.status === 404) {
+          throw new SkillError(400, "skillIds contains an unknown skill");
+        }
+        throw error;
+      }
+    }
+    const normalized = [...skillIds].sort((a, b) => a - b);
     const transaction = this.db.transaction(() => {
       this.db.prepare("DELETE FROM worker_skills WHERE wallet_address = ?").run(walletAddress);
       for (const skillId of normalized) {
@@ -333,9 +421,12 @@ class WorkerRegistry {
     transaction();
   }
 
-  seed(skills: Array<{ id: number; name: string; category: SkillCategory }>, workers: WorkerSeed[]): void {
+  seed(
+    skills: Array<{ id: number; name: string; category: SkillCategory; roleIds: number[] }>,
+    workers: WorkerSeed[],
+  ): void {
     const transaction = this.db.transaction(() => {
-      for (const skill of skills) this.addSkill(skill.id, skill.name, skill.category);
+      for (const skill of skills) this.addSkill(skill.id, skill.name, skill.category, skill.roleIds);
       for (const worker of workers) {
         this.upsertWorker(worker);
         if (worker.weeklyHours) this.setAvailability(worker.walletAddress, { weeks: worker.weeklyHours });
@@ -347,6 +438,29 @@ class WorkerRegistry {
       }
     });
     transaction();
+  }
+
+  private validateRoleIds(value: unknown): number[] {
+    if (!Array.isArray(value) || value.length === 0) {
+      throw new SkillError(400, "roleIds must contain at least one role");
+    }
+    if (!value.every((id) => typeof id === "number" && Number.isInteger(id) && id > 0)) {
+      throw new SkillError(400, "roleIds must contain positive integers");
+    }
+    if (new Set(value).size !== value.length) {
+      throw new SkillError(400, "roleIds must not contain duplicates");
+    }
+    const existing = this.db.prepare(
+      `SELECT id FROM roles WHERE id IN (${value.map(() => "?").join(", ")})`,
+    ).all(...value) as Array<{ id: number }>;
+    if (existing.length !== value.length) throw new SkillError(400, "roleIds contains an unknown role");
+    return [...value].sort((a, b) => a - b);
+  }
+
+  private replaceSkillRoles(skillId: number, roleIds: number[]): void {
+    this.db.prepare("DELETE FROM skill_roles WHERE skill_id = ?").run(skillId);
+    const insert = this.db.prepare("INSERT INTO skill_roles (skill_id, role_id) VALUES (?, ?)");
+    for (const roleId of roleIds) insert.run(skillId, roleId);
   }
 }
 

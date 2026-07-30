@@ -38,14 +38,8 @@ export class Developer {
   @Column({ type: 'simple-json', default: '[]' })
   languages: string[];
 
-  @Column({ type: 'simple-json', default: '[]' })
-  skills: number[];
-
   @Column({ nullable: true })
   availableHoursPerWeek: number;
-
-  @Column({ nullable: true })
-  role: string;
 
   @Column({ type: 'blob', nullable: true })
   imageData: Buffer;

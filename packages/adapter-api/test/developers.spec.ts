@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, VersioningType } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { MockAuthHelper } from './mock-auth-helper';
 
 /**
  * Integration tests for Developers Module
@@ -18,7 +19,10 @@ import { AppModule } from '../src/app.module';
 
 describe('Developers Module E2E Tests', () => {
   let app: INestApplication;
+  let auth: MockAuthHelper;
   let developerId: number;
+  let developerUserId: string;
+  let developerToken: string;
 
   beforeAll(async () => {
     console.log('🚀 Starting Developers E2E Tests');
@@ -36,6 +40,7 @@ describe('Developers Module E2E Tests', () => {
     });
     
     await app.init();
+    auth = new MockAuthHelper(app.getHttpServer());
 
     console.log('Application started successfully');
   });
@@ -49,8 +54,10 @@ describe('Developers Module E2E Tests', () => {
     it('should create a new developer profile', async () => {
       console.log('Creating developer profile...');
 
+      developerUserId = `dev-${Date.now()}`;
+      developerToken = (await auth.registerAndConnect(developerUserId, [2])).token;
       const developerData = {
-        userId: `dev-${Date.now()}`,
+        userId: developerUserId,
         name: 'John Developer',
         githubUsername: 'johndeveloper',
         portfolioUrl: 'https://johndeveloper.dev',
@@ -100,21 +107,23 @@ describe('Developers Module E2E Tests', () => {
     it('should update developer profile', async () => {
       const updateData = {
         name: 'John Developer Updated',
+        userId: developerUserId,
         email: `dev-updated-${Date.now()}@example.com`,
         githubUsername: 'johndeveloper',
         portfolioUrl: 'https://johndeveloper-updated.dev',
         bio: 'Experienced full-stack developer with 5 years of experience',
         background: 'Worked at multiple tech companies',
-        role: 'senior',
         location: 'San Francisco, USA',
         availability: 'FullTime',
         languages: ['1', '2'],
         skills: ['1', '2', '3'],
+        roleIds: [2],
         availableHoursPerWeek: 40,
       };
 
       const response = await request(app.getHttpServer())
         .put(`/v1/developers/${developerId}`)
+        .set('Authorization', `Bearer ${developerToken}`)
         .send(updateData)
         .expect(200);
 
@@ -129,7 +138,8 @@ describe('Developers Module E2E Tests', () => {
 
       expect(getResponse.body.developer.name).toBe(updateData.name);
       expect(getResponse.body.developer.bio).toBe(updateData.bio);
-      expect(getResponse.body.developer.role).toBe(updateData.role);
+      expect(getResponse.body.developer.skills).toEqual([1, 2, 3]);
+      expect(getResponse.body.developer.roleIds).toEqual([2]);
       expect(getResponse.body.developer.availability).toBe(updateData.availability);
       
       console.log(`✅ Updated developer ${developerId}`);
@@ -158,17 +168,19 @@ describe('Developers Module E2E Tests', () => {
 
       const response = await request(app.getHttpServer())
         .put(`/v1/developers/${developerId}`)
+        .set('Authorization', `Bearer ${developerToken}`)
         .attach('image', testImageBuffer, 'test.png')
         .field('name', 'John Developer Updated')
+        .field('userId', developerUserId)
         .field('email', `dev-updated-${Date.now()}@example.com`)
         .field('githubUsername', 'johndeveloper')
         .field('bio', 'Test bio')
         .field('background', 'Test background')
-        .field('role', 'senior')
         .field('location', 'San Francisco')
         .field('availability', 'FullTime')
         .field('languages', ['1', '2'])
         .field('skills', ['1', '2'])
+        .field('roleIds', ['2'])
         .expect(200);
 
       expect(response.body).toHaveProperty('message');
@@ -244,6 +256,7 @@ describe('Developers Module E2E Tests', () => {
         name: 'Legacy Developer',
         githubUsername: `legacydev${Date.now()}`,
       };
+      await auth.registerAndConnect(legacyData.email, [2]);
 
       const createResponse = await request(app.getHttpServer())
         .post('/v1/developers')
@@ -282,15 +295,16 @@ describe('Developers Module E2E Tests', () => {
         githubUsername: 'updated',
         bio: 'Test bio',
         background: 'Test background',
-        role: 'senior',
         location: 'Test',
         availability: 'FullTime',
         languages: ['1'],
         skills: ['1'],
+        roleIds: [2],
       };
 
       const response = await request(app.getHttpServer())
         .put(`/v1/developers/${nonExistentId}`)
+        .set('Authorization', `Bearer ${developerToken}`)
         .send(updateData)
         .expect(404);
 

@@ -17,11 +17,11 @@ export interface Developer {
   bio: string;
   background: string;
   proficiency: DeveloperProficiency;
-  role?: string;
   location: string;
   availability: DeveloperAvailability;
   languages: string[];
   skills: number[];
+  roleIds: number[];
   availableHoursPerWeek?: number;
   proficiencyId?: number;
   createdAt: number;
@@ -48,11 +48,11 @@ export interface CreateDeveloperRequest {
     bio: string;
     background: string;
     proficiency: DeveloperProficiency;
-    role?: string;
     location: string;
     availability: DeveloperAvailability;
     languages: string[];
     skills: Array<number | string>;
+    roleIds: number[];
     availableHoursPerWeek?: number;
     image?: File; // multipart/form-data
   }

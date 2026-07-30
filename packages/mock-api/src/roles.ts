@@ -1,6 +1,4 @@
-import Database from "better-sqlite3";
-import { mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { registryDatabase } from "./registry-database.js";
 
 export const COORDINATOR_ROLE_ID = 1;
 
@@ -16,14 +14,6 @@ export class RoleError extends Error {
   }
 }
 
-function resolveDatabasePath(): string {
-  const configured = process.env.MOCK_SQLITE_PATH || "./data/mock-registry.sqlite";
-  if (configured === ":memory:") return configured;
-  const absolute = resolve(configured);
-  mkdirSync(dirname(absolute), { recursive: true });
-  return absolute;
-}
-
 function normalizeName(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) {
     throw new RoleError(400, "name is required");
@@ -32,10 +22,9 @@ function normalizeName(value: unknown): string {
 }
 
 export class RoleRegistry {
-  private readonly db = new Database(resolveDatabasePath());
+  private readonly db = registryDatabase;
 
   constructor() {
-    this.db.pragma("foreign_keys = ON");
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS roles (
         id INTEGER PRIMARY KEY,
@@ -108,6 +97,10 @@ export class RoleRegistry {
       "SELECT 1 FROM user_roles WHERE role_id = ? LIMIT 1",
     ).get(id);
     if (assigned) throw new RoleError(409, "Role is assigned to users");
+    const assignedToSkill = this.db.prepare(
+      "SELECT 1 FROM skill_roles WHERE role_id = ? LIMIT 1",
+    ).get(id);
+    if (assignedToSkill) throw new RoleError(409, "Role is assigned to skills");
     this.db.prepare("DELETE FROM roles WHERE id = ?").run(id);
   }
 

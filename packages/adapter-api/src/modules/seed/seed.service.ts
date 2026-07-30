@@ -6,7 +6,7 @@ import { Developer } from '../../database/entities/developer.entity';
 import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
 import { Rating } from '../../database/entities/rating.entity';
-import { Skill } from '../../database/entities/skill.entity';
+import { SkillsService } from '../skills/skills.service';
 
 /**
  * Seeds the SQLite database with realistic test data on first startup.
@@ -25,7 +25,7 @@ export class SeedService implements OnModuleInit {
     @InjectRepository(Project) private projectRepo: Repository<Project>,
     @InjectRepository(Milestone) private milestoneRepo: Repository<Milestone>,
     @InjectRepository(Rating) private ratingRepo: Repository<Rating>,
-    @InjectRepository(Skill) private skillRepo: Repository<Skill>,
+    private readonly skillsService: SkillsService,
   ) {}
 
   async onModuleInit() {
@@ -43,22 +43,7 @@ export class SeedService implements OnModuleInit {
   }
 
   private async seed() {
-    const softwareSkills = [
-      'rust', 'solidity', 'ink', 'substrate', 'typescript', 'javascript',
-      'node.js', 'react', 'next.js', 'vue', 'postgresql', 'sqlite', 'docker',
-      'kubernetes', 'aws', 'graphql', 'rest api', 'web3',
-      'smart contract auditing', 'automated testing', 'ui/ux', 'figma',
-      'react native',
-    ];
-    const softSkills = [
-      'communication', 'leadership', 'mentoring', 'problem solving',
-      'stakeholder management', 'facilitation', 'technical writing',
-      'teamwork', 'adaptability', 'time management',
-    ];
-    const seededSkills = await this.skillRepo.save([
-      ...softwareSkills.map((name) => this.skillRepo.create({ name, category: 'software' })),
-      ...softSkills.map((name) => this.skillRepo.create({ name, category: 'soft' })),
-    ]);
+    const seededSkills = await this.skillsService.findAll();
     const skillIdByName = new Map(seededSkills.map((skill) => [skill.name, skill.id]));
     const skillIds = (names: string[]): number[] => names.map((name) => {
       const id = skillIdByName.get(name);
@@ -101,12 +86,10 @@ export class SeedService implements OnModuleInit {
       bio: 'Full-stack blockchain developer with 6 years of experience in Substrate and ink! smart contracts.',
       background: 'Previously at Parity Technologies. Core contributor to several Polkadot ecosystem projects.',
       proficiency: 'senior',
-      role: 'Full Stack',
       location: 'Taipei, Taiwan',
       availability: 'FullTime',
       availableHoursPerWeek: 40,
       languages: ['ENG', 'CMN'],
-      skills: skillIds(['rust', 'ink', 'substrate', 'node.js', 'leadership', 'stakeholder management']),
     }));
 
     const dave = await this.developerRepo.save(this.developerRepo.create({
@@ -118,12 +101,10 @@ export class SeedService implements OnModuleInit {
       bio: 'Frontend specialist passionate about creating intuitive Web3 user experiences.',
       background: 'Led frontend teams at two DeFi startups. Expert in React, TypeScript and wallet integrations.',
       proficiency: 'mid-level',
-      role: 'Front End',
       location: 'Seoul, South Korea',
       availability: 'PartTime',
       availableHoursPerWeek: 32,
       languages: ['ENG', 'KOR'],
-      skills: skillIds(['typescript', 'javascript', 'react', 'next.js', 'ui/ux', 'teamwork']),
     }));
 
     const eve = await this.developerRepo.save(this.developerRepo.create({
@@ -135,25 +116,23 @@ export class SeedService implements OnModuleInit {
       bio: 'Backend engineer focused on smart contract development and security auditing.',
       background: 'Smart contract auditor with experience in ink!, Solidity, and formal verification.',
       proficiency: 'senior',
-      role: 'BackEnd',
       location: 'Lisbon, Portugal',
       availability: 'WeeklyHours',
       availableHoursPerWeek: 40,
       languages: ['ENG', 'POR', 'SPA'],
-      skills: skillIds(['rust', 'solidity', 'smart contract auditing', 'automated testing', 'technical writing']),
     }));
 
     const additionalDevelopers = await this.developerRepo.save([
-      ['frank', 'Frank Müller', 24, ['node.js', 'postgresql', 'graphql', 'rest api', 'problem solving']],
-      ['grace', 'Grace Okafor', 40, ['typescript', 'react', 'web3', 'leadership', 'facilitation', 'communication']],
-      ['heidi', 'Heidi Berg', 20, ['figma', 'ui/ux', 'react', 'communication', 'adaptability']],
-      ['ivan', 'Ivan Petrov', 36, ['rust', 'substrate', 'docker', 'kubernetes', 'problem solving']],
-      ['judy', 'Judy Alvarez', 30, ['react native', 'typescript', 'automated testing', 'teamwork', 'time management']],
-      ['malik', 'Malik Rahman', 40, ['solidity', 'web3', 'postgresql', 'leadership', 'mentoring', 'technical writing']],
-      ['nina', 'Nina Rossi', 28, ['vue', 'javascript', 'node.js', 'sqlite', 'adaptability']],
-      ['oscar', 'Oscar Silva', 16, ['aws', 'docker', 'kubernetes', 'postgresql', 'communication']],
-      ['priya', 'Priya Shah', 0, ['typescript', 'react', 'graphql', 'mentoring', 'teamwork']],
-    ].map(([key, name, hours, skills]) => this.developerRepo.create({
+      ['frank', 'Frank Müller', 24],
+      ['grace', 'Grace Okafor', 40],
+      ['heidi', 'Heidi Berg', 20],
+      ['ivan', 'Ivan Petrov', 36],
+      ['judy', 'Judy Alvarez', 30],
+      ['malik', 'Malik Rahman', 40],
+      ['nina', 'Nina Rossi', 28],
+      ['oscar', 'Oscar Silva', 16],
+      ['priya', 'Priya Shah', 0],
+    ].map(([key, name, hours]) => this.developerRepo.create({
       userId: `${key}@example.com`,
       email: `${key}@example.com`,
       name: String(name),
@@ -161,12 +140,10 @@ export class SeedService implements OnModuleInit {
       bio: `Seed profile for ${name}.`,
       background: 'Mock worker used for assignment and availability testing.',
       proficiency: 'senior',
-      role: 'Developer',
       location: 'Remote',
       availability: Number(hours) > 0 ? 'WeeklyHours' : 'NotAvailable',
       availableHoursPerWeek: Number(hours),
       languages: ['ENG'],
-      skills: skillIds(skills as string[]),
     })));
 
     // ── Contract addresses (must match mock-api/src/seed.ts) ────────
@@ -218,7 +195,7 @@ export class SeedService implements OnModuleInit {
         description: 'Develop ink! smart contracts for NFT minting, transfers, auctions, and royalty distribution.',
         budget: 3000,
         deliveryTime: 15,
-        requirements: [{ assignmentKey: 'developer-1', hours: 80, skillIds: skillIds(['rust', 'ink']) }],
+        requirements: [{ assignmentKey: 'developer-1', roleId: 3, hours: 80, skillIds: skillIds(['rust', 'ink']) }],
         contractAddress: contracts.nftMarketplace,
         displayOrder: 0,
         state: 'pending',
@@ -229,8 +206,8 @@ export class SeedService implements OnModuleInit {
         budget: 5000,
         deliveryTime: 20,
         requirements: [
-          { assignmentKey: 'developer-1', hours: 100, skillIds: skillIds(['typescript', 'react']) },
-          { assignmentKey: 'designer-1', hours: 100, skillIds: skillIds(['ui/ux']) },
+          { assignmentKey: 'developer-1', roleId: 2, hours: 100, skillIds: skillIds(['typescript', 'react']) },
+          { assignmentKey: 'designer-1', roleId: 5, hours: 100, skillIds: skillIds(['ui/ux']) },
         ],
         contractAddress: contracts.nftMarketplace,
         displayOrder: 1,
@@ -241,7 +218,7 @@ export class SeedService implements OnModuleInit {
         description: 'End-to-end testing, security review, and deployment to testnet.',
         budget: 2000,
         deliveryTime: 10,
-        requirements: [{ assignmentKey: 'tester-1', hours: 40, skillIds: skillIds(['automated testing']) }],
+        requirements: [{ assignmentKey: 'tester-1', roleId: 6, hours: 40, skillIds: skillIds(['automated testing']) }],
         contractAddress: contracts.nftMarketplace,
         displayOrder: 2,
         state: 'pending',
@@ -272,7 +249,7 @@ export class SeedService implements OnModuleInit {
         description: 'Implement HD wallet derivation, secure key storage, and transaction signing for Substrate-based chains.',
         budget: 4000,
         deliveryTime: 10,
-        requirements: [{ assignmentKey: 'developer-1', hours: 40, skillIds: skillIds(['rust', 'substrate']) }],
+        requirements: [{ assignmentKey: 'developer-1', roleId: 3, hours: 40, skillIds: skillIds(['rust', 'substrate']) }],
         contractAddress: contracts.mobileWallet,
         displayOrder: 0,
         state: 'completed',
@@ -283,7 +260,7 @@ export class SeedService implements OnModuleInit {
         description: 'Build the mobile UI for token balances, transaction history, and portfolio overview.',
         budget: 6000,
         deliveryTime: 15,
-        requirements: [{ assignmentKey: 'developer-1', hours: 60, skillIds: skillIds(['typescript', 'react', 'ui/ux']) }],
+        requirements: [{ assignmentKey: 'developer-1', roleId: 2, hours: 60, skillIds: skillIds(['typescript', 'react', 'ui/ux']) }],
         contractAddress: contracts.mobileWallet,
         displayOrder: 1,
         state: 'in_review',
@@ -294,7 +271,7 @@ export class SeedService implements OnModuleInit {
         description: 'Implement staking functionality and an embedded dApp browser for interacting with parachains.',
         budget: 8000,
         deliveryTime: 20,
-        requirements: [{ assignmentKey: 'developer-2', hours: 80, skillIds: skillIds(['rust', 'web3']) }],
+        requirements: [{ assignmentKey: 'developer-2', roleId: 3, hours: 80, skillIds: skillIds(['rust', 'web3']) }],
         contractAddress: contracts.mobileWallet,
         displayOrder: 2,
         state: 'task_in_progress',
@@ -327,7 +304,7 @@ export class SeedService implements OnModuleInit {
         description: 'Run automated tools (cargo-audit, clippy, ink! analyzer) and document initial findings.',
         budget: 5000,
         deliveryTime: 10,
-        requirements: [{ assignmentKey: 'auditor-1', hours: 40, skillIds: skillIds(['smart contract auditing']) }],
+        requirements: [{ assignmentKey: 'auditor-1', roleId: 6, hours: 40, skillIds: skillIds(['smart contract auditing']) }],
         contractAddress: contracts.contractAudit,
         displayOrder: 0,
         state: 'completed',
@@ -338,7 +315,7 @@ export class SeedService implements OnModuleInit {
         description: 'Perform line-by-line manual code review, write the final audit report with severity ratings and remediation steps.',
         budget: 7000,
         deliveryTime: 15,
-        requirements: [{ assignmentKey: 'auditor-1', hours: 60, skillIds: skillIds(['rust', 'technical writing']) }],
+        requirements: [{ assignmentKey: 'auditor-1', roleId: 7, hours: 60, skillIds: skillIds(['rust', 'technical writing']) }],
         contractAddress: contracts.contractAudit,
         displayOrder: 1,
         state: 'completed',
@@ -364,6 +341,6 @@ export class SeedService implements OnModuleInit {
       }),
     ]);
 
-    this.logger.log(`Seeded: ${[alice, bob].length} clients, ${[carol, dave, eve].length + additionalDevelopers.length} developers, ${softwareSkills.length + softSkills.length} skills, 4 projects`);
+    this.logger.log(`Seeded: ${[alice, bob].length} clients, ${[carol, dave, eve].length + additionalDevelopers.length} developers, ${seededSkills.length} skills, 4 projects`);
   }
 }

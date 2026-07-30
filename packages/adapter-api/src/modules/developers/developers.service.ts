@@ -2,7 +2,9 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   NotImplementedException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -13,6 +15,12 @@ import { MilestoneAssignment } from '../../database/entities/milestone-assignmen
 import { CreateDeveloperRequest, UpdateDeveloperRequest } from './types';
 import { SkillsService } from '../skills/skills.service';
 import { ConfigService } from '../../config/config.service';
+import { AuthService } from '../auth/auth.service';
+
+type DeveloperProfile = Developer & {
+  skills: number[];
+  roleIds: number[];
+};
 
 @Injectable()
 export class DevelopersService {
@@ -23,10 +31,12 @@ export class DevelopersService {
     @InjectRepository(MilestoneAssignment) private milestoneAssignmentRepo: Repository<MilestoneAssignment>,
     private readonly skillsService: SkillsService,
     private readonly configService: ConfigService,
+    private readonly authService: AuthService,
   ) {}
 
-  async findAll(): Promise<Developer[]> {
-    return this.developerRepo.find();
+  async findAll(): Promise<DeveloperProfile[]> {
+    const developers = await this.developerRepo.find();
+    return Promise.all(developers.map((developer) => this.withQualifications(developer)));
   }
 
   async findOne(developerId: number): Promise<Developer> {
@@ -72,7 +82,6 @@ export class DevelopersService {
         portfolioUrl: data.portfolioUrl,
         availability: 'NotAvailable',
         languages: [],
-        skills: [],
       });
       return await this.developerRepo.save(newDeveloper);
     } catch (error: any) {
@@ -86,6 +95,7 @@ export class DevelopersService {
   async update(
     developerId: number,
     updateData: UpdateDeveloperRequest,
+    authToken: string,
   ): Promise<Developer> {
     const developer = await this.developerRepo.findOne({ where: { id: developerId } });
 
@@ -93,7 +103,18 @@ export class DevelopersService {
       throw new NotFoundException(`Developer with id ${developerId} not found`);
     }
 
-    if (updateData.userId !== undefined) developer.userId = this.normalizeOptionalText(updateData.userId);
+    const userId = developer.userId ?? developer.email;
+    if (!userId) {
+      throw new BadRequestException('Developer must have either userId or email');
+    }
+    await this.assertProfileOwner(userId, authToken);
+
+    if (
+      updateData.userId !== undefined
+      && this.normalizeOptionalText(updateData.userId) !== developer.userId
+    ) {
+      throw new BadRequestException('userId cannot be changed through profile update');
+    }
     if (updateData.email !== undefined) developer.email = this.normalizeOptionalText(updateData.email);
     developer.name = updateData.name;
     developer.githubUsername = updateData.githubUsername;
@@ -101,16 +122,18 @@ export class DevelopersService {
     developer.bio = updateData.bio;
     developer.background = updateData.background;
     developer.proficiency = updateData.proficiency;
-    if (updateData.role !== undefined) developer.role = updateData.role;
     developer.location = updateData.location;
     developer.availability = updateData.availability;
     developer.languages = updateData.languages;
-    developer.skills = await this.skillsService.resolveReferences(updateData.skills);
     if (updateData.availableHoursPerWeek !== undefined) developer.availableHoursPerWeek = updateData.availableHoursPerWeek;
 
-    if (!developer.userId && !developer.email) {
-      throw new BadRequestException('Developer must have either userId or email');
-    }
+    const roleIds = this.normalizeRoleIds(updateData.roleIds);
+    const skillIds = await this.skillsService.resolveReferences(
+      updateData.skills,
+      userId,
+      roleIds,
+    );
+    await this.skillsService.replaceUserQualifications(userId, skillIds, roleIds);
 
     return this.developerRepo.save(developer);
   }
@@ -222,8 +245,45 @@ export class DevelopersService {
     const projectNames = consultantProjects.map(p => p.title);
 
     return {
-      ...developer,
+      ...await this.withQualifications(developer),
       consultantProjects: projectNames,
     };
+  }
+
+  private async withQualifications(developer: Developer): Promise<DeveloperProfile> {
+    const userId = developer.userId ?? developer.email;
+    if (!userId) {
+      throw new BadRequestException('Developer has no user identifier');
+    }
+    const { skillIds, roleIds } = await this.skillsService.getUserQualifications(userId);
+    return {
+      ...developer,
+      skills: skillIds,
+      roleIds,
+    };
+  }
+
+  private normalizeRoleIds(values: number[] | number): number[] {
+    const roleIds = (Array.isArray(values) ? values : [values]).map(Number);
+    if (
+      roleIds.length === 0
+      || roleIds.some((roleId) => !Number.isInteger(roleId) || roleId <= 0)
+      || new Set(roleIds).size !== roleIds.length
+    ) {
+      throw new BadRequestException('roleIds must contain unique positive integers');
+    }
+    return roleIds.sort((a, b) => a - b);
+  }
+
+  private async assertProfileOwner(userId: string, authToken: string): Promise<void> {
+    let authenticatedUserId: string;
+    try {
+      authenticatedUserId = await this.authService.getUserIdFromToken(authToken);
+    } catch {
+      throw new UnauthorizedException('Invalid bearer token');
+    }
+    if (authenticatedUserId !== userId) {
+      throw new ForbiddenException('Cannot update another user profile');
+    }
   }
 }

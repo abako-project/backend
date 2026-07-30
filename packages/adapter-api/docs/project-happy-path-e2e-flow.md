@@ -1,11 +1,34 @@
-# Project happy path E2E flow
+# Frontend project happy path
 
-This document describes the issue #60 happy path covered by
+This guide describes the mock-backed project lifecycle covered by
 `packages/adapter-api/test/projects-happy-path.e2e-spec.ts`.
 
-It is written for frontend integration work. The API flow below is the current
-mock-backed behavior. Some product and ledger details are intentionally called
-out as pending definitions so they can be implemented consistently later.
+It is the frontend integration reference for the current behavior. The test is
+the executable specification; this document explains the same flow without
+requiring frontend developers to read backend test code.
+
+## Base URLs
+
+| Name | Default | Use |
+| --- | --- | --- |
+| `API` | `http://localhost:4000` | Public adapter endpoints under `/v1` |
+| `MOCK` | `http://localhost:4010` | Mock-only test setup such as contract deployment and funding |
+
+Frontend application calls go through `API`. Calls marked **mock setup only**
+go directly to `MOCK` and must not become production frontend dependencies.
+
+## Flow at a glance
+
+1. Register and connect users.
+2. Create client and developer profiles.
+3. Store developer `skills` and `roleIds` through the authenticated profile update.
+4. Register worker wallets in the calendar and set availability.
+5. Fund the client in mock mode.
+6. Create the project and wait for automatic coordinator assignment.
+7. Coordinator proposes milestones with role-and-skill requirements.
+8. Client approves scope; the mock plans the team and activates milestone one.
+9. Coordinator submits each milestone; client accepts it and activates the next.
+10. Complete the project and submit ratings.
 
 ## Important notes to define and implement
 
@@ -73,11 +96,11 @@ Adapter API
         v
 Profiles ready
         |
-        | POST /ratings/deploy/v5              (mock direct)
-        | POST /calendar/deploy/v5             (mock direct)
+        | POST /ratings/deploy/v5              (mock setup only)
+        | POST /calendar/deploy/v5             (mock setup only)
         | POST /v1/calendar/:calendar/register_workers
         | POST /v1/calendar/:calendar/set_availability
-        | POST /api/fund                       (mock direct)
+        | POST /api/fund                       (mock setup only)
         v
 Calendar + balances ready
         |
@@ -112,14 +135,55 @@ Project completed and ratings persisted
 
 ## Frontend flow
 
-1. Register or connect the client, workers, and coordinators.
+1. Register or connect the client, workers, and coordinators. Mock registration
+   requires at least one selectable `roleId`; role `1` cannot be self-assigned.
+   Keep the bearer token and wallet address returned by the auth flow.
 2. Create the client profile with `/v1/clients`.
-3. Create each developer profile with `/v1/developers`, update it with skills
-   and availability metadata, then mark two developers as coordinator-eligible.
+3. Create each developer profile with `/v1/developers`. Update local metadata
+   together with required `skills` and `roleIds`; the adapter writes those
+   qualifications to `mock-api`, not its profile database. The update requires
+   that developer's bearer token and cannot change `userId`. Then mark two
+   developers as coordinator-eligible.
+
+```http
+PUT $API/v1/developers/:developerId
+Authorization: Bearer <developer-token>
+Content-Type: application/json
+
+{
+  "userId": "developer@example.com",
+  "name": "Frontend Developer",
+  "githubUsername": "frontend-dev",
+  "bio": "Frontend specialist",
+  "background": "Web application delivery",
+  "proficiency": "senior",
+  "location": "Remote",
+  "availability": "WeeklyHours",
+  "languages": ["ENG"],
+  "skills": [5, 8],
+  "roleIds": [2],
+  "availableHoursPerWeek": 20
+}
+```
+
+`skills` may contain existing IDs or free-form names. `roleIds` must contain
+selectable role IDs and replaces the user's selectable role set. Coordinator
+role `1` is managed only by the coordinator-eligibility endpoint and is
+preserved by normal qualification updates.
+
+The mock-only coordinator eligibility helper is:
+
+```http
+PUT $API/v1/developers/:developerId/coordinator-eligibility
+Content-Type: application/json
+
+{ "isCoordinator": true }
+```
+
 4. Register workers in the chosen calendar:
 
 ```http
-POST /v1/calendar/:calendarContract/register_workers
+POST $API/v1/calendar/:calendarContract/register_workers
 Authorization: Bearer <token>
 
 {
@@ -127,11 +191,20 @@ Authorization: Bearer <token>
 }
 ```
 
+Calendar registration copies no role or skill data. The mock resolves the
+wallet's user and uses the qualifications already stored in its shared
+registry. Future smart-contract mode is expected to use the same ownership
+boundary.
+
+The E2E deploys isolated ratings and calendar contracts directly through
+`POST $MOCK/ratings/deploy/v5` and `POST $MOCK/calendar/deploy/v5`. A frontend
+normally receives these addresses from configuration and does not deploy them.
+
 5. Set worker availability. In the E2E, available workers get enough time and
    unavailable workers get zero weekly hours:
 
 ```http
-POST /v1/calendar/:calendarContract/set_availability
+POST $API/v1/calendar/:calendarContract/set_availability
 Authorization: Bearer <worker-token>
 
 {
@@ -142,7 +215,7 @@ Authorization: Bearer <worker-token>
 6. Fund the client in mock mode:
 
 ```http
-POST /api/fund
+POST $MOCK/api/fund
 
 {
   "address": "5...",
@@ -154,7 +227,7 @@ POST /api/fund
 7. Client creates the project:
 
 ```http
-POST /v1/projects/deploy/v5
+POST $API/v1/projects/deploy/v5
 Authorization: Bearer <client-token>
 
 {
@@ -169,7 +242,7 @@ Authorization: Bearer <client-token>
 Poll:
 
 ```http
-GET /v1/projects/:projectId/get_project_info
+GET $API/v1/projects/:projectId/get_project_info
 ```
 
 Expected state:
@@ -181,7 +254,7 @@ Expected state:
 8. Coordinator proposes scope:
 
 ```http
-POST /v1/projects/:projectId/propose_scope
+POST $API/v1/projects/:projectId/propose_scope
 Authorization: Bearer <coordinator-token>
 
 {
@@ -193,7 +266,7 @@ Authorization: Bearer <coordinator-token>
       "budget": 5000,
       "deliveryTime": 10,
       "requirements": [
-        { "assignmentKey": "backend", "hours": 20, "skillIds": [1] }
+        { "assignmentKey": "backend", "roleId": 3, "hours": 20, "skillIds": [1] }
       ]
     }
   ]
@@ -202,10 +275,22 @@ Authorization: Bearer <coordinator-token>
 
 The real E2E sends four milestones with 5/3/4/2 requirements.
 
+Each requirement is an assignment slot:
+
+- `assignmentKey` identifies the same responsibility across milestones.
+- `roleId` is mandatory and must reference an existing role.
+- `hours` is the availability reserved when the milestone becomes active.
+- `skillIds` must be a non-empty list of catalog IDs.
+
+Matching runs inside `mock-api`. A worker must own the requested role and every
+requested skill and must have enough availability. A skill does not need to be
+cataloged under the requested role; skill-role relationships are discovery
+metadata only.
+
 9. Client approves the full scope:
 
 ```http
-POST /v1/projects/:projectId/approve_scope
+POST $API/v1/projects/:projectId/approve_scope
 Authorization: Bearer <client-token>
 
 {
@@ -228,7 +313,7 @@ Expected:
 Coordinator requests review:
 
 ```http
-POST /v1/projects/:projectId/submit_task_for_review
+POST $API/v1/projects/:projectId/submit_task_for_review
 Authorization: Bearer <coordinator-token>
 
 { "task_id": 101 }
@@ -237,7 +322,7 @@ Authorization: Bearer <coordinator-token>
 Client accepts the milestone:
 
 ```http
-POST /v1/projects/:projectId/complete_task
+POST $API/v1/projects/:projectId/complete_task
 Authorization: Bearer <client-token>
 
 { "task_id": 101 }
@@ -255,7 +340,7 @@ Expected after client acceptance:
 11. Client marks the project completed and rates the team:
 
 ```http
-POST /v1/projects/:projectId/mark_completed
+POST $API/v1/projects/:projectId/mark_completed
 Authorization: Bearer <client-token>
 
 {
@@ -272,7 +357,7 @@ implemented.
 12. Coordinator rates client/team:
 
 ```http
-POST /v1/projects/:projectId/submit_coordinator_ratings
+POST $API/v1/projects/:projectId/submit_coordinator_ratings
 Authorization: Bearer <coordinator-token>
 
 {
@@ -284,7 +369,7 @@ Authorization: Bearer <coordinator-token>
 13. A worker rates the coordinator:
 
 ```http
-POST /v1/projects/:projectId/submit_developer_rating
+POST $API/v1/projects/:projectId/submit_developer_rating
 Authorization: Bearer <worker-token>
 
 {
@@ -301,13 +386,13 @@ include coordinator self-rating or developer self-rating for that rater.
 Use these endpoints in frontend integration tests:
 
 ```http
-GET /v1/projects/:projectId/get_project_info
-GET /v1/projects/:projectId/get_all_tasks
-GET /v1/projects/:projectId/get_team
-GET /v1/calendar/:calendarContract/get_all_workers_availability
-GET /v1/ratings/project/:projectId
-GET /v1/ratings/developer/:developerId
-GET /api/balance?address=5...&assetId=1
+GET $API/v1/projects/:projectId/get_project_info
+GET $API/v1/projects/:projectId/get_all_tasks
+GET $API/v1/projects/:projectId/get_team
+GET $API/v1/calendar/:calendarContract/get_all_workers_availability
+GET $API/v1/ratings/project/:projectId
+GET $API/v1/ratings/developer/:developerId
+GET $MOCK/api/balance?address=5...&assetId=1
 ```
 
 ## What should fail

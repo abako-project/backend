@@ -10,10 +10,11 @@ import {
   MockTask,
   MockTeamMember,
 } from "./store.js";
-import { workerRegistry } from "./worker-registry.js";
+import { SkillError, workerRegistry } from "./worker-registry.js";
 import { DEFAULT_ASSET_ID, ledger } from "./ledger.js";
 import { payments } from "./payments.js";
-import { COORDINATOR_ROLE_ID, roleRegistry } from "./roles.js";
+import { COORDINATOR_ROLE_ID, RoleError, roleRegistry } from "./roles.js";
+import { registryDatabase } from "./registry-database.js";
 
 export const contractsRouter = Router();
 
@@ -27,6 +28,13 @@ function normalizedSkillIds(skillIds: unknown): number[] {
   return [...new Set(
     skillIds.map(Number).filter((id) => Number.isInteger(id) && id > 0),
   )].sort((a, b) => a - b);
+}
+
+function requiredRoleId(value: unknown): number {
+  const roleId = Number(value);
+  if (!Number.isInteger(roleId) || roleId <= 0) throw new Error("role_id must be a positive integer");
+  roleRegistry.getRole(roleId);
+  return roleId;
 }
 
 function randomItem<T>(items: T[]): T {
@@ -45,7 +53,8 @@ function workerMatches(
   requirement: MockRequirement,
 ): boolean {
   const skills = new Set(worker.skillIds);
-  return requirement.skill_ids.every((skillId) => skills.has(skillId));
+  return roleRegistry.hasRole(worker.userId, requirement.role_id) &&
+    requirement.skill_ids.every((skillId) => skills.has(skillId));
 }
 
 function selectCandidate(
@@ -217,6 +226,71 @@ contractsRouter.get("/health", (_req, res) => {
 
 contractsRouter.get("/mock/skills", (_req, res) => {
   res.json({ skills: workerRegistry.listSkills() });
+});
+
+contractsRouter.get("/mock/skills/ids", (req, res) => {
+  try {
+    const roleId = req.query.roleId === undefined ? undefined : Number(req.query.roleId);
+    res.json({ skillIds: workerRegistry.listSkillIds(roleId) });
+  } catch (error) {
+    const status = error instanceof SkillError ? error.status : 500;
+    res.status(status).json({ error: error instanceof Error ? error.message : "Skill lookup failed" });
+  }
+});
+
+contractsRouter.get("/mock/skills/:id", (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) throw new SkillError(400, "Invalid skill id");
+    res.json({ skill: workerRegistry.getSkill(id) });
+  } catch (error) {
+    const status = error instanceof SkillError ? error.status : 500;
+    res.status(status).json({ error: error instanceof Error ? error.message : "Skill lookup failed" });
+  }
+});
+
+contractsRouter.post("/mock/skills", (req, res) => {
+  try {
+    const skill = workerRegistry.createSkill(req.body?.name, req.body?.category, req.body?.roleIds);
+    res.status(201).json({ skill });
+  } catch (error) {
+    const status = error instanceof SkillError ? error.status : 500;
+    res.status(status).json({ error: error instanceof Error ? error.message : "Skill creation failed" });
+  }
+});
+
+contractsRouter.get("/mock/users/:userId/qualifications", (req, res) => {
+  const user = store.users.get(req.params.userId);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json({
+    skillIds: workerRegistry.getWorker(user.address)?.skillIds ?? [],
+    roleIds: roleRegistry.getUserRoles(user.userId).map(({ id }) => id),
+  });
+});
+
+contractsRouter.put("/mock/users/:userId/qualifications", (req, res) => {
+  const user = store.users.get(req.params.userId);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  try {
+    const replace = registryDatabase.transaction(() => {
+      const roles = roleRegistry.setRegistrationRoles(user.userId, req.body?.roleIds);
+      workerRegistry.upsertWorker({ walletAddress: user.address, userId: user.userId });
+      const skillIds = workerRegistry.setWorkerSkills(user.address, req.body?.skillIds);
+      return { skillIds, roleIds: roles.map(({ id }) => id) };
+    });
+    res.json(replace());
+  } catch (error) {
+    const status = error instanceof SkillError || error instanceof RoleError ? error.status : 500;
+    res.status(status).json({
+      error: error instanceof Error ? error.message : "Qualification update failed",
+    });
+  }
 });
 
 contractsRouter.get("/mock/workers", (_req, res) => {
@@ -408,9 +482,29 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
         // ── assign_team ────────────────────────────────────────────
         case "assign_team": {
           if (info.state === "TeamAssigned" && info.team.length > 0) break;
-          planTeamForApprovedTasks(info);
-          const firstTask = nextIncompleteTask(info);
-          if (firstTask) activateTask(info, firstTask);
+          const previousState = info.state;
+          const previousTeam = [...info.team];
+          const previousTaskState = info.tasks.map((task) => ({
+            assignments: [...task.assignments],
+            assignedTo: task.assigned_to,
+            status: task.status,
+          }));
+          try {
+            registryDatabase.transaction(() => {
+              planTeamForApprovedTasks(info);
+              const firstTask = nextIncompleteTask(info);
+              if (firstTask) activateTask(info, firstTask);
+            })();
+          } catch (error) {
+            info.state = previousState;
+            info.team = previousTeam;
+            info.tasks.forEach((task, index) => {
+              task.assignments = previousTaskState[index].assignments;
+              task.assigned_to = previousTaskState[index].assignedTo;
+              task.status = previousTaskState[index].status;
+            });
+            throw error;
+          }
           break;
         }
 
@@ -434,6 +528,7 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
               : [];
             const parsedRequirements: MockRequirement[] = taskRequirements.map((requirement: any) => ({
               assignment_key: String(requirement.assignment_key || "").trim().toLowerCase(),
+              role_id: requiredRoleId(requirement.role_id),
               hours: positiveIntegerOrDefault(requirement.hours, 1),
               skill_ids: normalizedSkillIds(requirement.skill_ids),
             }));
@@ -753,11 +848,10 @@ contractsRouter.post("/calendar/call/:contractAddress/:methodName", (req, res) =
     const worker = req.body.data?.worker;
     if (cal && worker) {
       cal.workers.add(worker);
+      const user = store.getUserByAddress(worker);
       workerRegistry.upsertWorker({
         walletAddress: worker,
-        userId: req.body.data?.user_id || "",
-        name: req.body.data?.name || "",
-        skillIds: normalizedSkillIds(req.body.data?.skill_ids ?? req.body.data?.skills),
+        userId: user?.userId,
       });
     }
     res.json({
@@ -772,18 +866,13 @@ contractsRouter.post("/calendar/call/:contractAddress/:methodName", (req, res) =
 
   if (methodName === "register_workers") {
     const workers: string[] = req.body.data?.workers || [];
-    const profiles = new Map(
-      (req.body.data?.worker_profiles || []).map((profile: any) => [profile.worker, profile]),
-    );
     if (cal) {
       for (const w of workers) {
-        const profile = profiles.get(w) as any;
         cal.workers.add(w);
+        const user = store.getUserByAddress(w);
         workerRegistry.upsertWorker({
           walletAddress: w,
-          userId: profile?.user_id || "",
-          name: profile?.name || "",
-          skillIds: normalizedSkillIds(profile?.skill_ids ?? profile?.skills),
+          userId: user?.userId,
         });
       }
     }
