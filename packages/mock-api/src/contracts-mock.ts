@@ -5,6 +5,7 @@ import { randomInt } from "node:crypto";
 import {
   store,
   MockAssignment,
+  MockMilestone,
   MockProjectInfo,
   MockRequirement,
   MockTask,
@@ -18,11 +19,6 @@ import { registryDatabase } from "./registry-database.js";
 
 export const contractsRouter = Router();
 
-function positiveIntegerOrDefault(value: any, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
 function normalizedSkillIds(skillIds: unknown): number[] {
   if (!Array.isArray(skillIds)) return [];
   return [...new Set(
@@ -35,6 +31,89 @@ function requiredRoleId(value: unknown): number {
   if (!Number.isInteger(roleId) || roleId <= 0) throw new Error("role_id must be a positive integer");
   roleRegistry.getRole(roleId);
   return roleId;
+}
+
+function unixTimestamp(): number {
+  return Math.floor(Date.now() / 1_000);
+}
+
+function positiveInteger(value: unknown, field: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > 0xffffffff) {
+    throw new Error(`${field} must be a positive u32 integer`);
+  }
+  return parsed;
+}
+
+function parseMilestones(value: unknown): Array<Omit<MockMilestone, "task_storage">> {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error("A proposal requires at least one milestone");
+  }
+  return value.map((milestone: any, milestoneIndex) => {
+    const title = String(milestone?.title || "").trim();
+    const description = String(milestone?.description || "");
+    if (!title) throw new Error(`Milestone ${milestoneIndex} requires a title`);
+    if (!Array.isArray(milestone?.requirements) || milestone.requirements.length === 0) {
+      throw new Error(`Milestone ${milestoneIndex} requires at least one position`);
+    }
+    const requirements: MockRequirement[] = milestone.requirements.map((requirement: any) => {
+      const assignmentKey = String(requirement?.assignment_key || "").trim().toLowerCase();
+      const skillIds = normalizedSkillIds(requirement?.skill_ids);
+      if (!assignmentKey) throw new Error(`Milestone ${milestoneIndex} has an invalid assignment key`);
+      if (skillIds.length === 0) {
+        throw new Error(`Milestone ${milestoneIndex} requirements must contain skill IDs`);
+      }
+      return {
+        assignment_key: assignmentKey,
+        role_id: requiredRoleId(requirement?.role_id),
+        hours: positiveInteger(requirement?.hours, "hours"),
+        skill_ids: skillIds,
+      };
+    });
+    const assignmentKeys = requirements.map((requirement) => requirement.assignment_key);
+    if (new Set(assignmentKeys).size !== assignmentKeys.length) {
+      throw new Error(`Milestone ${milestoneIndex} contains duplicate assignment keys`);
+    }
+    return {
+      title,
+      description,
+      budget: positiveInteger(milestone?.budget, "budget"),
+      delivery_time_hours: positiveInteger(
+        milestone?.delivery_time_hours,
+        "delivery_time_hours",
+      ),
+      requirements,
+    };
+  });
+}
+
+function proposalFields(data: any) {
+  const advancePaymentPercentage = Number(data?.advance_payment_percentage);
+  if (
+    !Number.isInteger(advancePaymentPercentage) ||
+    advancePaymentPercentage < 0 ||
+    advancePaymentPercentage > 100
+  ) {
+    throw new Error("advance_payment_percentage must be an integer from 0 to 100");
+  }
+  const documentHash = String(data?.document_hash || "").trim();
+  if (!documentHash) throw new Error("document_hash is required");
+  const milestones = parseMilestones(data?.milestones);
+  return { advancePaymentPercentage, documentHash, milestones };
+}
+
+function milestoneTasks(milestones: MockMilestone[]): MockTask[] {
+  return milestones.map((milestone, index) => ({
+    id: index + 1,
+    complexity: { type: "Hours", value: milestone.delivery_time_hours },
+    cost: String(milestone.budget),
+    dependencies: [],
+    completed: false,
+    status: { Pending: null },
+    assigned_to: null,
+    assignments: [],
+    requirements: milestone.requirements,
+  }));
 }
 
 function randomItem<T>(items: T[]): T {
@@ -363,14 +442,19 @@ contractsRouter.get("/projects/query/:contractAddress/:methodName", (req, res) =
       break;
 
     case "get_scope_info":
-      // Mirrors: Option<(task_ids, advance_pct, total_cost, paid_amount)>
       if (info.scope) {
         const approvedTaskIds = info.tasks
           .filter((t) => "Approved" in t.status || "PendingReview" in t.status || t.completed)
           .map((t) => t.id);
         response = {
+          state: info.scope.state,
           task_ids: approvedTaskIds,
           advance_payment_percentage: info.scope.advance_payment_percentage,
+          document_hash: info.scope.document_hash,
+          change_request_url: info.scope.change_request_url || null,
+          milestones: info.scope.milestones || [],
+          created_at: info.scope.created_at,
+          updated_at: info.scope.updated_at,
           total_cost: info.total_cost,
           paid_amount: info.paid_amount,
           team_size: info.scope.team_size,
@@ -433,6 +517,10 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
     "set_calendar_contract",
     "set_ratings_contract",
     "propose_scope",
+    "update_scope",
+    "submit_scope",
+    "request_scope_changes",
+    "cancel_scope",
     "approve_scope",
     "submit_task_for_review",
     "complete_task",
@@ -510,81 +598,139 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
 
         // ── propose_scope ──────────────────────────────────────────
         case "propose_scope": {
-          const rawTasks: any[] = req.body.data?.tasks || [];
-          const requirements = new Map<number, any>(
-            (req.body.data?.assignment_requirements || []).map((requirement: any) => [
-              Number(requirement.task_id),
-              requirement,
-            ]),
-          );
-          const advancePct = req.body.data?.advance_payment_percentage || 0;
-          const docHash = req.body.data?.document_hash || "";
-
-          info.tasks = rawTasks.map((t: any, i: number): MockTask => {
-            const id = Number(t[0] ?? i);
-            const requirementGroup = requirements.get(id) as any;
-            const taskRequirements = Array.isArray(requirementGroup?.requirements)
-              ? requirementGroup.requirements
-              : [];
-            const parsedRequirements: MockRequirement[] = taskRequirements.map((requirement: any) => ({
-              assignment_key: String(requirement.assignment_key || "").trim().toLowerCase(),
-              role_id: requiredRoleId(requirement.role_id),
-              hours: positiveIntegerOrDefault(requirement.hours, 1),
-              skill_ids: normalizedSkillIds(requirement.skill_ids),
-            }));
-            const keys = parsedRequirements.map((requirement) => requirement.assignment_key);
-            if (keys.some((key) => !key) || new Set(keys).size !== keys.length) {
-              throw new Error(`Task ${id} has invalid or duplicate assignment keys`);
-            }
-            if (parsedRequirements.some((requirement) => requirement.skill_ids.length === 0)) {
-              throw new Error(`Task ${id} requirements must contain skill IDs`);
-            }
-            return {
-              id,
-              complexity: typeof t[1] === "object" ? t[1] : { type: "Days", value: t[1] },
-              cost: String(t[2]),
-              dependencies: t[3] || [],
-              completed: false,
-              status: { Pending: null },
-              assigned_to: null,
-              assignments: [],
-              requirements: parsedRequirements,
-            };
-          });
-
+          if (req.body.caller !== info.coordinator) throw new Error("Only the project coordinator can propose scope");
+          if (info.scope) throw new Error("The project already has a proposal");
+          const fields = proposalFields(req.body.data);
+          const timestamp = unixTimestamp();
+          const milestones: MockMilestone[] = fields.milestones.map((milestone, index) => ({
+            ...milestone,
+            task_storage: store.createTaskStorage(
+              info.coordinator!,
+              contractAddress,
+              index,
+            ).hash,
+          }));
+          info.tasks = milestoneTasks(milestones);
           info.scope = {
-            tasks: rawTasks,
-            advance_payment_percentage: advancePct,
-            document_hash: docHash,
-            state: "Proposed",
-            team_size: positiveIntegerOrDefault(req.body.data?.team_size, 1),
+            tasks: info.tasks.map((task) => [
+              task.id,
+              task.complexity,
+              task.cost,
+              task.dependencies,
+            ]),
+            milestones,
+            advance_payment_percentage: fields.advancePaymentPercentage,
+            document_hash: fields.documentHash,
+            change_request_url: null,
+            state: "Draft",
+            team_size: Math.max(...milestones.map((milestone) => milestone.requirements.length)),
+            task_storages: milestones.map((milestone, index) => ({
+              task_id: index + 1,
+              task_storage: milestone.task_storage,
+            })),
+            created_at: timestamp,
+            updated_at: timestamp,
           };
+          info.state = "ScopeProposalInProgress";
+          break;
+        }
 
+        case "update_scope": {
+          if (req.body.caller !== info.coordinator) throw new Error("Only the project coordinator can update scope");
+          if (!info.scope || info.scope.state !== "Draft" || !info.scope.milestones) {
+            throw new Error("Only a draft proposal can be updated");
+          }
+          const fields = proposalFields(req.body.data);
+          if (fields.milestones.length !== info.scope.milestones.length) {
+            throw new Error("Draft updates must preserve the milestone count");
+          }
+          const milestones: MockMilestone[] = fields.milestones.map((milestone, index) => ({
+            ...milestone,
+            task_storage: info.scope!.milestones![index].task_storage,
+          }));
+          info.tasks = milestoneTasks(milestones);
+          info.scope.tasks = info.tasks.map((task) => [
+            task.id,
+            task.complexity,
+            task.cost,
+            task.dependencies,
+          ]);
+          info.scope.milestones = milestones;
+          info.scope.advance_payment_percentage = fields.advancePaymentPercentage;
+          info.scope.document_hash = fields.documentHash;
+          info.scope.team_size = Math.max(...milestones.map((milestone) => milestone.requirements.length));
+          info.scope.updated_at = unixTimestamp();
+          break;
+        }
+
+        case "submit_scope": {
+          if (req.body.caller !== info.coordinator) throw new Error("Only the project coordinator can submit scope");
+          if (!info.scope || info.scope.state !== "Draft" || !info.scope.milestones) {
+            throw new Error("Only a draft proposal can be submitted");
+          }
+          const emptyStorage = info.scope.milestones.find((milestone) => (
+            store.taskStorages.get(milestone.task_storage)?.tasks.size === 0
+          ));
+          if (emptyStorage) throw new Error("Every milestone requires at least one task before submission");
+          info.scope.state = "PendingApproval";
+          info.scope.updated_at = unixTimestamp();
           info.state = "ScopePendingClientApproval";
+          break;
+        }
+
+        case "request_scope_changes": {
+          if (req.body.caller !== info.client) throw new Error("Only the project client can request scope changes");
+          if (!info.scope || info.scope.state !== "PendingApproval") {
+            throw new Error("Only a pending proposal can receive change requests");
+          }
+          const changeRequestUrl = String(req.body.data?.change_request_url || "").trim();
+          let parsedUrl: URL;
+          try {
+            parsedUrl = new URL(changeRequestUrl);
+          } catch {
+            throw new Error("change_request_url must be a valid HTTPS URL");
+          }
+          if (parsedUrl.protocol !== "https:") {
+            throw new Error("change_request_url must be a valid HTTPS URL");
+          }
+          info.scope.change_request_url = changeRequestUrl;
+          info.scope.state = "Draft";
+          info.scope.updated_at = unixTimestamp();
+          info.state = "ScopeProposalInProgress";
+          break;
+        }
+
+        case "cancel_scope": {
+          if (req.body.caller !== info.client) throw new Error("Only the project client can cancel scope");
+          if (!info.scope || info.scope.state !== "PendingApproval") {
+            throw new Error("Only a pending proposal can be cancelled");
+          }
+          info.scope.state = "Cancelled";
+          info.scope.updated_at = unixTimestamp();
+          info.state = "ScopeCancelled";
           break;
         }
 
         // ── approve_scope ──────────────────────────────────────────
         case "approve_scope": {
-          const approvedIds: number[] = req.body.data?.approved_task_ids || [];
+          if (req.body.caller !== info.client) throw new Error("Only the project client can approve scope");
+          if (!info.scope || info.scope.state !== "PendingApproval") {
+            throw new Error("Only a pending proposal can be approved");
+          }
           const blockNum = store.nextBlockNumber();
-          const approvedSet = new Set(approvedIds);
           const previousStatuses = info.tasks.map((task) => task.status);
           const previousState = info.state;
           const previousTotalCost = info.total_cost;
           const previousPaidAmount = info.paid_amount;
           const previousScopeState = info.scope?.state;
+          const previousScopeUpdatedAt = info.scope?.updated_at;
           const previousTeam = [...info.team];
           const previousAssignments = info.tasks.map((task) => [...task.assignments]);
           const previousAssignedTo = info.tasks.map((task) => task.assigned_to);
 
           try {
             for (const task of info.tasks) {
-              if (approvedSet.has(task.id)) {
-                task.status = { Approved: blockNum };
-              } else if ("Pending" in task.status) {
-                task.status = { Rejected: blockNum };
-              }
+              task.status = { Approved: blockNum };
             }
 
             info.total_cost = info.tasks
@@ -595,7 +741,8 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
             info.paid_amount = Math.floor(info.total_cost * advancePct / 100);
             ensureFunds(info.client, info.paid_amount);
 
-            if (info.scope) info.scope.state = "Approved";
+            info.scope.state = "Approved";
+            info.scope.updated_at = unixTimestamp();
             info.state = "ScopeAccepted";
             planTeamForApprovedTasks(info);
             const firstTask = nextIncompleteTask(info);
@@ -620,7 +767,10 @@ contractsRouter.post("/projects/call/:contractAddress/:methodName", (req, res) =
             info.state = previousState;
             info.total_cost = previousTotalCost;
             info.paid_amount = previousPaidAmount;
-            if (info.scope && previousScopeState) info.scope.state = previousScopeState;
+            if (info.scope && previousScopeState) {
+              info.scope.state = previousScopeState;
+              info.scope.updated_at = previousScopeUpdatedAt;
+            }
             throw error;
           }
           break;

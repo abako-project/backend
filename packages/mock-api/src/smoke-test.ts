@@ -8,12 +8,14 @@ import { seedStore } from "./seed.js";
 import { SEED, SEED_SKILLS } from "./seed.js";
 import { registryDatabase } from "./registry-database.js";
 import { store } from "./store.js";
+import { taskStorageRouter } from "./task-storages.js";
 
 const app = express();
 app.use(express.json());
 app.use("/api", virtoRouter);
 app.use("/", contractsRouter);
 app.use("/", appRouter);
+app.use("/", taskStorageRouter);
 seedStore();
 
 const PORT = 0; // random available port
@@ -31,9 +33,13 @@ const server = app.listen(PORT, async () => {
     path: string,
     body?: any,
     check?: (r: any, status: number) => boolean,
+    headers?: Record<string, string>,
   ) {
     try {
-      const opts: RequestInit = { method, headers: { "Content-Type": "application/json" } };
+      const opts: RequestInit = {
+        method,
+        headers: { "Content-Type": "application/json", ...headers },
+      };
       if (body) opts.body = JSON.stringify(body);
       const res = await fetch(`${base}${path}`, opts);
       const text = await res.text();
@@ -49,6 +55,43 @@ const server = app.listen(PORT, async () => {
       fail++;
       return null;
     }
+  }
+
+  async function populateAndSubmitProposal(projectAddress: string, coordinator: string) {
+    const scope = await test(
+      "query draft proposal task storages",
+      "GET",
+      `/projects/query/${projectAddress}/get_scope_info`,
+      undefined,
+      r => r.response?.state === "Draft",
+    );
+    for (const [index, milestone] of (scope?.response?.milestones || []).entries()) {
+      await test(
+        `populate milestone ${index + 1} task storage`,
+        "POST",
+        `/task-storages/${milestone.task_storage}/tasks`,
+        {
+          title: `Milestone ${index + 1}`,
+          description: "Smoke-test task",
+          type: "Task",
+          priority: "Medium",
+          status: "To Do",
+          assignees: [],
+          estimatedMinutes: milestone.delivery_time_hours * 60,
+          loggedMinutes: 0,
+          dueDate: Math.floor(Date.now() / 1000) + 86_400,
+        },
+        (_r, status) => status === 201,
+        { "X-Task-Storage-Caller": coordinator },
+      );
+    }
+    await test(
+      "submit proposal for client approval",
+      "POST",
+      `/projects/call/${projectAddress}/submit_scope`,
+      { caller: coordinator, data: {} },
+      r => !!r.encodedData,
+    );
   }
 
   async function expectPasswordRoleError(
@@ -385,12 +428,16 @@ const server = app.listen(PORT, async () => {
     r.coordinator === SEED.users.dave.address
   ));
   await test("propose scope", "POST", `/projects/call/${pAddr}/propose_scope`, {
+    caller: SEED.users.dave.address,
     data: {
-      tasks: [[1, 1, 100, []], [2, 1, 100, [1]]],
       advance_payment_percentage: 10,
-      assignment_requirements: [
+      document_hash: "smoke-test-proposal",
+      milestones: [
         {
-          task_id: 1,
+          title: "Milestone 1",
+          description: "First milestone",
+          budget: 100,
+          delivery_time_hours: 10,
           requirements: [{
             assignment_key: "developer-1",
             role_id: 2,
@@ -404,7 +451,10 @@ const server = app.listen(PORT, async () => {
           }],
         },
         {
-          task_id: 2,
+          title: "Milestone 2",
+          description: "Second milestone",
+          budget: 100,
+          delivery_time_hours: 20,
           requirements: [{
             assignment_key: "developer-1",
             role_id: 2,
@@ -415,6 +465,7 @@ const server = app.listen(PORT, async () => {
       ],
     },
   }, r => !!r.encodedData);
+  await populateAndSubmitProposal(pAddr, SEED.users.dave.address);
   const availabilityBefore = await test(
     "snapshot worker availability",
     "GET",
@@ -423,7 +474,8 @@ const server = app.listen(PORT, async () => {
     r => Array.isArray(r.response),
   );
   await test("approve scope and assign team", "POST", `/projects/call/${pAddr}/approve_scope`, {
-    data: { approved_task_ids: [1, 2] },
+    caller: userAddr?.address,
+    data: {},
   }, r => !!r.encodedData);
   await test("query team", "GET", `/projects/query/${pAddr}/get_team`, undefined, r => Array.isArray(r.response) && r.response.length === 2);
   const plannedTasks = await test(
@@ -484,19 +536,29 @@ const server = app.listen(PORT, async () => {
     !!r.coordinator
   ));
   await test("reject scope requirement without role", "POST", `/projects/call/${mismatchProject?.address}/propose_scope`, {
+    caller: SEED.users.dave.address,
     data: {
-      tasks: [[1, 1, 100, []]],
-      assignment_requirements: [{
-        task_id: 1,
+      advance_payment_percentage: 0,
+      document_hash: "missing-role",
+      milestones: [{
+        title: "Missing role",
+        description: "Invalid requirement",
+        budget: 100,
+        delivery_time_hours: 10,
         requirements: [{ assignment_key: "designer", hours: 10, skill_ids: [7] }],
       }],
     },
   }, (_r, status) => status === 400);
   await test("propose mismatched role and skill", "POST", `/projects/call/${mismatchProject?.address}/propose_scope`, {
+    caller: SEED.users.dave.address,
     data: {
-      tasks: [[1, 1, 100, []]],
-      assignment_requirements: [{
-        task_id: 1,
+      advance_payment_percentage: 0,
+      document_hash: "mismatched-role-skill",
+      milestones: [{
+        title: "Mismatched role and skill",
+        description: "No worker satisfies every position",
+        budget: 100,
+        delivery_time_hours: 10,
         requirements: [
           { assignment_key: "frontend", role_id: 2, hours: 10, skill_ids: [5] },
           { assignment_key: "designer", role_id: 5, hours: 10, skill_ids: [7] },
@@ -504,6 +566,7 @@ const server = app.listen(PORT, async () => {
       }],
     },
   }, r => !!r.encodedData);
+  await populateAndSubmitProposal(mismatchProject?.address, SEED.users.dave.address);
   const availabilityBeforeMismatch = await test(
     "snapshot availability before failed matching",
     "GET",
@@ -512,7 +575,8 @@ const server = app.listen(PORT, async () => {
     (r, status) => status === 200 && Array.isArray(r.workers),
   );
   await test("reject worker with skill but wrong role", "POST", `/projects/call/${mismatchProject?.address}/approve_scope`, {
-    data: { approved_task_ids: [1] },
+    caller: userAddr?.address,
+    data: {},
   }, (_r, status) => status === 400);
   await test("keep failed role-aware assignment atomic", "GET", `/projects/query/${mismatchProject?.address}/get_team`, undefined, r => (
     Array.isArray(r.response) && r.response.length === 0
@@ -537,16 +601,23 @@ const server = app.listen(PORT, async () => {
     Array.isArray(r.skillIds) && !r.skillIds.includes(8)
   ));
   await test("propose skill outside role taxonomy", "POST", `/projects/call/${crossRoleProject?.address}/propose_scope`, {
+    caller: SEED.users.dave.address,
     data: {
-      tasks: [[1, 1, 100, []]],
-      assignment_requirements: [{
-        task_id: 1,
+      advance_payment_percentage: 0,
+      document_hash: "cross-role-skill",
+      milestones: [{
+        title: "Cross-role skill",
+        description: "Catalog taxonomy must not restrict requirements",
+        budget: 100,
+        delivery_time_hours: 10,
         requirements: [{ assignment_key: "designer", role_id: 5, hours: 10, skill_ids: [8] }],
       }],
     },
   }, r => !!r.encodedData);
+  await populateAndSubmitProposal(crossRoleProject?.address, SEED.users.dave.address);
   await test("assign worker by owned role and skill", "POST", `/projects/call/${crossRoleProject?.address}/approve_scope`, {
-    data: { approved_task_ids: [1] },
+    caller: userAddr?.address,
+    data: {},
   }, (_r, status) => status === 200);
 
   const atomicAssignProject = await test("deploy direct assignment atomicity project", "POST", "/projects/deploy/v5", {
@@ -558,10 +629,15 @@ const server = app.listen(PORT, async () => {
     !!r.coordinator
   ));
   await test("propose under-capacity direct assignment", "POST", `/projects/call/${atomicAssignProject?.address}/propose_scope`, {
+    caller: SEED.users.dave.address,
     data: {
-      tasks: [[1, 1, 100, []]],
-      assignment_requirements: [{
-        task_id: 1,
+      advance_payment_percentage: 0,
+      document_hash: "under-capacity",
+      milestones: [{
+        title: "Under-capacity assignment",
+        description: "Requires more hours than any worker has",
+        budget: 100,
+        delivery_time_hours: 10000,
         requirements: [{
           assignment_key: "frontend",
           role_id: 2,
@@ -571,9 +647,10 @@ const server = app.listen(PORT, async () => {
       }],
     },
   }, r => !!r.encodedData);
+  await populateAndSubmitProposal(atomicAssignProject?.address, SEED.users.dave.address);
   const atomicAssignInfo = store.contracts.get(atomicAssignProject?.address)?.projectInfo;
   if (atomicAssignInfo?.tasks[0]) {
-    atomicAssignInfo.tasks[0].status = { Approved: null };
+    atomicAssignInfo.tasks[0].status = { Approved: store.nextBlockNumber() };
     atomicAssignInfo.state = "ScopeAccepted";
   }
   await test("reject direct assignment without enough availability", "POST", `/projects/call/${atomicAssignProject?.address}/assign_team`, {

@@ -35,6 +35,14 @@
 - Project scope approval and milestone acceptance should route through the mock payment/ledger behavior in mock mode, while production remains chain-backed.
 - Do not commit generated SQLite files from mock runs. Keep only intentional seed/config files such as `packages/mock-api/data/mock-balances.json`.
 
+## Task Storages
+
+- Proposals and task storages are mock-owned until their smart contracts exist; adapter-api is middleware and must not persist a source-of-truth mirror.
+- Creating a draft proposal atomically creates one empty hash-addressed task storage per milestone. The coordinator populates every storage before submitting the proposal for client approval.
+- Tasks are keyed by provider-generated `u32` IDs and have no embedded ID. Provider-generated creation/update timestamps use Unix seconds, while estimated and logged work use integer minutes.
+- Storage reads require an authenticated project participant. The coordinator may create and fully edit tasks; an assignee may update only status and logged minutes; the client is read-only. Tasks are not deleted.
+- Proposal actions are distinct: the coordinator creates/updates/submits; the client approves, requests changes with a required HTTPS URL, or cancels. Reassigning a task is tracking-only and does not alter milestone matching, availability, or payments.
+
 ## Skills, Roles, And Matching
 
 - In mock mode, `mock-api` is the only source of truth for skill and role catalogs, skill-role relationships, user qualifications, worker availability, and automatic coordinator/team selection.

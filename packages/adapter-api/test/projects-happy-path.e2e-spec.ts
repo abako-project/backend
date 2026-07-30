@@ -3,7 +3,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
-import { CreateMilestoneRequest } from '../src/modules/projects/types';
 import { MockAuthHelper } from './mock-auth-helper';
 
 type Skill = { id: number; name: string; category: 'software' | 'soft'; roleIds?: number[] };
@@ -47,7 +46,7 @@ type MockTask = {
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-describe('Issue #60 project happy path E2E', () => {
+describe('Issue #68 project happy path E2E', () => {
   let app: INestApplication;
   let auth: MockAuthHelper;
   let dataSource: DataSource;
@@ -550,12 +549,12 @@ describe('Issue #60 project happy path E2E', () => {
       hours,
       skillIds: skillIds(skillsByName, names),
     });
-    const milestones: CreateMilestoneRequest[] = [
+    const milestones = [
       {
         title: 'Milestone 1 - Foundation',
         description: 'Five-worker foundation milestone',
         budget: 5000,
-        deliveryTime: 10,
+        deliveryTimeHours: 240,
         requirements: [
           mkReq('backend', 3, 20, ['rust']),
           mkReq('frontend', 2, 20, ['typescript']),
@@ -568,7 +567,7 @@ describe('Issue #60 project happy path E2E', () => {
         title: 'Milestone 2 - Product Slice',
         description: 'Three-worker product milestone',
         budget: 3000,
-        deliveryTime: 8,
+        deliveryTimeHours: 192,
         requirements: [
           mkReq('backend', 3, 20, ['rust']),
           mkReq('frontend', 2, 20, ['typescript']),
@@ -579,7 +578,7 @@ describe('Issue #60 project happy path E2E', () => {
         title: 'Milestone 3 - Hardening',
         description: 'Four-worker hardening milestone',
         budget: 4000,
-        deliveryTime: 12,
+        deliveryTimeHours: 288,
         requirements: [
           mkReq('backend', 3, 20, ['rust']),
           mkReq('frontend', 2, 20, ['typescript']),
@@ -591,7 +590,7 @@ describe('Issue #60 project happy path E2E', () => {
         title: 'Milestone 4 - Launch',
         description: 'Two-worker launch milestone',
         budget: 2000,
-        deliveryTime: 6,
+        deliveryTimeHours: 144,
         requirements: [
           mkReq('backend', 3, 20, ['rust']),
           mkReq('qa', 6, 20, ['automated testing']),
@@ -606,7 +605,7 @@ describe('Issue #60 project happy path E2E', () => {
         milestones: [{
           title: 'Invalid role-less milestone',
           budget: 1,
-          deliveryTime: 1,
+          deliveryTimeHours: 1,
           requirements: [{
             assignmentKey: 'missing-role',
             hours: 1,
@@ -628,10 +627,104 @@ describe('Issue #60 project happy path E2E', () => {
       })
       .expect(201);
     expect(proposeResponse.body.success).toBe(true);
-    expect(proposeResponse.body.milestones).toHaveLength(4);
+    expect(proposeResponse.body.proposal).toMatchObject({
+      state: 'Draft',
+      advance_payment_percentage: advancePercentage,
+      document_hash: `issue60-${runId}`,
+    });
+    expect(proposeResponse.body.proposal.milestones).toHaveLength(4);
+    const proposalMilestones = proposeResponse.body.proposal.milestones as Array<{
+      task_storage: string;
+      delivery_time_hours: number;
+    }>;
+    expect(new Set(proposalMilestones.map(milestone => milestone.task_storage)).size).toBe(4);
+    expect(proposalMilestones[0].delivery_time_hours).toBe(240);
 
-    const milestoneIds = (proposeResponse.body.milestones as Array<{ id: number }>)
-      .map(milestone => milestone.id);
+    await request(app.getHttpServer())
+      .post(`/v1/projects/${projectId}/submit_scope`)
+      .set('Authorization', `Bearer ${coordinator.token}`)
+      .send({})
+      .expect(400);
+
+    for (const [index, milestone] of proposalMilestones.entries()) {
+      const storageResponse = await request(app.getHttpServer())
+        .get(`/v1/task-storages/${milestone.task_storage}`)
+        .set('Authorization', `Bearer ${coordinator.token}`)
+        .expect(200);
+      expect(storageResponse.body.storage.tasks).toEqual([]);
+
+      const taskResponse = await request(app.getHttpServer())
+        .post(`/v1/task-storages/${milestone.task_storage}/tasks`)
+        .set('Authorization', `Bearer ${coordinator.token}`)
+        .send({
+          title: `Milestone ${index + 1} delivery`,
+          description: `Complete milestone ${index + 1}`,
+          type: 'Task',
+          priority: 'High',
+          status: 'To Do',
+          assignees: [],
+          estimatedMinutes: milestones[index].deliveryTimeHours * 60,
+          loggedMinutes: 0,
+          dueDate: Math.floor(Date.now() / 1000) + 86_400,
+        })
+        .expect(201);
+      expect(taskResponse.body.taskId).toBe(1);
+      expect(taskResponse.body.task).not.toHaveProperty('id');
+      expect(taskResponse.body.task).toMatchObject({
+        reporter: coordinator.accountId,
+        estimatedMinutes: milestones[index].deliveryTimeHours * 60,
+      });
+      expect(taskResponse.body.task.createdAt).toEqual(expect.any(Number));
+      expect(taskResponse.body.task.updatedAt).toEqual(expect.any(Number));
+    }
+
+    await request(app.getHttpServer())
+      .post(`/v1/projects/${projectId}/submit_scope`)
+      .set('Authorization', `Bearer ${coordinator.token}`)
+      .send({})
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/v1/projects/${projectId}/request_scope_changes`)
+      .set('Authorization', `Bearer ${client.token}`)
+      .send({})
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/v1/projects/${projectId}/request_scope_changes`)
+      .set('Authorization', `Bearer ${client.token}`)
+      .send({ changeRequestUrl: `https://notes.example.com/${runId}` })
+      .expect(201);
+
+    const revisedMilestones = milestones.map((milestone, index) => ({
+      ...milestone,
+      title: index === 0 ? 'Milestone 1 - Revised Foundation' : milestone.title,
+    }));
+    const revisionResponse = await request(app.getHttpServer())
+      .patch(`/v1/projects/${projectId}/propose_scope`)
+      .set('Authorization', `Bearer ${coordinator.token}`)
+      .send({
+        milestones: revisedMilestones,
+        advance_payment_percentage: advancePercentage,
+        document_hash: `issue68-revision-${runId}`,
+      })
+      .expect(200);
+    expect(revisionResponse.body.proposal).toMatchObject({
+      state: 'Draft',
+      document_hash: `issue68-revision-${runId}`,
+      change_request_url: `https://notes.example.com/${runId}`,
+    });
+    expect(revisionResponse.body.proposal.milestones[0].title).toBe('Milestone 1 - Revised Foundation');
+    expect(revisionResponse.body.proposal.milestones.map((milestone: any) => milestone.task_storage))
+      .toEqual(proposalMilestones.map(milestone => milestone.task_storage));
+
+    await request(app.getHttpServer())
+      .post(`/v1/projects/${projectId}/submit_scope`)
+      .set('Authorization', `Bearer ${coordinator.token}`)
+      .send({})
+      .expect(201);
+
+    const milestoneIds = [1, 2, 3, 4];
     const expectedWorkerCounts = new Map([
       [milestoneIds[0], 5],
       [milestoneIds[1], 3],
@@ -644,7 +737,7 @@ describe('Issue #60 project happy path E2E', () => {
     const approveResponse = await request(app.getHttpServer())
       .post(`/v1/projects/${projectId}/approve_scope`)
       .set('Authorization', `Bearer ${client.token}`)
-      .send({ approved_task_ids: milestoneIds })
+      .send({})
       .expect(201);
     expect(approveResponse.body.success).toBe(true);
     expect(approveResponse.body.autoAssignTeam).toMatchObject({

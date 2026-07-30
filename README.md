@@ -117,6 +117,15 @@ These relationships categorize skills for discovery; they do not constrain propo
 - Mock worker selection requires both the requested role and every requested skill. Scope approval is atomic: if any slot has no valid candidate, it creates neither assignments nor partial availability reservations.
 - Scope approval plans the whole team for every approved milestone. Repeated assignment keys reuse the same eligible worker when possible, then selection prefers existing project members before choosing randomly from the global worker pool.
 - Scope approval activates only the first milestone and reserves only its hours. Later assignments do not consume availability until their milestone becomes active.
+
+## Provider-owned proposals and task storages
+
+- `mock-api` is the dev source of truth; production will replace it with smart contracts. `adapter-api` authenticates users and translates requests but does not own proposal, milestone, or task state.
+- Creating a proposal creates it as `Draft` and atomically creates one empty hash-addressed task storage per milestone. The coordinator adds at least one task to every storage, then explicitly submits the proposal as `PendingApproval`.
+- The client can approve the complete pending proposal, request changes with a required HTTPS `changeRequestUrl` (returning it to `Draft`), or cancel it. Approval runs the existing atomic matching algorithm; every position still requires its single `roleId`, every `skillId`, and enough available `hours`.
+- A task is addressed by `<task-storage-hash, u32-task-id>` and contains no embedded ID. The provider assigns the ID, reporter, and Unix-second `createdAt`/`updatedAt` values. Work estimates and logs use integer minutes; milestone `deliveryTimeHours`, requirement `hours`, and budgets use positive integers.
+- Authenticated project participants can read a storage. The coordinator can create, edit, and reassign tasks; an assignee can update only task status and `loggedMinutes`; the client is read-only. Tasks are never deleted and remain editable unless the proposal is cancelled.
+- Task assignees are currently tracking metadata. Reassignment does not alter milestone matching, availability reservations, or payments.
 - Client acceptance of a delivered milestone activates the next milestone. If a planned worker lacks availability, that slot is reassigned from the project team first, then the global pool.
 - Activation is atomic. When no valid workers are available, the call fails without activating the milestone or accepting the previous one, and the client can retry later.
 - Availability covers the next 12 weeks, defaults to zero, and is capped at 60 hours per week. `PermanentWeeklyHours: 40` keeps future weeks at 40 hours as the window advances.
