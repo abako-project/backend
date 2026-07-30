@@ -25,17 +25,23 @@ go directly to `MOCK` and must not become production frontend dependencies.
 4. Register worker wallets in the calendar and set availability.
 5. Fund the client in mock mode.
 6. Create the project and wait for automatic coordinator assignment.
-7. Coordinator proposes milestones with role-and-skill requirements.
-8. Client approves scope; the mock plans the team and activates milestone one.
-9. Coordinator submits each milestone; client accepts it and activates the next.
-10. Complete the project and submit ratings.
+7. Coordinator creates a draft proposal; the provider creates one empty task storage per milestone.
+8. Coordinator populates every task storage and submits the proposal.
+9. Client approves the pending proposal; the mock plans the team and activates milestone one.
+10. Coordinator submits each execution milestone; client accepts it and activates the next.
+11. Complete the project and submit ratings.
 
-## Important notes to define and implement
+## Important behavior
 
-- Scope approval is currently all-or-nothing for the proposed task list.
-  Calling `approve_scope` with only one task rejects every still-pending task
-  that is not included. If frontend needs milestone-by-milestone approval from
-  the first step, that flow still needs to be defined and implemented.
+- `mock-api` owns proposal, milestone, and task-storage state in development.
+  Production smart contracts will replace it; `adapter-api` is middleware and
+  must not become a second source of truth.
+- Proposal actions are explicit. The coordinator creates or updates a `Draft`
+  and submits it as `PendingApproval`. The client then approves the complete
+  proposal, requests changes with a required HTTPS URL (returning it to
+  `Draft`), or cancels it.
+- Scope approval is all-or-nothing. It runs only after every milestone storage
+  contains at least one task and approves the complete proposal.
 - Escrow is currently advance-only in the mock. `approve_scope` debits the
   client for `advance_payment_percentage` and creates an unreleased advance
   payment to the project contract. Real per-milestone escrow remains pending.
@@ -114,7 +120,12 @@ Coordinator assigned
         |
         | POST /v1/projects/:projectId/propose_scope
         v
-Scope proposed with 4 milestones
+Draft proposal + 4 empty provider task storages
+        |
+        | POST /v1/task-storages/:hash/tasks   (once or more per milestone)
+        | POST /v1/projects/:projectId/submit_scope
+        v
+Proposal pending client approval
         |
         | POST /v1/projects/:projectId/approve_scope
         v
@@ -251,7 +262,7 @@ Expected state:
 - `contractAddress` is set
 - `consultantId` points to one of the coordinator developers
 
-8. Coordinator proposes scope:
+8. Coordinator creates the draft proposal:
 
 ```http
 POST $API/v1/projects/:projectId/propose_scope
@@ -263,8 +274,9 @@ Authorization: Bearer <coordinator-token>
   "milestones": [
     {
       "title": "Milestone 1 - Foundation",
+      "description": "Implement the project foundation",
       "budget": 5000,
-      "deliveryTime": 10,
+      "deliveryTimeHours": 10,
       "requirements": [
         { "assignmentKey": "backend", "roleId": 3, "hours": 20, "skillIds": [1] }
       ]
@@ -273,7 +285,10 @@ Authorization: Bearer <coordinator-token>
 }
 ```
 
-The real E2E sends four milestones with 5/3/4/2 requirements.
+The real E2E sends four milestones with 5/3/4/2 requirements. The mock creates
+one empty task storage per milestone in the same operation and returns each
+generated hash as `proposal.milestones[].task_storage`. IDs and timestamps are
+provider-generated.
 
 Each requirement is an assignment slot:
 
@@ -283,19 +298,65 @@ Each requirement is an assignment slot:
 - `skillIds` must be a non-empty list of catalog IDs.
 
 Matching runs inside `mock-api`. A worker must own the requested role and every
-requested skill and must have enough availability. A skill does not need to be
-cataloged under the requested role; skill-role relationships are discovery
-metadata only.
+requested skill and must have enough availability. This is the existing
+matching algorithm. A skill does not need to be cataloged under the requested
+role; skill-role relationships are discovery metadata only.
 
-9. Client approves the full scope:
+9. Coordinator adds tasks to every returned storage:
+
+```http
+POST $API/v1/task-storages/:taskStorageHash/tasks
+Authorization: Bearer <coordinator-token>
+Content-Type: application/json
+
+{
+  "title": "Implement authentication",
+  "description": "Add JWT authentication and security middleware.",
+  "type": "Feature",
+  "priority": "High",
+  "status": "To Do",
+  "assignees": [],
+  "estimatedMinutes": 960,
+  "loggedMinutes": 0,
+  "dueDate": 1786816800
+}
+```
+
+The response is `{ "taskId": 1, "task": { ... } }`. `taskId` is the `u32`
+hash-map key and is not duplicated inside `task`. The provider sets
+`reporter`, `createdAt`, and `updatedAt` in Unix seconds.
+
+10. Coordinator submits the complete draft:
+
+```http
+POST $API/v1/projects/:projectId/submit_scope
+Authorization: Bearer <coordinator-token>
+
+{}
+```
+
+Submission fails until every milestone storage contains at least one task. A
+successful submission changes the proposal to `PendingApproval`.
+
+While a proposal is pending, the client has three distinct actions:
+
+- Approve it with `POST /v1/projects/:projectId/approve_scope` and `{}`.
+- Request changes with `POST /v1/projects/:projectId/request_scope_changes`
+  and `{ "changeRequestUrl": "https://notes.example.com/change-request" }`.
+  The HTTPS URL is mandatory and the proposal returns to `Draft`.
+- Cancel it with `POST /v1/projects/:projectId/cancel_scope` and `{}`.
+
+The coordinator may update a returned draft with
+`PATCH /v1/projects/:projectId/propose_scope`. The current mock preserves the
+milestone count and existing task-storage hashes.
+
+11. Client approves the full proposal:
 
 ```http
 POST $API/v1/projects/:projectId/approve_scope
 Authorization: Bearer <client-token>
 
-{
-  "approved_task_ids": [101, 102, 103, 104]
-}
+{}
 ```
 
 Expected:
@@ -308,7 +369,7 @@ Expected:
 - Active milestone assignments do not include unavailable workers.
 - Worker availability decreases by the active milestone assignment hours.
 
-10. For each milestone:
+12. For each execution milestone:
 
 Coordinator requests review:
 
@@ -337,7 +398,7 @@ Expected after client acceptance:
 - Availability decreases when the next milestone is activated.
 - No checked balance is negative.
 
-11. Client marks the project completed and rates the team:
+13. Client marks the project completed and rates the team:
 
 ```http
 POST $API/v1/projects/:projectId/mark_completed
