@@ -1,0 +1,183 @@
+# Definición de despliegue del backend ABAKO (ADR-002, decisión 2).
+#
+# Un único fichero para dev y producción: los dos entornos difieren en valores,
+# no en topología. Todo lo variable sale del .env del servidor, y lo crítico usa
+# ${VAR:?} para que un .env incompleto aborte en vez de levantar un servicio con
+# un secreto vacío.
+#
+# NO es el fichero de desarrollo local. Para eso está docker-compose.dev.yml,
+# que levanta zombienet y mock-api. Aquí no hay ni cadena local ni Mongo:
+# los entornos desplegados hablan con un gateway remoto (ADR-002, decisión 5).
+#
+# Los dos entornos conviven en la misma máquina. Lo que los separa:
+#   - COMPOSE_PROJECT_NAME  -> prefijo de contenedores, red y volúmenes
+#   - *_HOST_PORT           -> puertos distintos en el host
+# Los puertos se publican solo en loopback: quien expone al exterior es nginx.
+
+name: ${COMPOSE_PROJECT_NAME:?falta COMPOSE_PROJECT_NAME (p.ej. abako-dev)}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?}
+      POSTGRES_DB: postgres
+      ADAPTER_DB_USER: ${ADAPTER_DB_USER:?}
+      ADAPTER_DB_PASSWORD: ${ADAPTER_DB_PASSWORD:?}
+      ADAPTER_DB_NAME: ${ADAPTER_DB_NAME:?}
+      BRAMP_DB_USER: ${BRAMP_DB_USER:?}
+      BRAMP_DB_PASSWORD: ${BRAMP_DB_PASSWORD:?}
+      BRAMP_DB_NAME: ${BRAMP_DB_NAME:?}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:?}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: &default-logging
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  contracts-api:
+    build:
+      context: ..
+      dockerfile: packages/contracts-api/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3010
+      NODE_ENV: ${NODE_ENV:?}
+      KREIVO_PROVIDER: ${PROVIDER_URL:?}
+      PHRASE: ${CHAIN_PHRASE?}
+      DERIVE_PATH: ${CHAIN_DERIVE_PATH:?}
+      PROJECTS_APP_ID: ${PROJECTS_APP_ID:?}
+      CALENDAR_APP_ID: ${CALENDAR_APP_ID:?}
+      RATINGS_APP_ID: ${RATINGS_APP_ID:?}
+    ports:
+      - "127.0.0.1:${CONTRACTS_API_HOST_PORT:?}:3010"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3010/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+
+  virto-api:
+    build:
+      context: ..
+      dockerfile: packages/virto-api/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      NODE_ENV: ${NODE_ENV:?}
+      KREIVO_PROVIDER: ${PROVIDER_URL:?}
+      PHRASE: ${CHAIN_PHRASE?}
+      DERIVE_PATH: ${CHAIN_DERIVE_PATH:?}
+      COMMUNITY_ID: ${COMMUNITY_ID:?}
+      PUBLIC_IP: ${PUBLIC_HOST:?}
+      RP_NAME: ${RP_NAME:?}
+      SIGNING_SERVICE_URL: http://contracts-api:3010
+      # Almacén del mapeo passkey WebAuthn -> dirección de wallet (vos-mock).
+      # Es identidad de usuario: este volumen no se puede perder.
+      VOS_DATA_PATH: /app/data
+    volumes:
+      - virto-api-data:/app/data
+    ports:
+      - "127.0.0.1:${VIRTO_API_HOST_PORT:?}:3000"
+    depends_on:
+      contracts-api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+
+  bramp:
+    build:
+      context: ../packages/bramp
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 3001
+      NODE_ENV: ${NODE_ENV:?}
+      DATABASE_URL: postgresql://${BRAMP_DB_USER}:${BRAMP_DB_PASSWORD}@postgres:5432/${BRAMP_DB_NAME}
+      PROVIDER_URL: ${PROVIDER_URL:?}
+      MASTER_ACCOUNT_URI: ${BRAMP_MASTER_ACCOUNT_URI:?}
+    ports:
+      - "127.0.0.1:${BRAMP_HOST_PORT:?}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging: *default-logging
+
+  adapter-api:
+    build:
+      context: ..
+      dockerfile: packages/adapter-api/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      NODE_ENV: ${NODE_ENV:?}
+      DB_TYPE: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${ADAPTER_DB_USER:?}
+      POSTGRES_PASSWORD: ${ADAPTER_DB_PASSWORD:?}
+      POSTGRES_DB: ${ADAPTER_DB_NAME:?}
+      # Origen exacto del frontend, nunca comodín: el stream SSE de
+      # notificaciones viaja con credenciales.
+      CORS_ORIGIN: ${CORS_ORIGIN:?}
+      SIGNING_SERVICE_URL: http://contracts-api:3010
+      # Apunta al virto-api local mientras vos-mock haga de VOS. Cuando llegue
+      # la dirección del VOS real, se cambia aquí y no hace falta tocar código.
+      FEDERATE_SERVER: ${FEDERATE_SERVER:?}
+      BRAMP_SERVICE_URL: http://bramp:3001
+      PROVIDER_URL: ${PROVIDER_URL:?}
+      PHRASE: ${CHAIN_PHRASE?}
+      DERIVE_PATH: ${CHAIN_DERIVE_PATH:?}
+      JWT_SECRET: ${JWT_SECRET:?}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:?}
+      DAO_ADDRESS: ${DAO_ADDRESS?}
+      DEFAULT_CALENDAR_CONTRACT: ${DEFAULT_CALENDAR_CONTRACT:?}
+      DEFAULT_RATINGS_CONTRACT: ${DEFAULT_RATINGS_CONTRACT:?}
+      NODE_NO_WARNINGS: 1
+    ports:
+      - "127.0.0.1:${ADAPTER_API_HOST_PORT:?}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      contracts-api:
+        condition: service_started
+      virto-api:
+        condition: service_started
+      bramp:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    logging: *default-logging
+
+volumes:
+  postgres-data:
+  virto-api-data:
