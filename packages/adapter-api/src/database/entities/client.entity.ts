@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { BINARY_COLUMN } from '../driver';
 
 @Entity('clients')
 export class Client {
@@ -32,7 +33,7 @@ export class Client {
   @Column({ type: 'simple-json', default: '[]' })
   languages: string[];
 
-  @Column({ type: 'blob', nullable: true })
+  @Column({ type: BINARY_COLUMN, nullable: true })
   imageData: Buffer;
 
   @Column({ nullable: true })

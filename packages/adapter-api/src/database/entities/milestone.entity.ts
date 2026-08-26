@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { EPOCH_MS_COLUMN, epochMsTransformer } from '../driver';
 
 export interface MilestoneRequirement {
   assignmentKey: string;
@@ -25,7 +26,7 @@ export class Milestone {
   @Column()
   deliveryTime: number;
 
-  @Column({ nullable: true })
+  @Column({ type: EPOCH_MS_COLUMN, nullable: true, transformer: epochMsTransformer })
   deliveryDate: number;
 
   @Column({ default: 0 })

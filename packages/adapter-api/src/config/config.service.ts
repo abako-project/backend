@@ -14,7 +14,10 @@ export class ConfigService {
   }
 
   get(key: string): string {
-    const hello = this.envConfig[key] ?? process.env[key];
+    // El entorno del proceso manda sobre el fichero .env. Al revés, un .env
+    // que se colara en la imagen anularía en silencio lo que inyecta el
+    // compose, y el servicio arrancaría con la configuración de otro entorno.
+    const hello = process.env[key] ?? this.envConfig[key];
 
     if (hello === "") {
       return hello;
@@ -39,19 +42,27 @@ export class ConfigService {
   }
 
   getFederateServer(): string {
-    return this.envConfig['FEDERATE_SERVER'] || process.env['FEDERATE_SERVER'] || 'http://localhost:3000/api';
+    return process.env['FEDERATE_SERVER'] || this.envConfig['FEDERATE_SERVER'] || 'http://localhost:3000/api';
   }
 
   getProviderUrl(): string {
-    return this.envConfig['PROVIDER_URL'] || process.env['PROVIDER_URL'] || 'ws://localhost:21000';
+    return process.env['PROVIDER_URL'] || this.envConfig['PROVIDER_URL'] || 'ws://localhost:21000';
   }
 
   getJwtSecret(): string {
-    return this.envConfig['JWT_SECRET'] || process.env['JWT_SECRET'] || 'virto-server-example-secret-key-change-in-production';
+    const secret = process.env['JWT_SECRET'] || this.envConfig['JWT_SECRET'];
+    if (secret) return secret;
+
+    // El fallback es una constante pública que está en git. Con NODE_ENV=production
+    // firmaría tokens que cualquiera puede falsificar, así que ahí no arranca.
+    if (this.getNodeEnv() === 'production') {
+      throw new Error('JWT_SECRET es obligatorio cuando NODE_ENV=production.');
+    }
+    return 'virto-server-example-secret-key-change-in-production';
   }
 
   getJwtExpiresIn(): number {
-    const raw = this.envConfig['JWT_EXPIRES_IN'] || process.env['JWT_EXPIRES_IN'] || '3600';
+    const raw = process.env['JWT_EXPIRES_IN'] || this.envConfig['JWT_EXPIRES_IN'] || '3600';
     const match = raw.match(/^(\d+)\s*(s|m|h|d)?$/i);
     if (!match) return 3600;
     const value = parseInt(match[1], 10);
@@ -64,11 +75,11 @@ export class ConfigService {
   }
 
   getCorsOrigin(): string {
-    return this.envConfig['CORS_ORIGIN'] || process.env['CORS_ORIGIN'] || '';
+    return process.env['CORS_ORIGIN'] || this.envConfig['CORS_ORIGIN'] || '';
   }
 
   getDerivePath(): string {
-    return this.envConfig['DERIVE_PATH'] || process.env['DERIVE_PATH'] || '//Alice';
+    return process.env['DERIVE_PATH'] || this.envConfig['DERIVE_PATH'] || '//Alice';
   }
 
   getSqlitePath(): string {
@@ -76,10 +87,10 @@ export class ConfigService {
   }
 
   getDaoAddress(): string {
-    return this.envConfig['DAO_ADDRESS'] || process.env['DAO_ADDRESS'] || '';
+    return process.env['DAO_ADDRESS'] || this.envConfig['DAO_ADDRESS'] || '';
   }
 
   getBrampServiceUrl(): string {
-    return this.envConfig['BRAMP_SERVICE_URL'] || process.env['BRAMP_SERVICE_URL'] || 'http://localhost:3001';
+    return process.env['BRAMP_SERVICE_URL'] || this.envConfig['BRAMP_SERVICE_URL'] || 'http://localhost:3001';
   }
 }
