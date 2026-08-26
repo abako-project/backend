@@ -1,0 +1,50 @@
+# Gate de calidad. Corre en PRs contra dev y main, y en push a ambas.
+#
+# El despliegue depende de que esto esté verde (ver deploy.yml). Antes el
+# único workflow que existía era el de despliegue: main se publicaba sin
+# ninguna verificación previa.
+#
+# No necesita cadena ni Docker: adapter-api corre contra SQLite en memoria y
+# mock-api suplanta a los servicios externos.
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+  # Permite que deploy.yml lo invoque como gate previo.
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build y tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # .nvmrc fija la versión: better-sqlite3 trae un binding nativo
+          # compilado contra un ABI concreto de Node.
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Compilar
+        run: |
+          pnpm --filter abako-adapter build
+          pnpm --filter abako-ink-contracts build
+          pnpm --filter virto-api build
+
+      - name: Tests
+        run: pnpm test:mock
