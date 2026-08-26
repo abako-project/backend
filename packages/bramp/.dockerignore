@@ -1,0 +1,11 @@
+# El contexto de build de bramp es su propio directorio y el Dockerfile hacía
+# COPY . . sin filtro: se colaban node_modules y .env dentro de la imagen.
+node_modules
+dist
+.env
+.env.*
+*.log
+coverage
+test
+.git
+README.md

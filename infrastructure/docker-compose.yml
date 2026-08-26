@@ -106,8 +106,8 @@ services:
 
   bramp:
     build:
-      context: ../packages/bramp
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: packages/bramp/Dockerfile
     restart: unless-stopped
     environment:
       PORT: 3001
