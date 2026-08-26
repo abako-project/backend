@@ -9,11 +9,16 @@ import { ConfigService } from './config/config.service';
 import { setupSwagger } from './config/swagger.config';
 import * as fs from 'fs';
 import * as path from 'path';
+import { isPostgres } from './database/driver';
 
 async function bootstrap() {
-  // Ensure SQLite data directory exists
-  const dbPath = process.env.SQLITE_PATH || './data/abako.sqlite';
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  // Ensure SQLite data directory exists.
+  // Solo con SQLite: en Postgres no hay fichero que crear, y en el contenedor
+  // el usuario sin privilegios no puede escribir en el directorio de la app.
+  if (!isPostgres()) {
+    const dbPath = process.env.SQLITE_PATH || './data/abako.sqlite';
+    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  }
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn'] });
   const configService = app.get(ConfigService);
   const port = configService.getPort();
