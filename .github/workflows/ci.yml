@@ -38,7 +38,24 @@ jobs:
           cache: pnpm
 
       - name: Instalar dependencias
-        run: pnpm install --frozen-lockfile
+        # --filter, no un install a secas: el .npmrc del repo lleva
+        # recursive-install=false, asi que 'pnpm install' en la raiz instala
+        # SOLO las dependencias de la raiz y deja los paquetes del workspace
+        # sin node_modules. En local no se nota porque ya estan instalados.
+        # Los '...' arrastran las dependencias de cada paquete.
+        run: >
+          pnpm install --frozen-lockfile
+          --filter abako-adapter...
+          --filter mock-api...
+          --filter abako-ink-contracts...
+          --filter virto-api...
+
+      # @polkadot-api/descriptors se genera a partir de los metadatos de .papi.
+      # virto-api lo hace en su postinstall; contracts-api no tiene postinstall,
+      # asi que hay que generarlo a mano o tsc no encuentra sus tipos.
+      - name: Generar descriptors de contracts-api
+        working-directory: packages/contracts-api
+        run: pnpm exec papi generate
 
       - name: Compilar
         run: |
