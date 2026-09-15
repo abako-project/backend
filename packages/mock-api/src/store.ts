@@ -1,7 +1,7 @@
 // In-memory state for mock services
 // Data structures mirror the ink! smart contracts in ../../../contracts/
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 export interface MockUser {
   userId: string;
@@ -83,6 +83,47 @@ export interface MockScope {
   document_hash: string;
   state: string;
   team_size: number;
+  task_storages?: Array<{ task_id: number; task_storage: string }>;
+  milestones?: MockMilestone[];
+  change_request_url?: string | null;
+  created_at?: number;
+  updated_at?: number;
+}
+
+export interface MockMilestone {
+  title: string;
+  description: string;
+  budget: number;
+  delivery_time_hours: number;
+  requirements: MockRequirement[];
+  task_storage: string;
+}
+
+export type TaskType = "Feature" | "Bug" | "Task" | "Epic" | "Story";
+export type TaskPriority = "Lowest" | "Low" | "Medium" | "High" | "Highest" | "Blocker";
+export type TaskStorageStatus = "To Do" | "Open" | "In Progress" | "In Review" | "Done" | "Closed";
+
+export interface TaskStorageTask {
+  title: string;
+  description: string;
+  type: TaskType;
+  priority: TaskPriority;
+  status: TaskStorageStatus;
+  reporter: string;
+  assignees: string[];
+  estimatedMinutes: number;
+  loggedMinutes: number;
+  dueDate: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface TaskStorage {
+  hash: string;
+  creator: string;
+  tasks: Map<number, TaskStorageTask>;
+  attachedProject: string | null;
+  milestoneIndex: number | null;
 }
 
 export interface MockContract {
@@ -103,6 +144,7 @@ class Store {
   users = new Map<string, MockUser>();
   members = new Map<string, MockMember[]>(); // communityId -> members
   contracts = new Map<string, MockContract>();
+  taskStorages = new Map<string, TaskStorage>();
 
   private membershipCounter = 1;
   private contractCounter = 1;
@@ -160,6 +202,24 @@ class Store {
         Math.floor(Math.random() * 16).toString(16)
       ).join("")
     );
+  }
+
+  createTaskStorage(
+    creator: string,
+    attachedProject: string | null = null,
+    milestoneIndex: number | null = null,
+  ): TaskStorage {
+    let hash = randomBytes(32).toString("hex");
+    while (this.taskStorages.has(hash)) hash = randomBytes(32).toString("hex");
+    const storage = {
+      hash,
+      creator,
+      tasks: new Map<number, TaskStorageTask>(),
+      attachedProject,
+      milestoneIndex,
+    };
+    this.taskStorages.set(hash, storage);
+    return storage;
   }
 
   // User methods

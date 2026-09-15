@@ -35,6 +35,7 @@ describe('Projects Module E2E Tests', () => {
   let rejectedCoordinatorAuthToken: string;
   let calendarContractAddress: string;
   let ratingsContractAddress: string;
+  let proposalTaskStorageHash: string;
 
   let brampClientUserId: number;
   let brampWorkerOneUserId: number;
@@ -911,8 +912,8 @@ describe('Projects Module E2E Tests', () => {
         });
 
         describe('Coordinator Approval Process', () => {
-          it('should approve project with milestones and propose scope', async () => {
-            console.log('Coordinator approving project with milestones...');
+          it('should create a draft proposal, populate its task storage, and submit it', async () => {
+            console.log('Coordinator creating and submitting a proposal...');
 
             expect(coordinatorAuthToken).toBeDefined();
             expect(projectId).toBeDefined();
@@ -924,8 +925,7 @@ describe('Projects Module E2E Tests', () => {
                   title: 'Milestone 1: Backend Development',
                   description: 'Complete backend API',
                   budget: 3000,
-                  deliveryTime: 15,
-                  deliveryDate: '2024-12-15',
+                  deliveryTimeHours: 15,
                   requirements: [{
                     assignmentKey: 'developer-1',
                     roleId: 2,
@@ -955,15 +955,37 @@ describe('Projects Module E2E Tests', () => {
               .send(approvalData)
               .expect(201);
 
-            console.log('Approval response:', JSON.stringify(response.body, null, 2));
+            console.log('Proposal response:', JSON.stringify(response.body, null, 2));
 
             expect(response.body).toHaveProperty('success', true);
-            expect(response.body).toHaveProperty('status', 'approved');
-            expect(response.body).toHaveProperty('milestones');
-            expect(response.body.milestones).toHaveLength(approvalData.milestones.length);
-            expect(response.body).toHaveProperty('proposeResult');
+            expect(response.body.proposal).toMatchObject({ state: 'Draft' });
+            expect(response.body.proposal.milestones).toHaveLength(approvalData.milestones.length);
+            proposalTaskStorageHash = response.body.proposal.milestones[0].task_storage;
 
-            console.info(`✅ Project approved with ${response.body.milestones.length} milestones and scope proposed`);
+            await request(app.getHttpServer())
+              .post(`/v1/task-storages/${proposalTaskStorageHash}/tasks`)
+              .set('Authorization', `Bearer ${coordinatorAuthToken}`)
+              .send({
+                title: 'Build the backend API',
+                description: 'Complete the backend API milestone',
+                type: 'Task',
+                priority: 'High',
+                status: 'To Do',
+                assignees: [],
+                estimatedMinutes: 900,
+                loggedMinutes: 0,
+                dueDate: Math.floor(Date.now() / 1000) + 86_400,
+              })
+              .expect(201);
+
+            const submitResponse = await request(app.getHttpServer())
+              .post(`/v1/projects/${projectId}/submit_scope`)
+              .set('Authorization', `Bearer ${coordinatorAuthToken}`)
+              .send({})
+              .expect(201);
+            expect(submitResponse.body.proposal).toMatchObject({ state: 'PendingApproval' });
+
+            console.info('✅ Draft proposal task storage populated and submitted');
           });
 
           it('should verify project status was updated to approved', async () => {
@@ -983,40 +1005,34 @@ describe('Projects Module E2E Tests', () => {
             console.info(`✅ Project status updated: ${response.body.state}`);
           });
 
-          it('should verify milestones were created in MongoDB', async () => {
-            console.log('Verifying milestones in MongoDB...');
+          it('should verify milestones are read from the provider', async () => {
+            console.log('Verifying provider-owned milestones...');
 
             expect(projectId).toBeDefined();
             expect(coordinatorAuthToken).toBeDefined();
 
             const response = await request(app.getHttpServer())
-              .get(`/v1/projects/${projectId}/get_all_tasks`)
-              .set('Authorization', `Bearer ${coordinatorAuthToken}`)
+              .get(`/v1/projects/${projectId}/get_scope_info`)
               .expect(200);
 
             console.log('Response:', JSON.stringify(response.body, null, 2));
 
             expect(response.body).toHaveProperty('success', true);
-            expect(response.body).toHaveProperty('milestones');
-            expect(Array.isArray(response.body.milestones)).toBe(true);
-            expect(response.body.milestones.length).toBe(1);
-
-            expect(response.body.milestones[0]).toHaveProperty('title', 'Milestone 1: Backend Development');
-            expect(response.body.milestones[0]).toHaveProperty('budget', 3000);
-            expect(response.body.milestones[0].requirements).toEqual([{
-              assignmentKey: 'developer-1',
-              roleId: 2,
+            expect(response.body.response.milestones).toHaveLength(1);
+            expect(response.body.response.milestones[0]).toMatchObject({
+              title: 'Milestone 1: Backend Development',
+              budget: 3000,
+              delivery_time_hours: 15,
+              task_storage: proposalTaskStorageHash,
+            });
+            expect(response.body.response.milestones[0].requirements).toEqual([{
+              assignment_key: 'developer-1',
+              role_id: 2,
               hours: 40,
-              skillIds: [1, 6, 11],
+              skill_ids: [1, 6, 11],
             }]);
-            // expect(response.body.milestones[1]).toHaveProperty('title', 'Milestone 2: Frontend Development');
-            // expect(response.body.milestones[1]).toHaveProperty('budget', 2000);
-            // expect(response.body.milestones[1]).toHaveProperty('role', 'UX Designer');
-            // expect(response.body.milestones[1]).toHaveProperty('proficiency', 'Mid-level');
-            // expect(response.body.milestones[1].skills).toEqual(['HTML5', 'CSS3', 'Figma']);
-            // expect(response.body.milestones[1]).toHaveProperty('neededPartTimeDeveloper', true);
 
-            console.info(`✅ Verified ${response.body.milestones.length} milestones in MongoDB`);
+            console.info('✅ Verified provider-owned proposal milestone');
           });
 
           it('should verify scope was proposed to contract', async () => {
@@ -1081,7 +1097,7 @@ describe('Projects Module E2E Tests', () => {
           const response = await request(app.getHttpServer())
             .post(`/v1/projects/${projectId}/approve_scope`)
             .set('Authorization', `Bearer ${authTokenClient}`)
-            .send({ approved_task_ids: approvedTaskIds })
+            .send({})
             .expect(201);
 
           console.log('Approve scope response:', JSON.stringify(response.body, null, 2));
@@ -1129,17 +1145,16 @@ describe('Projects Module E2E Tests', () => {
           expect(coordinatorAuthToken).toBeDefined();
           expect(projectId).toBeDefined();
 
-          // Get milestones to determine team size
+          // The provider proposal is the source of truth for milestone count.
           const milestonesResponse = await request(app.getHttpServer())
-            .get(`/v1/projects/${projectId}/get_all_tasks`)
+            .get(`/v1/projects/${projectId}/get_scope_info`)
             .expect(200);
 
-          expect(milestonesResponse.body).toHaveProperty('milestones');
-          expect(Array.isArray(milestonesResponse.body.milestones)).toBe(true);
-          const teamSize = milestonesResponse.body.milestones.length;
+          expect(Array.isArray(milestonesResponse.body.response.milestones)).toBe(true);
+          const teamSize = milestonesResponse.body.response.milestones.length;
           expect(teamSize).toBeGreaterThan(0);
 
-          console.log(`Assigning team of size ${teamSize} based on ${milestonesResponse.body.milestones.length} milestone(s)`);
+          console.log(`Assigning team of size ${teamSize} based on provider milestones`);
 
           const response = await request(app.getHttpServer())
             .post(`/v1/projects/${projectId}/assign_team`)
@@ -1213,27 +1228,18 @@ describe('Projects Module E2E Tests', () => {
           console.info(`✅ Project state updated to: ${response.body.state}`);
         });
 
-        it('should verify milestones state was updated to task_in_progress after team assignment', async () => {
-          console.log('Verifying milestones state after team assignment...');
+        it('should keep the approved proposal in provider storage after team assignment', async () => {
+          console.log('Verifying approved provider proposal...');
 
           expect(projectId).toBeDefined();
 
           const response = await request(app.getHttpServer())
-            .get(`/v1/projects/${projectId}/get_all_tasks`)
+            .get(`/v1/projects/${projectId}/get_scope_info`)
             .expect(200);
 
-          console.log('Milestones after team assignment:', JSON.stringify(response.body.milestones, null, 2));
-
-          expect(response.body).toHaveProperty('milestones');
-          expect(Array.isArray(response.body.milestones)).toBe(true);
-          expect(response.body.milestones.length).toBeGreaterThan(0);
-
-          // Verify all milestones are in 'task_in_progress' state
-          for (const milestone of response.body.milestones) {
-            expect(milestone).toHaveProperty('state', 'task_in_progress');
-          }
-
-          console.info(`✅ All ${response.body.milestones.length} milestone(s) updated to 'task_in_progress'`);
+          expect(response.body.response).toMatchObject({ state: 'Approved' });
+          expect(response.body.response.milestones).toHaveLength(1);
+          console.info('✅ Approved provider proposal remains available');
         });
       });
 
@@ -1264,8 +1270,8 @@ describe('Projects Module E2E Tests', () => {
           console.info(`✅ Retrieved project information: "${response.body.title}"`);
         });
 
-        it('should get all tasks and milestones', async () => {
-          console.log('Getting all tasks and milestones...');
+        it('should get all execution tasks', async () => {
+          console.log('Getting all execution tasks...');
 
           expect(projectId).toBeDefined();
 
@@ -1289,20 +1295,10 @@ describe('Projects Module E2E Tests', () => {
           expect(task.complexity).toHaveProperty('type');
           expect(task.complexity).toHaveProperty('value');
 
-          expect(response.body).toHaveProperty('milestones');
-          expect(Array.isArray(response.body.milestones)).toBe(true);
-          expect(response.body.milestones.length).toBeGreaterThanOrEqual(1);
-
-          const milestone = response.body.milestones[0];
-          expect(milestone).toHaveProperty('contractAddress', contractAddress);
-          expect(milestone).toHaveProperty('title');
-          expect(milestone).toHaveProperty('budget');
-          expect(milestone).toHaveProperty('deliveryTime');
-
-          console.info(`✅ Retrieved ${response.body.response.length} task(s) from contract and ${response.body.milestones.length} milestone(s) from MongoDB`);
+          console.info(`✅ Retrieved ${response.body.response.length} execution task(s) from the provider`);
         });
 
-        it('should get specific task information and milestone', async () => {
+        it('should get specific execution task information', async () => {
           console.log('Getting specific task information...');
 
           expect(projectId).toBeDefined();
@@ -1336,16 +1332,7 @@ describe('Projects Module E2E Tests', () => {
           expect(task.complexity).toHaveProperty('type');
           expect(task.complexity).toHaveProperty('value');
 
-          expect(response.body).toHaveProperty('milestone');
-          const milestone = response.body.milestone;
-          expect(milestone).toBeDefined();
-          expect(milestone).toHaveProperty('id', firstTaskId);
-          expect(milestone).toHaveProperty('contractAddress', contractAddress);
-          expect(milestone).toHaveProperty('title');
-          expect(milestone).toHaveProperty('budget');
-          expect(milestone).toHaveProperty('deliveryTime');
-
-          console.info(`✅ Retrieved task #${task.id} and milestone #${milestone.id}: ${task.complexity.type} (${task.complexity.value}), cost: ${task.cost}, milestone: ${milestone.title}`);
+          console.info(`✅ Retrieved task #${task.id}: ${task.complexity.type} (${task.complexity.value}), cost: ${task.cost}`);
         });
 
         it('should get task completion status before approval', async () => {
@@ -1374,14 +1361,11 @@ describe('Projects Module E2E Tests', () => {
           expect(response.body).toHaveProperty('success', true);
           expect(response.body).toHaveProperty('response');
 
-          expect(response.body).toHaveProperty('milestoneState', 'task_in_progress');
-          console.log(`Milestone state in MongoDB: ${response.body.milestoneState}`);
-
           const taskStatus = response.body.response;
           expect(taskStatus).toBeDefined();
           console.log(`Task completion status from contract:`, taskStatus);
 
-          console.info(`✅ Retrieved task #${firstTaskId} completion status - Milestone state: ${response.body.milestoneState}, Task status: ${JSON.stringify(taskStatus)}`);
+          console.info(`✅ Retrieved task #${firstTaskId} completion status: ${JSON.stringify(taskStatus)}`);
         });
 
         it('should submit a task for review', async () => {
@@ -1417,8 +1401,8 @@ describe('Projects Module E2E Tests', () => {
           console.info(`✅ Submitted task #${firstTaskId} for review`);
         });
 
-        it('should verify milestone state was updated to in_review after submitting for review', async () => {
-          console.log('Verifying milestone state after submitting for review...');
+        it('should verify the provider task was submitted for review', async () => {
+          console.log('Verifying task state after submitting for review...');
 
           expect(projectId).toBeDefined();
 
@@ -1439,8 +1423,8 @@ describe('Projects Module E2E Tests', () => {
 
           console.log('Task completion status:', JSON.stringify(statusResponse.body, null, 2));
 
-          expect(statusResponse.body).toHaveProperty('milestoneState', 'in_review');
-          console.info(`✅ Milestone state updated to: ${statusResponse.body.milestoneState}`);
+          expect(statusResponse.body.response).toBeDefined();
+          console.info('✅ Provider task was submitted for review');
         });
 
         describe('Projects Module - Task Management', () => {

@@ -7,7 +7,7 @@ import { DevelopersService } from '../developers/developers.service';
 import { ClientsService } from '../clients/clients.service';
 import { RatingsService } from '../ratings/ratings.service';
 import { EventsService } from '../events/events.service';
-import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneRequest, UpdateMilestoneRequest, CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CoordinatorApprovalRequest, ApproveScopeRequest } from './types';
+import { DeployResponse, ExtrinsicResponse, QueryResponse, CreateMilestoneRequest, UpdateMilestoneRequest, CreateProposalRequest, UpdateProposalRequest, RequestScopeChangesRequest, CoordinatorApprovalRequest, ApproveScopeRequest } from './types';
 import { Project } from '../../database/entities/project.entity';
 import { Milestone } from '../../database/entities/milestone.entity';
 import { MilestoneAssignment } from '../../database/entities/milestone-assignment.entity';
@@ -481,46 +481,72 @@ export class ProjectsService {
     return this.callWriteMethod(contractAddress, 'set_calendar_contract', { calendar_contract: body.calendar_contract }, authToken);
   }
 
-  private async proposeScope(contractAddress: string, body: {
-    tasks: Array<[number, any, string, number[]]>;
-    advance_payment_percentage: number;
-    document_hash: string;
-    team_size?: number;
-    assignment_requirements: Array<{
-      task_id: number;
-      requirements: Array<{
-        assignment_key: string;
-        hours: number;
-        skill_ids: number[];
-      }>;
-    }>;
-  }, authToken: string): Promise<any> {
-    return this.callWriteMethod(contractAddress, 'propose_scope', body, authToken);
+  private async providerScopeData(scope: CoordinatorApprovalRequest) {
+    if (!Array.isArray(scope.milestones) || scope.milestones.length === 0) {
+      throw new HttpException('A proposal requires at least one milestone', HttpStatus.BAD_REQUEST);
+    }
+    const milestones = await Promise.all(scope.milestones.map(async (milestone) => ({
+      title: milestone.title?.trim(),
+      description: milestone.description || '',
+      budget: this.parsePositiveInteger(milestone.budget, 'budget'),
+      delivery_time_hours: this.parsePositiveInteger(
+        milestone.deliveryTimeHours,
+        'deliveryTimeHours',
+      ),
+      requirements: (await this.normalizeRequirements(milestone.requirements)).map((requirement) => ({
+        assignment_key: requirement.assignmentKey,
+        role_id: requirement.roleId,
+        hours: requirement.hours,
+        skill_ids: requirement.skillIds,
+      })),
+    })));
+    if (milestones.some((milestone) => !milestone.title)) {
+      throw new HttpException('Each milestone requires a title', HttpStatus.BAD_REQUEST);
+    }
+    const advancePaymentPercentage = Number(scope.advance_payment_percentage);
+    if (
+      !Number.isInteger(advancePaymentPercentage) ||
+      advancePaymentPercentage < 0 ||
+      advancePaymentPercentage > 100
+    ) {
+      throw new HttpException(
+        'advance_payment_percentage must be an integer from 0 to 100',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const documentHash = scope.document_hash?.trim();
+    if (!documentHash) {
+      throw new HttpException('document_hash is required', HttpStatus.BAD_REQUEST);
+    }
+    return {
+      milestones,
+      advance_payment_percentage: advancePaymentPercentage,
+      document_hash: documentHash,
+    };
   }
 
-  async approveScope(projectId: string, body: ApproveScopeRequest, authToken: string): Promise<any> {
+  async approveScope(projectId: string, _body: ApproveScopeRequest, authToken: string): Promise<any> {
     const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const project = await this.projectRepo.findOne({ where: { id: projectId } });
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
-    const approvedTaskIds = Array.isArray(body.approved_task_ids) ? body.approved_task_ids : [];
-    if (approvedTaskIds.length === 0) {
-      throw new HttpException('approved_task_ids must contain at least one task ID', HttpStatus.BAD_REQUEST);
-    }
 
-    const approveResult = await this.callWriteMethod(contractAddress, 'approve_scope', { approved_task_ids: body.approved_task_ids, value: (project.budget || 0).toString() }, authToken);
+    const approveResult = await this.callWriteMethod(
+      contractAddress,
+      'approve_scope',
+      { value: (project.budget || 0).toString() },
+      authToken,
+    );
     let assignmentResult: any = null;
     let assignTeamError: string | undefined;
 
-    // Update project state from 'scope_proposed' to 'scope_accepted' when scope is approved
     if (approveResult && approveResult.success) {
       try {
         const updatedProject = await this.projectRepo.findOne({ where: { id: projectId } });
-        if (updatedProject && updatedProject.state === 'scope_proposed') {
+        if (updatedProject) {
           updatedProject.state = 'scope_accepted';
           await this.projectRepo.save(updatedProject);
-          console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_accepted' after scope approval`);
         }
 
         const recipients = await this.getProjectEventRecipients(updatedProject || project);
@@ -528,9 +554,7 @@ export class ProjectsService {
           projectId,
           contractAddress,
           state: 'scope_accepted',
-          data: {
-            approvedTaskIds: body.approved_task_ids,
-          },
+          data: {},
         }, recipients);
       } catch (error) {
         console.error(`Error updating project state for ${projectId} after scope approval:`, error);
@@ -556,34 +580,59 @@ export class ProjectsService {
     };
   }
 
-  async rejectScope(projectId: string, body: ScopeRejectRequest, authToken: string): Promise<any> {
+  async requestScopeChanges(
+    projectId: string,
+    body: RequestScopeChangesRequest,
+    authToken: string,
+  ): Promise<any> {
+    let changeRequestUrl: URL;
+    try {
+      changeRequestUrl = new URL(body.changeRequestUrl);
+    } catch {
+      throw new HttpException('changeRequestUrl must be a valid HTTPS URL', HttpStatus.BAD_REQUEST);
+    }
+    if (changeRequestUrl.protocol !== 'https:') {
+      throw new HttpException('changeRequestUrl must be a valid HTTPS URL', HttpStatus.BAD_REQUEST);
+    }
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
     const project = await this.projectRepo.findOne({ where: { id: projectId } });
-
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
-
-    if (project.state === 'scope_proposed') {
-      project.state = 'scope_rejected';
+    const result = await this.callWriteMethod(contractAddress, 'request_scope_changes', {
+      change_request_url: body.changeRequestUrl,
+    }, authToken);
+    if (result?.success) {
+      project.state = 'scope_draft';
+      await this.projectRepo.save(project);
     }
-
-    if (body.clientResponse) {
-      project.proposalRejectionReason = body.clientResponse;
-    }
-
-    await this.projectRepo.save(project);
-    console.log(`Project ${projectId} state updated from 'scope_proposed' to 'scope_rejected' after scope rejection`);
     const recipients = await this.getProjectEventRecipients(project);
-    await this.eventsService.publishProjectEvent('project.scope_rejected', {
+    await this.eventsService.publishProjectEvent('project.scope_changes_requested', {
       projectId,
-      contractAddress: project.contractAddress,
+      contractAddress,
       state: project.state,
-      data: {
-        clientResponse: body.clientResponse,
-      },
+      data: { changeRequestUrl: body.changeRequestUrl },
     }, recipients);
+    return { ...result, proposal: (await this.getScopeInfo(projectId)).response };
+  }
 
-    return { success: true };
+  async cancelScope(projectId: string, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
+    const project = await this.projectRepo.findOne({ where: { id: projectId } });
+    if (!project) throw new NotFoundException(`Project with ID ${projectId} not found`);
+    const result = await this.callWriteMethod(contractAddress, 'cancel_scope', {}, authToken);
+    if (result?.success) {
+      project.state = 'scope_cancelled';
+      await this.projectRepo.save(project);
+    }
+    const recipients = await this.getProjectEventRecipients(project);
+    await this.eventsService.publishProjectEvent('project.scope_cancelled', {
+      projectId,
+      contractAddress,
+      state: project.state,
+      data: {},
+    }, recipients);
+    return { ...result, proposal: (await this.getScopeInfo(projectId)).response };
   }
 
   async coordinatorRejectProject(projectId: string, rejectionReason: string): Promise<any> {
@@ -612,73 +661,32 @@ export class ProjectsService {
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
-
     try {
-      console.log('Creating milestones in database...');
-      const createdMilestones: Milestone[] = [];
-
-      // Create all milestones in database
-      for (const milestoneData of approvalData.milestones) {
-        const milestone = await this.createMilestone(contractAddress, milestoneData);
-        createdMilestones.push(milestone);
-        console.log(`Milestone created: ${milestone.id} - ${milestone.title}`);
-      }
-
-      const teamSize = new Set(
-        createdMilestones.flatMap((milestone) => (
-          milestone.requirements.map((requirement) => requirement.assignmentKey)
-        )),
-      ).size;
-
-      // Convert milestones to tasks for the contract
-      const tasks: Array<[number, any, string, number[]]> = createdMilestones.map(milestone => [
-        milestone.id!, // task id from milestone id
-        { type: 'Days', value: milestone.deliveryTime }, // complexity
-        milestone.budget.toString(), // cost as string
-        [] // no dependencies for now
-      ]);
-
-      console.log('Proposing scope to contract with tasks:', tasks);
-
-      // Propose scope to the contract
-      const proposeResult = await this.proposeScope(contractAddress, {
-        tasks,
-        advance_payment_percentage: approvalData.advance_payment_percentage,
-        document_hash: approvalData.document_hash,
-        team_size: teamSize,
-        assignment_requirements: createdMilestones.map((milestone) => ({
-          task_id: milestone.id,
-          requirements: milestone.requirements.map((requirement) => ({
-            assignment_key: requirement.assignmentKey,
-            role_id: requirement.roleId,
-            hours: requirement.hours,
-            skill_ids: requirement.skillIds,
-          })),
-        })),
-      }, authToken);
-
-      console.log('Scope proposed successfully');
-
-      // Update project status to approved
+      const proposeResult = await this.callWriteMethod(
+        contractAddress,
+        'propose_scope',
+        await this.providerScopeData(approvalData),
+        authToken,
+      );
       project.coordinatorApprovalStatus = 'approved';
-      project.state = 'scope_proposed';
+      project.state = 'scope_draft';
       await this.projectRepo.save(project);
       const recipients = await this.getProjectEventRecipients(project);
-      await this.eventsService.publishProjectEvent('project.scope_proposed', {
+      await this.eventsService.publishProjectEvent('project.scope_draft_created', {
         projectId,
         contractAddress,
-        state: 'scope_proposed',
+        state: 'scope_draft',
         data: {
-          milestoneCount: createdMilestones.length,
+          milestoneCount: approvalData.milestones.length,
           advancePaymentPercentage: approvalData.advance_payment_percentage,
         },
       }, recipients);
 
       return {
         success: true,
-        status: 'approved',
-        milestones: createdMilestones,
-        proposeResult
+        status: 'draft',
+        proposal: (await this.getScopeInfo(projectId)).response,
+        proposeResult,
       };
     } catch (error) {
       console.error('Error during coordinator approval:', error);
@@ -688,6 +696,33 @@ export class ProjectsService {
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
+  }
+
+  async updateScope(
+    projectId: string,
+    scope: CoordinatorApprovalRequest,
+    authToken: string,
+  ): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
+    const result = await this.callWriteMethod(
+      contractAddress,
+      'update_scope',
+      await this.providerScopeData(scope),
+      authToken,
+    );
+    return { ...result, proposal: (await this.getScopeInfo(projectId)).response };
+  }
+
+  async submitScope(projectId: string, authToken: string): Promise<any> {
+    const contractAddress = await this.getContractAddressFromProjectId(projectId);
+    const project = await this.projectRepo.findOne({ where: { id: projectId } });
+    if (!project) throw new NotFoundException(`Project with ID ${projectId} not found`);
+    const result = await this.callWriteMethod(contractAddress, 'submit_scope', {}, authToken);
+    if (result?.success) {
+      project.state = 'scope_proposed';
+      await this.projectRepo.save(project);
+    }
+    return { ...result, proposal: (await this.getScopeInfo(projectId)).response };
   }
 
   async submitTaskForReview(projectId: string, body: { task_id: number }, authToken: string): Promise<any> {
@@ -1125,8 +1160,6 @@ export class ProjectsService {
     try {
       const signingServiceUrl = this.configService.getSigningServiceUrl();
       const craftUrl = `${signingServiceUrl}/projects/call/${contractAddress}/${method}`;
-      const address = await this.authService.getAddress(authToken!);
-      console.log({ data });
       const requestBody = { data };
 
       const userId = await this.authService.getUserIdFromToken(authToken);
@@ -1156,9 +1189,11 @@ export class ProjectsService {
       });
 
       if (!craftResponse.ok) {
-        const errorBody = await craftResponse.text();
-        console.error(`Craft service error body: ${errorBody}`);
-        throw new Error(`Craft service error: ${craftResponse.status} ${craftResponse.statusText} - ${errorBody}`);
+        const errorBody = await craftResponse.json().catch(() => null) as { error?: string } | null;
+        throw new HttpException(
+          errorBody?.error || `Provider request failed: ${craftResponse.statusText}`,
+          craftResponse.status,
+        );
       }
 
       const craftResult = await craftResponse.json() as ExtrinsicResponse;
@@ -1182,8 +1217,9 @@ export class ProjectsService {
         throw new HttpException('Crafted extrinsic is missing encoded data', HttpStatus.INTERNAL_SERVER_ERROR);
       }
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
-        `Error calling write method ${method}: ${error.message}`,
+        `Error calling write method ${method}: ${error instanceof Error ? error.message : 'Unknown error'}`,
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
@@ -1337,7 +1373,7 @@ export class ProjectsService {
       title: milestoneData.title,
       description: milestoneData.description,
       budget: milestoneData.budget,
-      deliveryTime: milestoneData.deliveryTime,
+      deliveryTime: milestoneData.deliveryTimeHours,
       requirements,
       displayOrder,
       state: 'pending',
@@ -1371,7 +1407,7 @@ export class ProjectsService {
     milestone.title = updateData.title;
     if (updateData.description !== undefined) milestone.description = updateData.description;
     milestone.budget = updateData.budget;
-    milestone.deliveryTime = updateData.deliveryTime;
+    milestone.deliveryTime = updateData.deliveryTimeHours;
     milestone.requirements = await this.normalizeRequirements(updateData.requirements);
 
     return this.milestoneRepo.save(milestone);

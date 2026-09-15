@@ -5,7 +5,8 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "test": "tsx src/smoke-test.ts"
+    "test": "tsx src/smoke-test.ts",
+    "test:proposal": "tsx src/proposal-task-storages-test.ts"
   },
   "dependencies": {
     "@noble/curves": "^2.2.0",
