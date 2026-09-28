@@ -985,10 +985,14 @@ export class ProjectsService {
     authToken: string
   ): Promise<{ projectId: string; creationStatus: string; message: string }> {
     try {
-      // Use provided contracts or fallback to defaults
-      const defaultCalendarContract = process.env.DEFAULT_CALENDAR_CONTRACT || 'Dd34LSU53MLwJpq4wfHmDFwAifJrcaPbd1qTCGZcR7iXQkd';
-
-      const calendarContract = proposalData.calendarContract || defaultCalendarContract;
+      // Use provided contracts or fallback to the configured default
+      const calendarContract = proposalData.calendarContract || process.env.DEFAULT_CALENDAR_CONTRACT;
+      if (!calendarContract) {
+        throw new HttpException(
+          'DEFAULT_CALENDAR_CONTRACT is not configured and no calendarContract was provided',
+          HttpStatus.INTERNAL_SERVER_ERROR
+        );
+      }
 
       const userId = await this.authService.getUserIdFromToken(authToken);
       const client = await this.clientsService.findByUserIdentifier(userId);
@@ -1084,9 +1088,10 @@ export class ProjectsService {
       const deployerUrl = `${signingServiceUrl}/projects/deploy/${version}`;
       const address = await this.authService.getAddress(authToken!);
 
-      const defaultRatingsContract = process.env.DEFAULT_RATINGS_CONTRACT || 'JEnwSomCEqPrh5HcEzPFNKVfrfoFjVLR6JVJvqKaTfba4zY';
-
-      const ratingsContract = proposalData.ratingsContract || defaultRatingsContract;
+      const ratingsContract = proposalData.ratingsContract || process.env.DEFAULT_RATINGS_CONTRACT;
+      if (!ratingsContract) {
+        throw new Error('DEFAULT_RATINGS_CONTRACT is not configured and no ratingsContract was provided');
+      }
 
       const deployBody: any = {
         name: proposalData.title,
