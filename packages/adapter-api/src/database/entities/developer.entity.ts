@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { BINARY_COLUMN } from '../driver';
 
 @Entity('developers')
 export class Developer {
@@ -41,7 +42,7 @@ export class Developer {
   @Column({ nullable: true })
   availableHoursPerWeek: number;
 
-  @Column({ type: 'blob', nullable: true })
+  @Column({ type: BINARY_COLUMN, nullable: true })
   imageData: Buffer;
 
   @Column({ nullable: true })

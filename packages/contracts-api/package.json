@@ -4,7 +4,7 @@
   "scripts": {
     "server": "tsx src/server.ts",
     "dev": "ts-node-dev src/server.ts",
-    "build": "tsc && tsc-alias",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"

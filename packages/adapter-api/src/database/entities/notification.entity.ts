@@ -1,4 +1,5 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
+import { DATETIME_COLUMN } from '../driver';
 
 @Entity('notifications')
 @Index(['recipientAddress', 'createdAt'])
@@ -22,7 +23,7 @@ export class Notification {
   @Column({ type: 'simple-json' })
   data: unknown;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: DATETIME_COLUMN, nullable: true })
   readAt: Date | null;
 
   @CreateDateColumn()

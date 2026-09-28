@@ -5,6 +5,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import * as dotenv from 'dotenv';
 import { join } from 'path';
 import { ApiDocsModule } from './modules/api-docs/api-docs.module';
+import { HealthModule } from './modules/health/health.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -28,6 +29,7 @@ dotenv.config();
     }),
     ConfigModule,
     DatabaseModule,
+    HealthModule,
     ApiDocsModule,
     ProjectsModule,
     CalendarModule,

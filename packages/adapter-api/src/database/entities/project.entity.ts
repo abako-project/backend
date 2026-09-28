@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, AfterLoad } from 'typeorm';
+import { EPOCH_MS_COLUMN, epochMsTransformer } from '../driver';
 
 @Entity('projects')
 export class Project {
@@ -29,7 +30,7 @@ export class Project {
   @Column({ nullable: true })
   deliveryTime: number;
 
-  @Column({ nullable: true })
+  @Column({ type: EPOCH_MS_COLUMN, nullable: true, transformer: epochMsTransformer })
   deliveryDate: number;
 
   @Column({ nullable: true })

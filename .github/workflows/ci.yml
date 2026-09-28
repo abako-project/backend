@@ -1,0 +1,67 @@
+# Gate de calidad. Corre en PRs contra dev y main, y en push a ambas.
+#
+# El despliegue depende de que esto esté verde (ver deploy.yml). Antes el
+# único workflow que existía era el de despliegue: main se publicaba sin
+# ninguna verificación previa.
+#
+# No necesita cadena ni Docker: adapter-api corre contra SQLite en memoria y
+# mock-api suplanta a los servicios externos.
+name: CI
+
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+  # Permite que deploy.yml lo invoque como gate previo.
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build y tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # .nvmrc fija la versión: better-sqlite3 trae un binding nativo
+          # compilado contra un ABI concreto de Node.
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Instalar dependencias
+        # --filter, no un install a secas: el .npmrc del repo lleva
+        # recursive-install=false, asi que 'pnpm install' en la raiz instala
+        # SOLO las dependencias de la raiz y deja los paquetes del workspace
+        # sin node_modules. En local no se nota porque ya estan instalados.
+        # Los '...' arrastran las dependencias de cada paquete.
+        run: >
+          pnpm install --frozen-lockfile
+          --filter abako-adapter...
+          --filter mock-api...
+          --filter abako-ink-contracts...
+          --filter virto-api...
+
+      # @polkadot-api/descriptors se genera a partir de los metadatos de .papi.
+      # virto-api lo hace en su postinstall; contracts-api no tiene postinstall,
+      # asi que hay que generarlo a mano o tsc no encuentra sus tipos.
+      - name: Generar descriptors de contracts-api
+        working-directory: packages/contracts-api
+        run: pnpm exec papi generate
+
+      - name: Compilar
+        run: |
+          pnpm --filter abako-adapter build
+          pnpm --filter abako-ink-contracts build
+          pnpm --filter virto-api build
+
+      - name: Tests
+        run: pnpm test:mock

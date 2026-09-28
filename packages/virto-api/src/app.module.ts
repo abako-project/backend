@@ -8,6 +8,7 @@ import * as dotenv from 'dotenv';
 import { join } from 'path';
 import { ApiDocsModule } from './modules/api-docs/api-docs.module';
 import { StorageMiddleware } from './modules/vos-mock/storage.middleware';
+import { HealthController } from './health.controller';
 
 dotenv.config();
 
@@ -23,7 +24,7 @@ dotenv.config();
     ConfigModule,
     ApiDocsModule,
   ],
-  controllers: [],
+  controllers: [HealthController],
   providers: [],
 })
 export class AppModule implements NestModule {

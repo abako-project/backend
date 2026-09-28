@@ -85,7 +85,10 @@ app.get('/calendar/constructors', (req: Request, res: Response) => {
 
 app.get('/projects/query/:contractAddress/:methodName', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { contractAddress, methodName } = req.params
+    // Express 5 tipa los params como string | string[]; estas rutas reciben
+    // un único valor y los servicios esperan string.
+    const contractAddress = String(req.params.contractAddress)
+    const methodName = String(req.params.methodName)
     const data = { ...req.query }
 
     if (!projectsService.validateMethod(methodName)) {
@@ -105,7 +108,10 @@ app.get('/projects/query/:contractAddress/:methodName', async (req: Request, res
 
 app.post('/projects/call/:contractAddress/:methodName', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { contractAddress, methodName } = req.params
+    // Express 5 tipa los params como string | string[]; estas rutas reciben
+    // un único valor y los servicios esperan string.
+    const contractAddress = String(req.params.contractAddress)
+    const methodName = String(req.params.methodName)
     const data = req.body || {}
 
     if (!projectsService.validateMethod(methodName)) {
@@ -189,7 +195,10 @@ app.post('/projects/deploy/v5', async (req: Request, res: Response) => {
 
 app.get('/calendar/query/:contractAddress/:methodName', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { contractAddress, methodName } = req.params
+    // Express 5 tipa los params como string | string[]; estas rutas reciben
+    // un único valor y los servicios esperan string.
+    const contractAddress = String(req.params.contractAddress)
+    const methodName = String(req.params.methodName)
     const data = { ...req.query }
 
     console.log("Query params:", req.query)
@@ -212,7 +221,10 @@ app.get('/calendar/query/:contractAddress/:methodName', async (req: Request, res
 
 app.post('/calendar/call/:contractAddress/:methodName', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { contractAddress, methodName } = req.params
+    // Express 5 tipa los params como string | string[]; estas rutas reciben
+    // un único valor y los servicios esperan string.
+    const contractAddress = String(req.params.contractAddress)
+    const methodName = String(req.params.methodName)
     const data = req.body || {}
 
     if (!calendarService.validateMethod(methodName)) {

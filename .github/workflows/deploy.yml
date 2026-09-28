@@ -1,56 +1,60 @@
-name: Deploy to VPS
+# Despliegue al entorno de desarrollo.
+#
+# Cambios frente a la versión anterior:
+#   - Se pasa el SHA que disparó el workflow. El script del servidor hacía
+#     `git reset --hard origin/main`, así que publicaba lo que fuera main en
+#     ese instante, no el commit del workflow.
+#   - Depende de que CI esté verde.
+#   - concurrency: dos despliegues simultáneos se pisaban.
+#   - El script vive en el repo, no suelto en /opt del servidor.
+name: Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
+# Un despliegue a la vez. No se cancela el que está en curso: abortarlo a
+# mitad deja el entorno a medias.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   deploy:
-    name: Deploy to Development Server
+    name: Desplegar en dev
+    needs: ci
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup SSH
+      - name: Configurar SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
-      
-      - name: Add server to known hosts
+
+      - name: Registrar el host
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
-      
-      - name: Deploy to server
+          ssh-keyscan -p "${{ secrets.VPS_PORT }}" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Desplegar
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
+          DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
         run: |
-          echo "🚀 Starting deployment to $VPS_HOST..."
-          
-          ssh -p $VPS_PORT $VPS_USER@$VPS_HOST << 'ENDSSH'
-            set -e
-            echo "📦 Executing deployment script..."
-            /opt/abako-backend/scripts/deploy-ci.sh
-          ENDSSH
-          
-          echo "✅ Deployment completed!"
-      
-      - name: Deployment Summary
+          echo "Desplegando ${{ github.sha }} en $VPS_HOST"
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "$DEPLOY_DIR/repo/infrastructure/deploy.sh '${{ github.sha }}' '$DEPLOY_DIR'"
+
+      - name: Resumen
         if: always()
         run: |
-          if [ ${{ job.status }} == 'success' ]; then
-            echo "### ✅ Deployment Successful" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Deployed to: \`${{ secrets.VPS_HOST }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Check the logs above for details" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "### Despliegue a dev" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Resultado: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
