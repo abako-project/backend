@@ -203,7 +203,7 @@ Every milestone assignment requirement is:
 }
 ```
 
-The adapter persists `roleId`, sends it to mock contracts as `role_id`, and stores it on `milestone_assignments`. Mock approval requires a worker with that role and every listed skill. If any requirement has no candidate, approval returns `400` atomically without assignments or partial availability reservations.
+The adapter translates `roleId` and `skillIds` to the provider request but does not own a proposal mirror. Mock approval requires a worker with the requested role, every listed skill, and enough available hours. If any requirement has no candidate, approval returns `400` atomically without assignments or partial availability reservations. This is the existing matching behavior; task assignee changes do not affect it.
 
 ### Mock ledger and payment endpoints
 
@@ -542,14 +542,38 @@ Deploy a new project contract
 #### PUT /v1/projects/:contractAddress
 Update project information
 
-#### POST /v1/projects/:contractAddress/reject_scope
-Reject project scope
+#### POST /v1/projects/:projectId/propose_scope
+Create a provider-owned `Draft` proposal. Each milestone uses `deliveryTimeHours` and one or more `{ assignmentKey, roleId, skillIds, hours }` positions. The provider atomically creates one empty task storage and returns its hash as `task_storage` on each milestone.
+
+#### PATCH /v1/projects/:projectId/propose_scope
+Update a draft proposal. The current mock preserves milestone count and task-storage hashes.
+
+#### POST /v1/projects/:projectId/submit_scope
+Submit a draft as `PendingApproval`. Every milestone task storage must contain at least one task.
+
+#### POST /v1/projects/:projectId/approve_scope
+Client-only whole-proposal approval. The request body is empty. Approval changes the proposal to `Approved` and runs the existing atomic role, all-skills, and availability matching.
+
+#### POST /v1/projects/:projectId/request_scope_changes
+Client-only change request. Requires `{ "changeRequestUrl": "https://..." }` and returns the proposal to `Draft`.
+
+#### POST /v1/projects/:projectId/cancel_scope
+Client-only cancellation of a pending proposal. Cancelled proposal task storages are immutable.
 
 #### POST /v1/projects/:contractAddress/assign_coordinator
 Assign coordinator to project
 
 #### POST /v1/projects/:projectId/milestones
 Create milestone
+
+### Task Storage Endpoints (`/v1/task-storages`)
+
+- Task storages are created only as part of `propose_scope`; there is no public storage-creation endpoint.
+- `GET /v1/task-storages/:hash` and `GET /v1/task-storages/:hash/tasks/:taskId` require bearer authentication. The project coordinator, client, and task assignees can read.
+- `POST /v1/task-storages/:hash/tasks` lets the coordinator create a task. `PATCH /v1/task-storages/:hash/tasks/:taskId` lets the coordinator edit or reassign it; an assignee may update only `status` and `loggedMinutes`. No delete endpoint exists.
+- A task is returned as `{ "taskId": 1, "task": { ... } }`. Its identity is the `u32` map key, never an `id` inside the task.
+- The provider sets `reporter`, `createdAt`, and `updatedAt`. Dates use Unix seconds; `estimatedMinutes` and `loggedMinutes` are non-negative `u32` integers.
+- Types are `Feature | Bug | Task | Epic | Story`; priorities are `Lowest | Low | Medium | High | Highest | Blocker`; statuses are `To Do | Open | In Progress | In Review | Done | Closed`.
 
 #### GET /v1/projects/:projectId/milestones
 Get project milestones

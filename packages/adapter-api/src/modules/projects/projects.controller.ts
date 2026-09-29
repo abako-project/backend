@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Headers, ParseIntPipe, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Headers, ParseIntPipe, HttpCode } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -10,7 +10,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { ProjectsService } from './projects.service';
-import { CreateProposalRequest, UpdateProposalRequest, ScopeRejectRequest, CreateMilestoneRequest, UpdateMilestoneRequest, MilestoneRejectRequest, ApproveScopeRequest } from './types';
+import { CreateProposalRequest, UpdateProposalRequest, RequestScopeChangesRequest, CreateMilestoneRequest, UpdateMilestoneRequest, MilestoneRejectRequest, ApproveScopeRequest, CoordinatorApprovalRequest } from './types';
 
 @ApiTags('Projects')
 @Controller({ path: 'projects', version: '1' })
@@ -362,8 +362,8 @@ export class ProjectsController {
 
   @Post(':projectId/approve_scope')
   @ApiOperation({
-    summary: 'Approve project scope',
-    description: 'Approves specific tasks from the proposed project scope and triggers team assignment automatically using the team_size already defined in the scope.'
+    summary: 'Approve the pending proposal',
+    description: 'Approves the entire pending proposal and triggers team assignment by role, skills, and availability.'
   })
   @ApiParam({
     name: 'projectId',
@@ -383,15 +383,7 @@ export class ProjectsController {
   @ApiBody({
     schema: {
       type: 'object',
-      properties: {
-        approved_task_ids: {
-          type: 'array',
-          items: { type: 'number' },
-          description: 'Array of task IDs to approve',
-          example: [1, 2, 3]
-        }
-      },
-      required: ['approved_task_ids']
+      properties: {}
     }
   })
   @ApiResponse({
@@ -415,10 +407,10 @@ export class ProjectsController {
     return await this.projectsService.approveScope(projectId, body, token);
   }
 
-  @Post(':projectId/reject_scope')
+  @Post(':projectId/request_scope_changes')
   @ApiOperation({
-    summary: 'Reject project scope',
-    description: 'Rejects the proposed project scope with optional client response'
+    summary: 'Request proposal changes',
+    description: 'Stores the required HTTPS notes URL and returns a pending proposal to Draft.'
   })
   @ApiParam({
     name: 'projectId',
@@ -439,17 +431,19 @@ export class ProjectsController {
     schema: {
       type: 'object',
       properties: {
-        clientResponse: {
+        changeRequestUrl: {
           type: 'string',
-          description: 'Optional client response explaining the rejection',
-          example: 'The proposed scope does not meet our requirements'
+          format: 'uri',
+          description: 'HTTPS location containing the requested changes',
+          example: 'https://notes.example.com/proposals/42'
         }
-      }
+      },
+      required: ['changeRequestUrl']
     }
   })
   @ApiResponse({
     status: 200,
-    description: 'Scope rejected successfully'
+    description: 'Proposal returned to Draft'
   })
   @ApiResponse({
     status: 401,
@@ -459,13 +453,26 @@ export class ProjectsController {
     status: 500,
     description: 'Internal server error'
   })
-  async rejectScope(
+  async requestScopeChanges(
     @Param('projectId') projectId: string,
-    @Body() body: ScopeRejectRequest,
+    @Body() body: RequestScopeChangesRequest,
     @Headers('authorization') authHeader: string
   ) {
     const token = this.extractToken(authHeader);
-    return await this.projectsService.rejectScope(projectId, body, token);
+    return await this.projectsService.requestScopeChanges(projectId, body, token);
+  }
+
+  @Post(':projectId/cancel_scope')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Cancel the pending proposal',
+    description: 'Moves a pending proposal to Cancelled and blocks subsequent task mutations.',
+  })
+  async cancelScope(
+    @Param('projectId') projectId: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    return this.projectsService.cancelScope(projectId, this.extractToken(authHeader));
   }
 
   @Post(':projectId/submit_task_for_review')
@@ -1097,8 +1104,8 @@ export class ProjectsController {
 
   @Post(':projectId/propose_scope')
   @ApiOperation({
-    summary: 'Coordinator approves project and proposes scope',
-    description: 'Coordinator approves a project by creating milestones and proposing scope to the smart contract. This is an atomic operation that saves milestones to the database and converts them into tasks for the blockchain contract.'
+    summary: 'Create a draft proposal',
+    description: 'Creates a provider-owned Draft proposal and one empty task storage per milestone in one atomic operation.'
   })
   @ApiParam({
     name: 'projectId',
@@ -1128,7 +1135,7 @@ export class ProjectsController {
               title: { type: 'string', example: 'Phase 1: Design' },
               description: { type: 'string', example: 'Complete UI/UX design' },
               budget: { type: 'number', example: 5000 },
-              deliveryTime: { type: 'number', example: 15 },
+              deliveryTimeHours: { type: 'number', example: 120 },
               requirements: {
                 type: 'array',
                 items: {
@@ -1146,7 +1153,8 @@ export class ProjectsController {
                   required: ['assignmentKey', 'roleId', 'hours', 'skillIds']
                 }
               }
-            }
+            },
+            required: ['title', 'budget', 'deliveryTimeHours', 'requirements']
           }
         },
         advance_payment_percentage: {
@@ -1165,7 +1173,7 @@ export class ProjectsController {
   })
   @ApiResponse({
     status: 201,
-    description: 'Project approved, milestones created, and scope proposed successfully'
+    description: 'Draft proposal and empty milestone task storages created'
   })
   @ApiResponse({
     status: 401,
@@ -1190,6 +1198,33 @@ export class ProjectsController {
   ) {
     const token = this.extractToken(authHeader);
     return await this.projectsService.coordinatorApproveProject(projectId, body, token);
+  }
+
+  @Patch(':projectId/propose_scope')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update a draft proposal',
+    description: 'Updates proposal terms and milestone fields while preserving milestone task-storage identifiers.',
+  })
+  async updateScope(
+    @Param('projectId') projectId: string,
+    @Body() body: CoordinatorApprovalRequest,
+    @Headers('authorization') authHeader: string,
+  ) {
+    return this.projectsService.updateScope(projectId, body, this.extractToken(authHeader));
+  }
+
+  @Post(':projectId/submit_scope')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Submit a draft proposal',
+    description: 'Moves a complete Draft proposal to PendingApproval. Every milestone storage must contain a task.',
+  })
+  async submitScope(
+    @Param('projectId') projectId: string,
+    @Headers('authorization') authHeader: string,
+  ) {
+    return this.projectsService.submitScope(projectId, this.extractToken(authHeader));
   }
 
   @Post(':projectId/coordinator_reject')
