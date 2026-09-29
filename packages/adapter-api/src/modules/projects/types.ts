@@ -5,7 +5,7 @@ export interface TeamMember {
 }
 
 export interface TaskComplexity {
-  type: 'Abstract' | 'Days' | 'Weeks';
+  type: 'Abstract' | 'Hours' | 'Days' | 'Weeks';
   value: number;
 }
 
@@ -114,7 +114,7 @@ export interface CreateMilestoneRequest {
   title: string;
   description?: string;
   budget: number;
-  deliveryTime: number;
+  deliveryTimeHours: number;
   requirements: Array<{
     assignmentKey: string;
     roleId: number;
@@ -127,7 +127,7 @@ export interface UpdateMilestoneRequest {
   title: string;
   description?: string;
   budget: number;
-  deliveryTime: number;
+  deliveryTimeHours: number;
   requirements: Array<{
     assignmentKey: string;
     roleId: number;
@@ -158,13 +158,11 @@ export interface UpdateProposalRequest {
   deliveryTime: number;
 }
 
-export interface ScopeRejectRequest {
-  clientResponse?: string;
+export interface RequestScopeChangesRequest {
+  changeRequestUrl: string;
 }
 
-export interface ApproveScopeRequest {
-  approved_task_ids: number[];
-}
+export type ApproveScopeRequest = Record<string, never>;
 
 export interface MilestoneRejectRequest {
   rejectionReason?: string;

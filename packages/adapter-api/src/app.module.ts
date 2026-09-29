@@ -18,6 +18,7 @@ import { SeedModule } from './modules/seed/seed.module';
 import { EventsModule } from './modules/events/events.module';
 import { SkillsModule } from './modules/skills/skills.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { TaskStoragesModule } from './modules/task-storages/task-storages.module';
 
 dotenv.config();
 
@@ -42,6 +43,7 @@ dotenv.config();
     EventsModule,
     SkillsModule,
     NotificationsModule,
+    TaskStoragesModule,
     SeedModule,
   ],
   controllers: [],
