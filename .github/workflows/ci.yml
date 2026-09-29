@@ -16,8 +16,14 @@ on:
   # Permite que deploy.yml lo invoque como gate previo.
   workflow_call:
 
+# Incluye el workflow llamante en el grupo a propósito. Un push a dev o main
+# arranca CI dos veces: por su propio trigger y por la copia que invoca
+# deploy.yml. Con el grupo solo por `github.ref` ambas caían en el mismo y se
+# cancelaban entre sí, y si caía la anidada, el `needs: ci` se saltaba el
+# despliegue. En un workflow invocado `github.workflow` es el nombre del
+# llamante, así que cada una va a su grupo.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

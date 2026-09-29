@@ -1,4 +1,10 @@
-# Despliegue al entorno de desarrollo.
+# Despliegue de dev y producción. Mismo VPS, dos entornos aislados por
+# contenedores: cada uno es un proyecto compose propio (abako-dev / abako-prod)
+# con su checkout, su .env y sus puertos de host, y nginx enruta cada dominio
+# a los suyos. La rama decide el entorno:
+#
+#   push a dev  -> /opt/abako/dev   (entorno "dev")
+#   push a main -> /opt/abako/prod  (entorno "production")
 #
 # Cambios frente a la versión anterior:
 #   - Se pasa el SHA que disparó el workflow. El script del servidor hacía
@@ -11,13 +17,14 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [dev, main]
   workflow_dispatch:
 
-# Un despliegue a la vez. No se cancela el que está en curso: abortarlo a
-# mitad deja el entorno a medias.
+# Un despliegue a la vez POR ENTORNO. Un grupo común haría que un push a dev
+# reemplazara un despliegue de producción que estuviera esperando turno.
+# No se cancela el que está en curso: abortarlo a mitad deja el entorno a medias.
 concurrency:
-  group: deploy-dev
+  group: deploy-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -25,9 +32,17 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   deploy:
-    name: Desplegar en dev
+    name: Desplegar en ${{ github.ref_name == 'main' && 'producción' || 'dev' }}
     needs: ci
+    # workflow_dispatch se puede lanzar desde cualquier rama: sin esto, una
+    # rama de feature acabaría publicada en dev.
+    if: github.ref_name == 'dev' || github.ref_name == 'main'
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name == 'main' && 'production' || 'dev' }}
+    env:
+      # Rutas, no secretos: cada entorno tiene aquí su checkout y su .env.
+      DEPLOY_DIR: ${{ github.ref_name == 'main' && '/opt/abako/prod' || '/opt/abako/dev' }}
 
     steps:
       - name: Configurar SSH
@@ -45,16 +60,15 @@ jobs:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
-          DEPLOY_DIR: ${{ secrets.DEPLOY_DIR }}
         run: |
-          echo "Desplegando ${{ github.sha }} en $VPS_HOST"
+          echo "Desplegando ${{ github.sha }} en $VPS_HOST:$DEPLOY_DIR"
           ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
             "$DEPLOY_DIR/repo/infrastructure/deploy.sh '${{ github.sha }}' '$DEPLOY_DIR'"
 
       - name: Resumen
         if: always()
         run: |
-          echo "### Despliegue a dev" >> $GITHUB_STEP_SUMMARY
+          echo "### Despliegue a ${{ github.ref_name == 'main' && 'producción' || 'dev' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Commit: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           echo "Resultado: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
